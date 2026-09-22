@@ -2475,6 +2475,36 @@ class ShmmothBrowserApp {
       return true;
     }));
 
+    ipcMain.handle('download:startTurbo', secureHandlerRaw(async (event, opts) => {
+      if (!this.downloads) return { success: false, error: 'Download manager unavailable' };
+      try {
+        const isIncognito = this.isIncognitoSender(event.sender);
+        const record = await this.downloads.startTurboDownload({
+          ...opts,
+          isIncognito,
+          webContents: event.sender
+        });
+        return { success: true, record };
+      } catch (err) {
+        log.error('Failed to start manual Turbo download', { error: err.message });
+        return { success: false, error: err.message };
+      }
+    }));
+
+    ipcMain.handle('download:getTurboState', secureHandlerRaw(() => {
+      if (!this.downloads) return { isTurboEnabled: false, interfaces: [] };
+      return {
+        isTurboEnabled: this.downloads.isTurboEnabled(),
+        isMultiSourceEnabled: this.downloads.isMultiSourceEnabled(),
+        turboThreads: this.downloads.getTurboThreads(),
+        interfaces: this.downloads.getNetworkInterfaces()
+      };
+    }));
+
+    ipcMain.handle('download:getNetworkInterfaces', secureHandlerRaw(() => {
+      return this.downloads ? this.downloads.getNetworkInterfaces() : [];
+    }));
+
     // ── Cookies & Site Data (Stage 4) ──
     ipcMain.handle('cookies:getAll', secureHandlerRaw(async (event, partition) => {
       const sess = (partition === 'incognito') ? session.fromPartition('incognito') : session.defaultSession;

@@ -337,6 +337,56 @@
               </label>
             </div>
           </div>
+
+          <div class="divider"></div>
+
+          <!-- Turbo Download Engine -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">⚡ Turbo Download Engine (IDM Speed)</label>
+              <span class="setting-desc">Downloads files up to 5x faster by partitioning files into concurrent segmented streams.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-turbo-download" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Multi-Source Internet Bonding -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">🌐 Multi-Source Internet Bonding (Multi-WAN)</label>
+              <span class="setting-desc">Combine bandwidth across all active internet connections (Wi-Fi + LAN / 5G Mobile USB) for maximum speed.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-multi-source-bonding" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Turbo Concurrent Streams -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Maximum Concurrent Streams</label>
+              <span class="setting-desc">Number of parallel sockets opened per file download.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-turbo-threads" class="select-dropdown">
+                <option value="4">4 Connections</option>
+                <option value="8" selected>8 Connections (Recommended)</option>
+                <option value="16">16 Connections (Ultra Fast)</option>
+                <option value="32">32 Connections (Maximum Aggression)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </section>
 

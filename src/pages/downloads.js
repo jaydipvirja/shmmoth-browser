@@ -1,5 +1,5 @@
 // SHMMOTH BROWSER — Downloads Page Controller (mtc://downloads)
-// Stage 3 / Core: Pause, resume, retry, open file, show in folder, remove, search, speed, and ETA
+// Ultra-fast IDM-style Turbo Engine & Multi-Source Internet Bonding Controller
 
 'use strict';
 
@@ -12,6 +12,17 @@ const btnRefresh        = document.getElementById('btn-refresh');
 const btnClearCompleted = document.getElementById('btn-clear-completed');
 const btnBack           = document.getElementById('btn-back');
 const btnOpenFolder     = document.getElementById('btn-open-folder');
+
+// Modal Elements
+const btnAddDownload    = document.getElementById('btn-add-download');
+const modalAddDl        = document.getElementById('modal-add-dl');
+const inputDlUrl        = document.getElementById('input-dl-url');
+const btnModalCancel    = document.getElementById('btn-modal-cancel');
+const btnModalStart     = document.getElementById('btn-modal-start');
+
+// Network Adapters Status Elements
+const activeAdaptersList = document.getElementById('active-adapters-list');
+const bondingStatusBadge = document.getElementById('bonding-status-badge');
 
 function formatBytes(bytes) {
   if (bytes <= 0 || isNaN(bytes)) return '0 B';
@@ -70,6 +81,7 @@ function getFileIcon(filename) {
     case 'bat':
     case 'cmd':
     case 'dmg':
+    case 'iso':
       return '⚙️';
     case 'js':
     case 'ts':
@@ -96,6 +108,39 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+/**
+ * Updates the network status bar showing detected hardware network interfaces.
+ */
+async function refreshNetworkInterfaces() {
+  if (!api || !api.getNetworkInterfaces) return;
+  try {
+    const ifaces = await api.getNetworkInterfaces();
+    if (!activeAdaptersList) return;
+
+    if (!ifaces || ifaces.length === 0) {
+      activeAdaptersList.innerHTML = '<span class="net-badge">No active network adapters</span>';
+      if (bondingStatusBadge) bondingStatusBadge.textContent = 'Offline';
+      return;
+    }
+
+    activeAdaptersList.innerHTML = ifaces.map((i, idx) => `
+      <span class="net-badge dot-green" title="Interface: ${escapeHtml(i.name)} (${escapeHtml(i.address)})">
+        ${escapeHtml(i.name)}: <strong>${escapeHtml(i.address)}</strong>
+      </span>
+    `).join('');
+
+    if (bondingStatusBadge) {
+      if (ifaces.length > 1) {
+        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-WAN Bonding Active (${ifaces.length} Sources)</strong>`;
+        bondingStatusBadge.style.color = '#34d399';
+      } else {
+        bondingStatusBadge.innerHTML = '⚡ Turbo Mode Ready (Single Source)';
+        bondingStatusBadge.style.color = '#60a5fa';
+      }
+    }
+  } catch (_) {}
 }
 
 function renderDownloads() {
@@ -163,26 +208,71 @@ function renderDownloads() {
       `;
     }
 
-    const showProgressBar = record.state === 'progressing' || record.state === 'paused';
+    // Turbo & Bonding Badges
+    let turboBadges = '';
+    if (record.isTurbo) {
+      turboBadges += `<span class="badge-turbo">⚡ Turbo (${record.threadsCount || 8} Streams)</span>`;
+      if (record.isMultiSource) {
+        turboBadges += `<span class="badge-turbo badge-bonding">🌐 Multi-Source</span>`;
+      }
+    }
+
+    // IDM-Style Segmented Visualizer Bar vs Flat Bar
+    let visualizerHtml = '';
+    const isRunning = record.state === 'progressing' || record.state === 'paused';
+
+    if (isRunning) {
+      if (record.isTurbo && record.segments && record.segments.length > 0) {
+        // IDM Segmented Visualizer
+        const segmentsHtml = record.segments.map((seg, sIdx) => {
+          const segPct = seg.percent || (seg.total > 0 ? Math.min(100, Math.round((seg.received / seg.total) * 100)) : 0);
+          const ifaceClass = `iface-${sIdx % 4}`;
+          const ifaceTooltip = seg.interfaceName ? `Part ${sIdx + 1} (${segPct}%) via ${seg.interfaceName}` : `Part ${sIdx + 1} (${segPct}%)`;
+          return `
+            <div class="dl-segment-slot" title="${escapeHtml(ifaceTooltip)}">
+              <div class="dl-segment-fill ${ifaceClass}" style="width: ${segPct}%;"></div>
+            </div>
+          `;
+        }).join('');
+
+        visualizerHtml = `<div class="dl-segments-container">${segmentsHtml}</div>`;
+      } else {
+        // Standard Single-stream bar
+        visualizerHtml = `
+          <div class="dl-progress-bar">
+            <div class="dl-progress-fill ${record.state === 'paused' ? 'paused' : ''}" style="width:${pct}%"></div>
+          </div>
+        `;
+      }
+    }
+
+    // Per-interface speed chips
+    let ifaceChipsHtml = '';
+    if (record.isTurbo && record.interfaces && record.interfaces.length > 1 && record.state === 'progressing') {
+      ifaceChipsHtml = `<div class="dl-interfaces-chips">` + record.interfaces.map(i => {
+        const iSpeed = i.speed > 0 ? `${formatSpeed(i.speed)}` : 'Idle';
+        return `<span class="iface-chip ${i.speed > 0 ? 'active' : ''}">${escapeHtml(i.name)}: ${iSpeed}</span>`;
+      }).join('') + `</div>`;
+    }
 
     div.innerHTML = `
       <div class="dl-icon-container">${fileIcon}</div>
       <div class="dl-body">
         <div class="dl-header">
-          <span class="dl-filename" title="${escapeHtml(record.savePath || record.filename)}">${escapeHtml(record.filename)}</span>
+          <div class="dl-title-row">
+            <span class="dl-filename" title="${escapeHtml(record.savePath || record.filename)}">${escapeHtml(record.filename)}</span>
+            ${turboBadges}
+          </div>
           <span class="dl-state ${escapeHtml(record.state)}">${escapeHtml(record.state)}</span>
         </div>
         <div class="dl-url" title="${escapeHtml(record.url)}">${escapeHtml(record.url)}</div>
-        ${showProgressBar ? `
-          <div class="dl-progress-bar">
-            <div class="dl-progress-fill ${record.state === 'paused' ? 'paused' : ''}" style="width:${pct}%"></div>
-          </div>
-        ` : ''}
+        ${visualizerHtml}
         <div class="dl-footer">
           <div class="dl-meta">
             <span class="dl-size">${sizeStr}</span>
             ${speedStr ? `<span class="dl-speed">${speedStr}</span>` : ''}
             ${etaStr ? `<span class="dl-eta">• ${etaStr}</span>` : ''}
+            ${ifaceChipsHtml}
           </div>
           <div class="dl-actions">
             ${actionButtons}
@@ -280,6 +370,7 @@ async function loadDownloads() {
     }
   }
   renderDownloads();
+  refreshNetworkInterfaces();
 }
 
 // Real-time updates from DownloadManager via IPC push
@@ -323,4 +414,48 @@ btnBack.addEventListener('click', () => {
   }
 });
 
+// Modal Logic
+if (btnAddDownload && modalAddDl) {
+  btnAddDownload.addEventListener('click', () => {
+    modalAddDl.classList.add('open');
+    if (inputDlUrl) {
+      inputDlUrl.value = '';
+      inputDlUrl.focus();
+    }
+  });
+}
+
+if (btnModalCancel && modalAddDl) {
+  btnModalCancel.addEventListener('click', () => {
+    modalAddDl.classList.remove('open');
+  });
+}
+
+if (btnModalStart && inputDlUrl) {
+  btnModalStart.addEventListener('click', async () => {
+    const url = inputDlUrl.value.trim();
+    if (!url) return;
+
+    if (api && api.startTurboDownload) {
+      btnModalStart.disabled = true;
+      btnModalStart.textContent = 'Connecting...';
+      try {
+        const res = await api.startTurboDownload({ url });
+        if (res && res.success) {
+          modalAddDl.classList.remove('open');
+          loadDownloads();
+        } else {
+          alert('Could not start download: ' + (res.error || 'Unknown error'));
+        }
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        btnModalStart.disabled = false;
+        btnModalStart.textContent = 'Download Now 🚀';
+      }
+    }
+  });
+}
+
 loadDownloads();
+refreshNetworkInterfaces();

@@ -130,6 +130,9 @@ const labelDownloadPath             = document.getElementById('label-download-pa
 const btnChangeDownloadFolder       = document.getElementById('btn-change-download-folder');
 const btnOpenDownloadFolderSettings = document.getElementById('btn-open-download-folder-settings');
 const toggleAskWhereToSave          = document.getElementById('toggle-ask-where-to-save');
+const toggleTurboDownload           = document.getElementById('toggle-turbo-download');
+const toggleMultiSourceBonding      = document.getElementById('toggle-multi-source-bonding');
+const selectTurboThreads            = document.getElementById('select-turbo-threads');
 
 function showToast(msg = 'Settings Saved!') {
   toast.textContent = msg;
@@ -177,6 +180,15 @@ async function initSettings() {
       }
       if (labelDownloadPath) {
         labelDownloadPath.textContent = currentSettings.downloadPath || 'Default system downloads folder';
+      }
+      if (toggleTurboDownload) {
+        toggleTurboDownload.checked = currentSettings.turboDownloadEnabled !== false;
+      }
+      if (toggleMultiSourceBonding) {
+        toggleMultiSourceBonding.checked = currentSettings.multiSourceBonding !== false;
+      }
+      if (selectTurboThreads) {
+        selectTurboThreads.value = String(currentSettings.turboThreads || 8);
       }
     } catch (e) {
       console.error('Error loading settings:', e);
@@ -246,6 +258,24 @@ selectTheme.addEventListener('change', () => {
 if (toggleAskWhereToSave) {
   toggleAskWhereToSave.addEventListener('change', () => {
     saveSettingChange({ askWhereToSave: toggleAskWhereToSave.checked });
+  });
+}
+
+if (toggleTurboDownload) {
+  toggleTurboDownload.addEventListener('change', () => {
+    saveSettingChange({ turboDownloadEnabled: toggleTurboDownload.checked });
+  });
+}
+
+if (toggleMultiSourceBonding) {
+  toggleMultiSourceBonding.addEventListener('change', () => {
+    saveSettingChange({ multiSourceBonding: toggleMultiSourceBonding.checked });
+  });
+}
+
+if (selectTurboThreads) {
+  selectTurboThreads.addEventListener('change', () => {
+    saveSettingChange({ turboThreads: Number(selectTurboThreads.value) });
   });
 }
 

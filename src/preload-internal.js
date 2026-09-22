@@ -119,6 +119,9 @@ const apiSurface = {
   toggleDownloadBubble:(bounds) => ipcRenderer.invoke('download:toggleBubble', bounds),
   openDownloadBubble:  (bounds) => ipcRenderer.invoke('download:openBubble', bounds),
   closeDownloadBubble: ()    => ipcRenderer.invoke('download:closeBubble'),
+  startTurboDownload:  (opts) => ipcRenderer.invoke('download:startTurbo', opts),
+  getTurboState:       ()    => ipcRenderer.invoke('download:getTurboState'),
+  getNetworkInterfaces:()    => ipcRenderer.invoke('download:getNetworkInterfaces'),
 
   // ─── Private Browsing & Window (Stage 4) ──────────────────────────────────────
   newIncognitoWindow: () => ipcRenderer.invoke('window:newIncognito'),

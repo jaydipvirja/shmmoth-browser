@@ -27,6 +27,7 @@ const path  = require('path');
 const fs    = require('fs');
 const { app, shell } = require('electron');
 const { downloadLogger: log } = require('../utils/logger');
+const TurboDownloadEngine = require('./turboDownloadEngine');
 
 let _idCounter = 1;
 function generateId() {
@@ -138,8 +139,92 @@ class DownloadManager {
     this._onUpdate = null;
     this._promptSaveDialog = options.promptSaveDialog || null;
 
+    // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
+    this.turboEngine = new TurboDownloadEngine({
+      defaultThreads: 8,
+      minTurboSize: 2 * 1024 * 1024,
+      multiSource: true
+    });
+
+    this._setupTurboListeners();
     this._resolveSaveDir();
     this._loadPersisted();
+  }
+
+  _setupTurboListeners() {
+    this.turboEngine.on('progress', (prog) => {
+      const record = this.downloads[prog.id];
+      if (!record) return;
+      record.received = prog.received;
+      record.total = prog.total;
+      record.speed = prog.speed;
+      record.eta = prog.eta;
+      record.isTurbo = prog.isTurbo;
+      record.isMultiSource = prog.isMultiSource;
+      record.threadsCount = prog.threads;
+      record.segments = prog.segments;
+      record.interfaces = prog.interfaces;
+      record.state = prog.state;
+      this._notify(record);
+    });
+
+    this.turboEngine.on('completed', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.state = 'completed';
+      record.isPaused = false;
+      record.endedAt = Date.now();
+      record.received = data.received;
+      record.total = data.total;
+      record.speed = 0;
+      record.eta = null;
+      log.info(`Turbo download completed: ${record.filename}`, { id: data.id, savePath: data.savePath });
+      this._notify(record);
+      this._persist();
+    });
+
+    this.turboEngine.on('error', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.state = 'interrupted';
+      record.isPaused = false;
+      record.endedAt = Date.now();
+      record.speed = 0;
+      record.eta = null;
+      log.warn(`Turbo download error: ${record.filename}`, { id: data.id, error: data.error });
+      this._notify(record);
+      this._persist();
+    });
+
+    this.turboEngine.on('paused', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.state = 'paused';
+      record.isPaused = true;
+      record.speed = 0;
+      record.eta = null;
+      this._notify(record);
+    });
+
+    this.turboEngine.on('resumed', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.state = 'progressing';
+      record.isPaused = false;
+      this._notify(record);
+    });
+
+    this.turboEngine.on('cancelled', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.state = 'cancelled';
+      record.isPaused = false;
+      record.speed = 0;
+      record.eta = null;
+      record.endedAt = Date.now();
+      this._notify(record);
+      this._persist();
+    });
   }
 
   /**
@@ -285,6 +370,123 @@ class DownloadManager {
     });
 
     log.info(`DownloadManager attached to session ${isIncognito ? '(Incognito)' : '(Default)'}`);
+  }
+
+  isTurboEnabled() {
+    if (this.storage) {
+      try {
+        const settings = this.storage.getSettings ? this.storage.getSettings() : (this.storage.get('settings') || {});
+        return settings.turboDownloadEnabled !== false;
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  isMultiSourceEnabled() {
+    if (this.storage) {
+      try {
+        const settings = this.storage.getSettings ? this.storage.getSettings() : (this.storage.get('settings') || {});
+        return settings.multiSourceBonding !== false;
+      } catch (_) {}
+    }
+    return true;
+  }
+
+  getTurboThreads() {
+    if (this.storage) {
+      try {
+        const settings = this.storage.getSettings ? this.storage.getSettings() : (this.storage.get('settings') || {});
+        return Number(settings.turboThreads) || 8;
+      } catch (_) {}
+    }
+    return 8;
+  }
+
+  getNetworkInterfaces() {
+    return TurboDownloadEngine.getAvailableNetworkInterfaces();
+  }
+
+  /**
+   * Starts an ultra-fast IDM-style Turbo multi-threaded download.
+   */
+  async startTurboDownload(opts = {}) {
+    const { url, filename: customFilename, headers = {}, isIncognito = false, threads } = opts;
+    if (!url || typeof url !== 'string') throw new Error('Valid URL required for Turbo download');
+
+    const id = generateId();
+    this._resolveSaveDir();
+
+    let probe = { acceptsRanges: false, totalBytes: 0, finalUrl: url, filename: 'download' };
+    try {
+      probe = await this.turboEngine.probe(url, headers);
+    } catch (_) {}
+
+    const filename = sanitizeFilename(customFilename || probe.filename || 'download');
+    let savePath = getUniqueSavePath(this._saveDir, filename);
+
+    if (this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
+      try {
+        const dialogResult = await this._promptSaveDialog({
+          filename,
+          defaultPath: savePath,
+          webContents: opts.webContents
+        });
+        if (dialogResult && dialogResult.cancelled) {
+          return null;
+        } else if (dialogResult && dialogResult.filePath) {
+          savePath = dialogResult.filePath;
+        }
+      } catch (err) {
+        log.warn('Error prompting save dialog for turbo download', { error: err.message });
+      }
+    }
+
+    const multiSource = this.isMultiSourceEnabled();
+    const threadCount = threads || this.getTurboThreads();
+
+    const record = {
+      id,
+      filename: path.basename(savePath),
+      url,
+      savePath,
+      state: 'progressing',
+      isPaused: false,
+      isIncognito: Boolean(isIncognito),
+      isTurbo: true,
+      isMultiSource: multiSource,
+      threadsCount: threadCount,
+      received: 0,
+      total: probe.totalBytes || 0,
+      speed: 0,
+      eta: null,
+      startedAt: Date.now(),
+      endedAt: null,
+      segments: [],
+      interfaces: [],
+      item: null
+    };
+
+    this.downloads[id] = record;
+    log.info(`Turbo download started: ${record.filename}`, { id, url: url.slice(0, 100), isIncognito });
+    this._notify(record);
+    this._persist();
+
+    this.turboEngine.start({
+      id,
+      url,
+      savePath,
+      headers,
+      threads: threadCount,
+      totalBytes: probe.totalBytes,
+      multiSource
+    }).catch(err => {
+      log.error(`Turbo download failed to start: ${record.filename}`, { error: err.message });
+      record.state = 'interrupted';
+      this._notify(record);
+      this._persist();
+    });
+
+    return record;
   }
 
   async _handleDownload(item, webContents = null, options = {}) {
@@ -442,7 +644,11 @@ class DownloadManager {
 
   pauseDownload(id) {
     const record = this.downloads[id];
-    if (!record || !record.item) return false;
+    if (!record) return false;
+    if (record.isTurbo) {
+      return this.turboEngine.pause(id);
+    }
+    if (!record.item) return false;
     if (record.state === 'progressing') {
       try {
         record.item.pause();
@@ -462,7 +668,11 @@ class DownloadManager {
 
   resumeDownload(id) {
     const record = this.downloads[id];
-    if (!record || !record.item) return false;
+    if (!record) return false;
+    if (record.isTurbo) {
+      return this.turboEngine.resume(id);
+    }
+    if (!record.item) return false;
     if (record.item.canResume()) {
       try {
         record.item.resume();
@@ -483,6 +693,9 @@ class DownloadManager {
   cancelDownload(id) {
     const record = this.downloads[id];
     if (!record) return false;
+    if (record.isTurbo) {
+      return this.turboEngine.cancel(id);
+    }
     if (record.item && (record.state === 'progressing' || record.state === 'paused')) {
       try {
         record.item.cancel();

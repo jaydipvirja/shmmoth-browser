@@ -35,7 +35,30 @@
       gap: 8px;
     }
     .dl-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .dl-filename { font-size: 14.5px; font-weight: 600; color: #f1f5f9; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-title-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+    .dl-filename { font-size: 14.5px; font-weight: 600; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    
+    .badge-turbo {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: rgba(59,130,246,0.25);
+      color: #60a5fa;
+      border: 1px solid rgba(96,165,250,0.4);
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+    .badge-bonding {
+      background: rgba(16,185,129,0.25);
+      color: #34d399;
+      border-color: rgba(52,211,153,0.4);
+    }
+
     .dl-state { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 12px; text-transform: capitalize; }
     .dl-state.progressing { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
     .dl-state.paused      { background: rgba(234,179,8,0.2);  color: #facc15; border: 1px solid rgba(250,204,21,0.3); }
@@ -43,13 +66,58 @@
     .dl-state.cancelled   { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); }
     .dl-state.interrupted { background: rgba(239,68,68,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
     .dl-url { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    
+    /* Single flat progress bar (standard mode) */
     .dl-progress-bar { height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; }
     .dl-progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.25s ease-out; }
     .dl-progress-fill.paused { background: #eab308; }
+
+    /* IDM-Style Multi-Segment Visualizer Bar */
+    .dl-segments-container {
+      display: flex;
+      height: 12px;
+      gap: 2px;
+      background: #0b1120;
+      border-radius: 4px;
+      padding: 2px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.08);
+      margin: 4px 0;
+    }
+    .dl-segment-slot {
+      flex: 1;
+      height: 100%;
+      background: #1e293b;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+    .dl-segment-fill {
+      height: 100%;
+      width: 0%;
+      background: #3b82f6;
+      transition: width 0.2s linear;
+    }
+    .dl-segment-fill.iface-0 { background: #3b82f6; } /* Blue (e.g. Wi-Fi) */
+    .dl-segment-fill.iface-1 { background: #10b981; } /* Emerald (e.g. Mobile USB) */
+    .dl-segment-fill.iface-2 { background: #f59e0b; } /* Amber (e.g. LAN) */
+    .dl-segment-fill.iface-3 { background: #a855f7; } /* Purple */
+
     .dl-footer { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #64748b; flex-wrap: wrap; gap: 8px; }
-    .dl-meta { display: flex; align-items: center; gap: 10px; color: #94a3b8; }
-    .dl-speed { color: #60a5fa; font-weight: 500; }
+    .dl-meta { display: flex; align-items: center; gap: 10px; color: #94a3b8; flex-wrap: wrap; }
+    .dl-speed { color: #60a5fa; font-weight: 600; }
     .dl-eta { color: #cbd5e1; }
+    .dl-interfaces-chips { display: inline-flex; gap: 6px; }
+    .iface-chip {
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      background: rgba(255,255,255,0.06);
+      color: #94a3b8;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .iface-chip.active { color: #34d399; border-color: rgba(52,211,153,0.3); }
+
     .dl-actions { display: flex; gap: 6px; align-items: center; }
     .btn-dl-action {
       background: rgba(255,255,255,0.07);
@@ -95,15 +163,89 @@
       border-color: #3b82f6;
     }
     .empty-state { color: #64748b; padding: 48px 0; text-align: center; font-size: 14px; }
-    .security-note {
-      background: rgba(16,185,129,0.08);
-      border: 1px solid rgba(16,185,129,0.2);
+
+    /* Turbo Status Card */
+    .network-sources-bar {
+      background: linear-gradient(90deg, rgba(30,58,138,0.25), rgba(15,23,42,0.6));
+      border: 1px solid rgba(59,130,246,0.3);
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 12px;
-      color: #6ee7b7;
+      color: #cbd5e1;
       margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
     }
+    .network-sources-list {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .net-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.06);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      color: #93c5fd;
+      border: 1px solid rgba(147,197,253,0.25);
+    }
+    .net-badge.dot-green::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    /* Modal for Add Download */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      visibility: hidden;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .modal-overlay.open {
+      visibility: visible;
+      opacity: 1;
+    }
+    .modal-box {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 12px;
+      width: 500px;
+      max-width: 90vw;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+    }
+    .modal-box h3 { margin: 0 0 12px 0; color: #f1f5f9; font-size: 16px; }
+    .modal-box input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 6px;
+      padding: 10px 12px;
+      color: #ffffff;
+      font-size: 13px;
+      box-sizing: border-box;
+      margin-bottom: 14px;
+      outline: none;
+    }
+    .modal-box input:focus { border-color: #3b82f6; }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
   </style>
 </head>
 <body>
@@ -117,6 +259,7 @@
         <h2>Downloads</h2>
       </div>
       <div style="padding: 0 8px; display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-add-download" class="btn-primary" style="width:100%; font-weight:600;">⚡ + Add Turbo Download</button>
         <button id="btn-open-folder" class="btn-secondary" style="width:100%;">📂 Open Downloads Folder</button>
         <button id="btn-clear-completed" class="btn-secondary" style="width:100%;">Clear Completed</button>
         <button id="btn-back" class="btn-return" style="width:100%; margin-top: 8px;">← Back to Browsing</button>
@@ -125,13 +268,21 @@
 
     <main class="content-area">
       <div class="section-title">
-        <h2>Download Manager</h2>
-        <p>Monitor real-time download progress, transfer speed, and manage completed files.</p>
+        <h2>Turbo Download Manager</h2>
+        <p>Ultra-fast multi-threaded segmented downloading with Multi-Source Internet Bonding.</p>
       </div>
 
-      <div class="security-note">
-        🔒 <strong>Security Guarantee:</strong> Downloaded files are never executed automatically.
-        Use "Open File" or "Show in Folder" to inspect files after download.
+      <!-- Live Network Sources Status Card -->
+      <div id="network-sources-bar" class="network-sources-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span>⚡ <strong>Multi-Network Engine:</strong></span>
+          <div id="active-adapters-list" class="network-sources-list">
+            <span class="net-badge dot-green">Scanning network adapters...</span>
+          </div>
+        </div>
+        <div id="bonding-status-badge" style="font-size: 11px; color: #34d399; font-weight: 600;">
+          Multi-WAN Ready
+        </div>
       </div>
 
       <div class="toolbar">
@@ -143,6 +294,21 @@
         <p class="empty-state">Loading downloads...</p>
       </div>
     </main>
+  </div>
+
+  <!-- Add Turbo Download Modal -->
+  <div id="modal-add-dl" class="modal-overlay">
+    <div class="modal-box">
+      <h3>⚡ Add Turbo Download</h3>
+      <p style="font-size:12px; color:#94a3b8; margin-top:0; margin-bottom:12px;">
+        Paste any direct file URL. SHMMOTH will split it into parallel sockets across all connected network adapters!
+      </p>
+      <input type="url" id="input-dl-url" placeholder="https://example.com/largefile.zip" autofocus>
+      <div class="modal-actions">
+        <button id="btn-modal-cancel" class="btn-secondary">Cancel</button>
+        <button id="btn-modal-start" class="btn-primary" style="font-weight:600;">Download Now 🚀</button>
+      </div>
+    </div>
   </div>
 
   <script src="downloads.js"></script>
