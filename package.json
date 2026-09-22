@@ -1,6 +1,6 @@
 {
   "name": "mtc-browser",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "MTC BROWSER - A Fast, Modern, Personal Desktop Browser powered by Chromium",
   "main": "src/main.js",
   "scripts": {
@@ -50,6 +50,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,

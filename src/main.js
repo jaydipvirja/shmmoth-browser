@@ -2968,6 +2968,15 @@ class ShmmothBrowserApp {
   }
 }
 
+// ─── Process Error Guards ───────────────────────────────────────────────────
+process.on('uncaughtException', (err) => {
+  log.error('Uncaught exception in main process', { error: err?.message, stack: err?.stack });
+});
+
+process.on('unhandledRejection', (reason) => {
+  log.error('Unhandled rejection in main process', { error: reason?.message || String(reason) });
+});
+
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 const shmmothApp = new ShmmothBrowserApp();
