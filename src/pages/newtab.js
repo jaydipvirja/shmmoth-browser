@@ -106,13 +106,21 @@ searchForm.addEventListener('submit', async (e) => {
   } else if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(\/.*)?$/.test(query)) {
     targetUrl = 'https://' + query;
   } else {
-    // Search using Google
+    // Search using selected engine
+    const engineMap = {
+      google:     'https://www.google.com/search?q=',
+      duckduckgo: 'https://duckduckgo.com/?q=',
+      bing:       'https://www.bing.com/search?q='
+    };
     let searchEngineUrl = 'https://www.google.com/search?q=';
     if (window.mtcAPI && window.mtcAPI.getSettings) {
       try {
         const settings = await window.mtcAPI.getSettings();
-        if (settings && settings.searchEngineUrls && settings.searchEngine) {
-          searchEngineUrl = settings.searchEngineUrls[settings.searchEngine] || searchEngineUrl;
+        if (settings && settings.searchEngine) {
+          const se = settings.searchEngine.toLowerCase();
+          searchEngineUrl = (settings.searchEngineUrls && settings.searchEngineUrls[se]) ||
+                            engineMap[se] ||
+                            'https://www.google.com/search?q=';
         }
       } catch (err) {}
     }
@@ -206,7 +214,25 @@ async function checkIncognito() {
   } catch (_) {}
 }
 
+// Theme Handling
+async function initTheme() {
+  try {
+    if (window.mtcAPI && window.mtcAPI.getSettings) {
+      const s = await window.mtcAPI.getSettings();
+      if (s && s.theme) {
+        document.body.classList.toggle('theme-light', s.theme === 'light');
+      }
+    }
+    if (window.mtcAPI && window.mtcAPI.onThemeChanged) {
+      window.mtcAPI.onThemeChanged((theme) => {
+        document.body.classList.toggle('theme-light', theme === 'light');
+      });
+    }
+  } catch (_) {}
+}
+
 checkIncognito();
 loadShortcuts();
 loadStats();
+initTheme();
 

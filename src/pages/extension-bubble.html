@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extensions</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      padding: 4px;
+    }
+
+    .bubble-container {
+      width: 100%;
+      height: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    .bubble-header {
+      height: 44px;
+      background: #182234;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .bubble-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .bubble-title-icon {
+      font-size: 15px;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .btn-close:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    /* List Area */
+    .bubble-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .bubble-body::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .bubble-body::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 3px;
+    }
+
+    .ext-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 14px;
+      gap: 10px;
+      transition: background 0.15s ease;
+      cursor: default;
+    }
+
+    .ext-item:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .ext-item-main {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 0;
+      cursor: pointer;
+    }
+
+    .ext-item-icon {
+      font-size: 16px;
+      width: 22px;
+      height: 22px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .ext-item-icon img {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+    }
+
+    .ext-item-name {
+      font-size: 13px;
+      color: #f1f5f9;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 500;
+    }
+
+    .ext-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-shrink: 0;
+    }
+
+    .btn-pin {
+      background: transparent;
+      border: none;
+      font-size: 13px;
+      cursor: pointer;
+      padding: 3px 6px;
+      border-radius: 4px;
+      color: #94a3b8;
+      transition: all 0.15s ease;
+    }
+
+    .btn-pin:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+    }
+
+    .btn-pin.pinned {
+      color: #38bdf8;
+    }
+
+    .empty-state {
+      padding: 28px 16px;
+      text-align: center;
+      color: #94a3b8;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    .bubble-footer {
+      height: 44px;
+      background: #182234;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .btn-manage-ext {
+      width: 100%;
+      height: 32px;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      color: #f1f5f9;
+      font-size: 12.5px;
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .btn-manage-ext:hover {
+      background: rgba(255, 255, 255, 0.12);
+      color: #ffffff;
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="bubble-container">
+    <div class="bubble-header">
+      <div class="bubble-title">
+        <span class="bubble-title-icon">🧩</span>
+        <span>Extensions</span>
+      </div>
+      <button id="btn-close" class="btn-close" title="Close">✕</button>
+    </div>
+
+    <div id="ext-list" class="bubble-body">
+      <!-- Dynamic list -->
+    </div>
+
+    <div class="bubble-footer">
+      <button id="btn-manage" class="btn-manage-ext">
+        <span>🧩</span>
+        <span>Manage extensions</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const api = window.mtcAPI || window.shmmothAPI;
+    const extListContainer = document.getElementById('ext-list');
+    const btnManage = document.getElementById('btn-manage');
+    const btnClose = document.getElementById('btn-close');
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    async function loadExtensions() {
+      if (!api || !api.getAllExtensions) return;
+      try {
+        const res = await api.getAllExtensions();
+        const list = Array.isArray(res && res.extensions) ? res.extensions : (Array.isArray(res) ? res : []);
+        render(list);
+      } catch (e) {
+        console.error('Error loading extensions', e);
+      }
+    }
+
+    function render(list) {
+      if (!list || list.length === 0) {
+        extListContainer.innerHTML = '<div class="empty-state">No extensions installed yet.<br><small>Click below to install or manage extensions.</small></div>';
+        return;
+      }
+
+      extListContainer.innerHTML = '';
+      list.forEach(ext => {
+        const item = document.createElement('div');
+        item.className = 'ext-item';
+
+        let iconHtml = '🧩';
+        if (ext.icons && (ext.icons['32'] || ext.icons['16'] || ext.icons['48'])) {
+          const rel = ext.icons['32'] || ext.icons['16'] || ext.icons['48'];
+          const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${rel.replace(/^[\\\/]+/, '')}`;
+          iconHtml = `<img src="${iconPath}" onerror="this.parentElement.textContent='🧩'"/>`;
+        }
+
+        item.innerHTML = `
+          <div class="ext-item-main" title="${escapeHtml(ext.name)}">
+            <div class="ext-item-icon">${iconHtml}</div>
+            <span class="ext-item-name">${escapeHtml(ext.name)}</span>
+          </div>
+          <div class="ext-item-actions">
+            <button class="btn-pin ${ext.pinned ? 'pinned' : ''}" title="${ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar'}">
+              ${ext.pinned ? '📌' : '📍'}
+            </button>
+          </div>
+        `;
+
+        item.querySelector('.ext-item-main').addEventListener('click', async () => {
+          if (api && api.triggerExtensionAction) {
+            await api.triggerExtensionAction(ext.id);
+            if (api.closeExtensionBubble) api.closeExtensionBubble();
+          }
+        });
+
+        const pinBtn = item.querySelector('.btn-pin');
+        pinBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (api && api.togglePinExtension) {
+            const nextPinned = !ext.pinned;
+            ext.pinned = nextPinned;
+            await api.togglePinExtension(ext.id, nextPinned);
+            pinBtn.classList.toggle('pinned', nextPinned);
+            pinBtn.textContent = nextPinned ? '📌' : '📍';
+            pinBtn.title = nextPinned ? 'Unpin from toolbar' : 'Pin to toolbar';
+          }
+        });
+
+        extListContainer.appendChild(item);
+      });
+    }
+
+    btnManage.addEventListener('click', () => {
+      if (api && api.createTab) {
+        api.createTab('mtc://extensions');
+      }
+      if (api && api.closeExtensionBubble) {
+        api.closeExtensionBubble();
+      } else {
+        window.close();
+      }
+    });
+
+    btnClose.addEventListener('click', () => {
+      if (api && api.closeExtensionBubble) {
+        api.closeExtensionBubble();
+      } else {
+        window.close();
+      }
+    });
+
+    if (api && api.onExtensionsUpdated) {
+      api.onExtensionsUpdated((list) => {
+        render(Array.isArray(list) ? list : []);
+      });
+    }
+
+    loadExtensions();
+  </script>
+</body>
+</html>

@@ -158,6 +158,7 @@ async function initSettings() {
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       selectTheme.value = currentSettings.theme || 'dark';
+      document.body.classList.toggle('theme-light', (currentSettings.theme === 'light'));
 
       if (selectAiProvider.value === 'custom') {
         rowCustomAi.style.display = 'flex';
@@ -251,7 +252,9 @@ selectRamTimeout.addEventListener('change', () => {
 });
 
 selectTheme.addEventListener('change', () => {
-  saveSettingChange({ theme: selectTheme.value });
+  const newTheme = selectTheme.value;
+  document.body.classList.toggle('theme-light', (newTheme === 'light'));
+  saveSettingChange({ theme: newTheme });
 });
 
 // ─── Download Settings Handlers ─────────────────────────────────────────────

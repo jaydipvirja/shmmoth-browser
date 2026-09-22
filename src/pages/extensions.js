@@ -69,6 +69,19 @@
           renderGrid();
         });
       }
+
+      // Theme sync
+      if (api.getSettings) {
+        const s = await api.getSettings().catch(() => ({}));
+        if (s && s.theme) {
+          document.body.classList.toggle('theme-light', s.theme === 'light');
+        }
+      }
+      if (api.onThemeChanged) {
+        api.onThemeChanged((theme) => {
+          document.body.classList.toggle('theme-light', theme === 'light');
+        });
+      }
     } catch (err) {
       console.error('[EXTENSIONS] Failed to load extensions:', err);
       showToast('Error loading extensions: ' + err.message);

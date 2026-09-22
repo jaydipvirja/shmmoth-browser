@@ -997,3 +997,90 @@ input:checked + .slider:before {
   from { opacity: 0; transform: scale(0.98); }
   to   { opacity: 1; transform: scale(1); }
 }
+
+/* ─── Light Theme Support for Settings ───────────────────────────────────── */
+body.theme-light {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+body.theme-light .sidebar {
+  background: #ffffff;
+  border-right: 1px solid #e2e8f0;
+}
+
+body.theme-light .sidebar-header h2 {
+  color: #0f172a;
+}
+
+body.theme-light .nav-item {
+  color: #475569;
+}
+
+body.theme-light .nav-item:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+}
+
+body.theme-light .nav-item.active {
+  background: rgba(37, 99, 235, 0.1);
+  color: #2563eb;
+}
+
+body.theme-light .btn-back {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #334155;
+}
+
+body.theme-light .btn-back:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+body.theme-light .content-header h1 {
+  color: #0f172a;
+}
+
+body.theme-light .settings-section {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+body.theme-light .settings-section h3 {
+  color: #0f172a;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+body.theme-light .setting-label {
+  color: #0f172a;
+}
+
+body.theme-light .setting-desc {
+  color: #64748b;
+}
+
+body.theme-light .select-input,
+body.theme-light .text-input {
+  background: #f8fafc;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+}
+
+body.theme-light .modal-card {
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.2);
+}
+
+body.theme-light .modal-header h3 {
+  color: #0f172a;
+}
+
+body.theme-light .modal-footer {
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+}
+

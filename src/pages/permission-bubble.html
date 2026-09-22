@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Website Permission Request</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      padding: 4px;
+    }
+
+    .bubble-container {
+      width: 100%;
+      height: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(59, 130, 246, 0.45);
+      border-radius: 12px;
+      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      padding: 14px 16px;
+      gap: 10px;
+    }
+
+    .bubble-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+
+    .bubble-icon {
+      font-size: 20px;
+      line-height: 1;
+      padding-top: 2px;
+    }
+
+    .bubble-info {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      overflow: hidden;
+    }
+
+    .bubble-origin {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #ffffff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .bubble-desc {
+      font-size: 12px;
+      color: #94a3b8;
+      line-height: 1.3;
+    }
+
+    .bubble-close-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 15px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+      line-height: 1;
+    }
+
+    .bubble-close-btn:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .bubble-options {
+      font-size: 12px;
+      color: #94a3b8;
+      padding-left: 2px;
+    }
+
+    .remember-label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+    }
+
+    .remember-label input {
+      accent-color: #3b82f6;
+      cursor: pointer;
+    }
+
+    .bubble-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: auto;
+    }
+
+    .btn-block {
+      background: #334155;
+      color: #e2e8f0;
+      border: none;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-block:hover {
+      background: #475569;
+    }
+
+    .btn-allow {
+      background: #2563eb;
+      color: #ffffff;
+      border: none;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    .btn-allow:hover {
+      background: #3b82f6;
+    }
+  </style>
+</head>
+<body>
+  <div class="bubble-container">
+    <div class="bubble-header">
+      <span id="perm-icon" class="bubble-icon">🔒</span>
+      <div class="bubble-info">
+        <strong id="perm-origin" class="bubble-origin">Website</strong>
+        <span id="perm-desc" class="bubble-desc">wants permission</span>
+      </div>
+      <button id="btn-close" class="bubble-close-btn" title="Dismiss">✕</button>
+    </div>
+
+    <div class="bubble-options">
+      <label class="remember-label">
+        <input type="checkbox" id="cb-remember" checked>
+        <span>Always remember for this site</span>
+      </label>
+    </div>
+
+    <div class="bubble-actions">
+      <button id="btn-block" class="btn-block">Block</button>
+      <button id="btn-allow" class="btn-allow">Allow</button>
+    </div>
+  </div>
+
+  <script>
+    const api = window.mtcAPI || window.shmmothAPI;
+    let currentRequestId = null;
+
+    const permIcon   = document.getElementById('perm-icon');
+    const permOrigin = document.getElementById('perm-origin');
+    const permDesc   = document.getElementById('perm-desc');
+    const cbRemember = document.getElementById('cb-remember');
+    const btnBlock   = document.getElementById('btn-block');
+    const btnAllow   = document.getElementById('btn-allow');
+    const btnClose   = document.getElementById('btn-close');
+
+    function respond(decision) {
+      if (currentRequestId && api && api.respondPermissionRequest) {
+        api.respondPermissionRequest(currentRequestId, decision, cbRemember.checked);
+      }
+      currentRequestId = null;
+      if (api && api.closePermissionBubble) {
+        api.closePermissionBubble();
+      } else {
+        window.close();
+      }
+    }
+
+    btnAllow.addEventListener('click', () => respond('allow'));
+    btnBlock.addEventListener('click', () => respond('block'));
+    btnClose.addEventListener('click', () => respond('block'));
+
+    if (api && api.onPermissionRequest) {
+      api.onPermissionRequest((data) => {
+        if (!data) return;
+        currentRequestId = data.requestId;
+        permOrigin.textContent = data.origin || 'Website';
+
+        let desc = `wants to use ${data.permission}`;
+        let icon = '🔒';
+        if (data.permission === 'media') {
+          icon = '📷';
+          desc = 'wants to use your camera and microphone';
+        } else if (data.permission === 'geolocation') {
+          icon = '📍';
+          desc = 'wants to know your location';
+        } else if (data.permission === 'notifications') {
+          icon = '🔔';
+          desc = 'wants to show notifications';
+        } else if (data.permission === 'pointerLock') {
+          icon = '🖱️';
+          desc = 'wants to lock your mouse pointer';
+        }
+
+        permIcon.textContent = icon;
+        permDesc.textContent = desc;
+      });
+    }
+  </script>
+</body>
+</html>

@@ -64,10 +64,12 @@ const apiSurface = {
   onZoomChanged: (cb)    => ipcRenderer.on('zoom:changed', (_, data) => cb(data)),
 
   // ─── Push Events from Main Process ──────────────────────────────────────────
-  onTabsUpdated:      (cb) => ipcRenderer.on('tabs:updated',    (_, tabs, activeTabId) => cb(tabs, activeTabId)),
-  onNavigationState:  (cb) => ipcRenderer.on('tab:navState',    (_, state) => cb(state)),
-  onAdsCountUpdate:   (cb) => ipcRenderer.on('adblocker:count', (_, count) => cb(count)),
-  onDownloadUpdate:   (cb) => ipcRenderer.on('download:update', (_, info)  => cb(info)),
+  onTabsUpdated:      (cb) => ipcRenderer.on('tabs:updated',      (_, tabs, activeTabId) => cb(tabs, activeTabId)),
+  onNavigationState:  (cb) => ipcRenderer.on('tab:navState',      (_, state) => cb(state)),
+  onAdsCountUpdate:   (cb) => ipcRenderer.on('adblocker:count',   (_, count) => cb(count)),
+  onDownloadUpdate:   (cb) => ipcRenderer.on('download:update',   (_, info)  => cb(info)),
+  onThemeChanged:     (cb) => ipcRenderer.on('theme:changed',     (_, theme) => cb(theme)),
+  onSettingsUpdated:  (cb) => ipcRenderer.on('settings:updated',  (_, s)     => cb(s)),
 
   // ─── Settings ────────────────────────────────────────────────────────────────
   getSettings:    ()      => ipcRenderer.invoke('settings:get'),
@@ -148,6 +150,8 @@ const apiSurface = {
   clearAllPermissions:       ()                             => ipcRenderer.invoke('permissions:clearAll'),
   respondPermissionRequest:  (requestId, decision, remember)=> ipcRenderer.invoke('permissions:respond', requestId, decision, remember),
   onPermissionRequest:       (callback)                     => ipcRenderer.on('permission:request', (_, data) => callback(data)),
+  openPermissionBubble:      (data)                         => ipcRenderer.invoke('permissions:openBubble', data),
+  closePermissionBubble:     ()                             => ipcRenderer.invoke('permissions:closeBubble'),
 
   // ─── Passwords & Credentials (Stage 6) ─────────────────────────────────────────
   getAllPasswords:            ()                           => ipcRenderer.invoke('passwords:getAll'),
@@ -195,6 +199,14 @@ const apiSurface = {
   clearExtensionErrors:     (id)                         => ipcRenderer.invoke('extensions:clearErrors', id),
   checkExtensionUpdates:    (id)                         => ipcRenderer.invoke('extensions:checkForUpdates', id),
   openExtensionPopup:       (id, bounds)                 => ipcRenderer.invoke('extensions:openPopup', id, bounds),
+  toggleExtensionBubble:    (bounds)                     => ipcRenderer.invoke('extensions:toggleBubble', bounds),
+  openExtensionBubble:      (bounds)                     => ipcRenderer.invoke('extensions:openBubble', bounds),
+  closeExtensionBubble:     ()                           => ipcRenderer.invoke('extensions:closeBubble'),
+  toggleShieldBubble:       (bounds)                     => ipcRenderer.invoke('shield:toggleBubble', bounds),
+  openShieldBubble:         (bounds)                     => ipcRenderer.invoke('shield:openBubble', bounds),
+  closeShieldBubble:        ()                           => ipcRenderer.invoke('shield:closeBubble'),
+  triggerExtensionAction:   (id)                         => ipcRenderer.invoke('extensions:triggerAction', id),
+  togglePinExtension:       (id, pinned)                 => ipcRenderer.invoke('extensions:setPinned', id, pinned),
   onExtensionsUpdated:      (callback)                   => ipcRenderer.on('extensions:updated', (_, list) => callback(list)),
 
   // ─── Auto-Update (Chromium / electron-updater) ──────────────────────────────

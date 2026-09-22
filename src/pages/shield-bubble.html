@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SHMMOTH Shield</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background: transparent;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      display: flex;
+      flex-direction: column;
+      padding: 4px;
+    }
+
+    .bubble-container {
+      width: 100%;
+      height: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+      border-radius: 12px;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .bubble-header {
+      height: 44px;
+      background: #182234;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      flex-shrink: 0;
+    }
+
+    .bubble-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #f8fafc;
+    }
+
+    .bubble-title-icon {
+      font-size: 15px;
+      color: #10b981;
+    }
+
+    .btn-close {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 14px;
+      cursor: pointer;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .btn-close:hover {
+      color: #ffffff;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .bubble-body {
+      flex: 1;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+
+    .shield-badge-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .shield-count {
+      font-size: 32px;
+      font-weight: 800;
+      color: #34d399;
+      line-height: 1;
+      letter-spacing: -0.5px;
+    }
+
+    .shield-label {
+      font-size: 12px;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+
+    .toggle-card {
+      width: 100%;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .toggle-text {
+      text-align: left;
+    }
+
+    .toggle-text strong {
+      display: block;
+      font-size: 13px;
+      color: #ffffff;
+    }
+
+    .toggle-text span {
+      font-size: 11px;
+      color: #94a3b8;
+    }
+
+    /* Switch */
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 38px;
+      height: 22px;
+      flex-shrink: 0;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: #334155;
+      transition: .2s;
+      border-radius: 22px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 16px;
+      width: 16px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .2s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #10b981;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(16px);
+    }
+
+    .bubble-footer {
+      height: 42px;
+      background: #182234;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      flex-shrink: 0;
+    }
+
+    .btn-settings-link {
+      width: 100%;
+      height: 28px;
+      background: transparent;
+      border: none;
+      color: #38bdf8;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border-radius: 4px;
+      transition: background 0.15s;
+    }
+
+    .btn-settings-link:hover {
+      background: rgba(56, 189, 248, 0.1);
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="bubble-container">
+    <div class="bubble-header">
+      <div class="bubble-title">
+        <span class="bubble-title-icon">🛡️</span>
+        <span>SHMMOTH Shield</span>
+      </div>
+      <button id="btn-close" class="btn-close" title="Close">✕</button>
+    </div>
+
+    <div class="bubble-body">
+      <div class="shield-badge-hero">
+        <div id="shield-count" class="shield-count">0</div>
+        <div class="shield-label">Ads & Trackers Blocked</div>
+      </div>
+
+      <div class="toggle-card">
+        <div class="toggle-text">
+          <strong>Ad & Tracker Blocking</strong>
+          <span id="shield-status-sub">Protecting this session</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-shield" checked>
+          <span class="slider"></span>
+        </label>
+      </div>
+    </div>
+
+    <div class="bubble-footer">
+      <button id="btn-settings" class="btn-settings-link">
+        <span>⚙️</span>
+        <span>Privacy & Shield Settings</span>
+      </button>
+    </div>
+  </div>
+
+  <script>
+    const api = window.mtcAPI || window.shmmothAPI;
+    const shieldCount = document.getElementById('shield-count');
+    const toggleShield = document.getElementById('toggle-shield');
+    const statusSub = document.getElementById('shield-status-sub');
+    const btnSettings = document.getElementById('btn-settings');
+    const btnClose = document.getElementById('btn-close');
+
+    async function init() {
+      if (!api) return;
+      try {
+        if (api.getAdsBlockedCount) {
+          const count = await api.getAdsBlockedCount();
+          shieldCount.textContent = count || 0;
+        }
+        if (api.getSettings) {
+          const s = await api.getSettings();
+          const enabled = s.adBlockerEnabled ?? true;
+          toggleShield.checked = enabled;
+          updateStatusText(enabled);
+        }
+      } catch (e) {
+        console.error('Shield bubble error', e);
+      }
+    }
+
+    function updateStatusText(enabled) {
+      if (enabled) {
+        statusSub.textContent = 'Protecting this session';
+        statusSub.style.color = '#34d399';
+      } else {
+        statusSub.textContent = 'Shield is paused';
+        statusSub.style.color = '#f87171';
+      }
+    }
+
+    toggleShield.addEventListener('change', async () => {
+      const isEnabled = toggleShield.checked;
+      updateStatusText(isEnabled);
+      if (api && api.updateSettings) {
+        await api.updateSettings({ adBlockerEnabled: isEnabled });
+      }
+    });
+
+    btnSettings.addEventListener('click', () => {
+      if (api && api.createTab) {
+        api.createTab('mtc://settings#privacy');
+      }
+      if (api && api.closeShieldBubble) {
+        api.closeShieldBubble();
+      } else {
+        window.close();
+      }
+    });
+
+    btnClose.addEventListener('click', () => {
+      if (api && api.closeShieldBubble) {
+        api.closeShieldBubble();
+      } else {
+        window.close();
+      }
+    });
+
+    if (api && api.onAdsCountUpdate) {
+      api.onAdsCountUpdate((count) => {
+        shieldCount.textContent = count || 0;
+      });
+    }
+
+    init();
+  </script>
+</body>
+</html>

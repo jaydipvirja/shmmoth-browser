@@ -153,6 +153,19 @@ async function init() {
   setupDownloadListeners();
   setupUpdateToolbarListeners();
 
+  if (api && api.onThemeChanged) {
+    api.onThemeChanged((theme) => {
+      applyTheme(theme);
+    });
+  }
+
+  if (api && api.onSettingsUpdated) {
+    api.onSettingsUpdated((newSettings) => {
+      settings = Object.assign({}, settings, newSettings);
+      applySettings();
+    });
+  }
+
   // Fallback: ensure at least one tab exists if main process hasn't created one
   setTimeout(() => {
     if (currentTabs.length === 0 && api && api.createTab) {
@@ -161,7 +174,20 @@ async function init() {
   }, 300);
 }
 
-// ─── Settings ───────────────────────────────────────────────────────────────
+// ─── Settings & Theme ───────────────────────────────────────────────────────
+function applyTheme(themeName) {
+  if (document.body.classList.contains('theme-incognito')) return;
+  document.body.classList.remove('theme-dark', 'theme-light');
+  if (themeName === 'light') {
+    document.body.classList.add('theme-light');
+  } else if (themeName === 'system') {
+    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+    document.body.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
+  } else {
+    document.body.classList.add('theme-dark');
+  }
+}
+
 async function loadSettings() {
   if (api && api.getSettings) {
     try {
@@ -176,6 +202,9 @@ function applySettings() {
     bookmarksBar.classList.add('hidden');
   } else {
     bookmarksBar.classList.remove('hidden');
+  }
+  if (settings.theme) {
+    applyTheme(settings.theme);
   }
 }
 
@@ -746,30 +775,9 @@ function setupPermissionDropdowns() {
 }
 
 function setupPermissionPromptListeners() {
-  if (api && api.onPermissionRequest) {
-    api.onPermissionRequest((data) => {
-      if (!permissionPromptCard || !data) return;
-      activePermissionReqId = data.requestId;
-      if (permPromptOrigin) permPromptOrigin.textContent = data.origin || 'Website';
-
-      let desc = `wants to use ${data.permission}`;
-      let icon = '🔒';
-      if (data.permission === 'media') {
-        icon = '📷';
-        desc = 'wants to use your camera and microphone';
-      } else if (data.permission === 'geolocation') {
-        icon = '📍';
-        desc = 'wants to know your location';
-      } else if (data.permission === 'notifications') {
-        icon = '🔔';
-        desc = 'wants to show notifications';
-      }
-      if (permPromptIcon) permPromptIcon.textContent = icon;
-      if (permPromptDesc) permPromptDesc.textContent = desc;
-
-      permissionPromptCard.classList.remove('hidden');
-    });
-  }
+  // Website permissions are now handled via native floating bubble (permission-bubble.html)
+  // to avoid WebContentsView occlusion. In-DOM card is kept hidden.
+  if (permissionPromptCard) permissionPromptCard.classList.add('hidden');
 
   function closePrompt(decision) {
     if (activePermissionReqId && api && api.respondPermissionRequest) {
@@ -883,9 +891,20 @@ function setupEventListeners() {
     renderBookmarksBar();
   });
 
-  // Ad blocker button
-  btnAdblockerStatus.addEventListener('click', () => {
-    openSettingsTab('privacy');
+  // Ad blocker button (Chrome-style Shield Floating Bubble)
+  btnAdblockerStatus.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const rect = btnAdblockerStatus.getBoundingClientRect();
+    if (api && api.toggleShieldBubble) {
+      api.toggleShieldBubble({
+        x: Math.round(rect.x),
+        y: Math.round(rect.bottom),
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+    } else {
+      openSettingsTab('privacy');
+    }
   });
 
   // Downloads Button & Live Toolbar Status Trigger (Chrome Style Flyout)
@@ -1094,11 +1113,19 @@ function setupEventListeners() {
   // Stage 6: Password prompt initialization
   setupPasswordPromptListeners();
 
-  // Stage 7: Extensions Toolbar & Menu Listeners
+  // Stage 7: Extensions Toolbar & Menu Listeners (Chrome-style Floating Bubble)
   if (btnExtensions) {
     btnExtensions.addEventListener('click', (e) => {
       e.stopPropagation();
-      if (extensionMenuDropdown) {
+      if (api && api.toggleExtensionBubble) {
+        const rect = btnExtensions.getBoundingClientRect();
+        api.toggleExtensionBubble({
+          x: Math.round(rect.x),
+          y: Math.round(rect.bottom),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        });
+      } else if (extensionMenuDropdown) {
         extensionMenuDropdown.classList.toggle('hidden');
       }
     });
@@ -1107,7 +1134,7 @@ function setupEventListeners() {
   if (btnManageExtensions) {
     btnManageExtensions.addEventListener('click', () => {
       if (extensionMenuDropdown) extensionMenuDropdown.classList.add('hidden');
-      if (api && api.navigateTab) api.navigateTab(activeTabId, 'mtc://extensions');
+      openExtensionsTab();
     });
   }
 
@@ -1910,6 +1937,35 @@ function setupUpdateToolbarListeners() {
     e.preventDefault();
     openSettingsTab('about');
   });
+}
+
+function openSettingsTab(hash = '') {
+  const targetUrl = hash ? `mtc://settings#${hash}` : 'mtc://settings';
+  const existingTab = currentTabs.find(t => t.url && t.url.startsWith('mtc://settings'));
+  if (existingTab) {
+    if (api && api.switchTab) api.switchTab(existingTab.id);
+    if (hash && api && api.navigateTab) api.navigateTab(existingTab.id, targetUrl);
+  } else {
+    if (api && api.createTab) api.createTab(targetUrl);
+  }
+}
+
+function openDownloadsTab() {
+  const existingTab = currentTabs.find(t => t.url && t.url.startsWith('mtc://downloads'));
+  if (existingTab) {
+    if (api && api.switchTab) api.switchTab(existingTab.id);
+  } else {
+    if (api && api.createTab) api.createTab('mtc://downloads');
+  }
+}
+
+function openExtensionsTab() {
+  const existingTab = currentTabs.find(t => t.url && t.url.startsWith('mtc://extensions'));
+  if (existingTab) {
+    if (api && api.switchTab) api.switchTab(existingTab.id);
+  } else {
+    if (api && api.createTab) api.createTab('mtc://extensions');
+  }
 }
 
 function escapeHtml(text) {

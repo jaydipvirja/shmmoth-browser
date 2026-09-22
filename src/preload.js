@@ -27,6 +27,10 @@ contextBridge.exposeInMainWorld('mtcAPI', {
   onTabsUpdated: (callback) => ipcRenderer.on('tabs:updated', (event, tabs, activeTabId) => callback(tabs, activeTabId)),
   onNavigationState: (callback) => ipcRenderer.on('tab:navState', (event, state) => callback(state)),
   onAdsCountUpdate: (callback) => ipcRenderer.on('adblocker:count', (event, count) => callback(count)),
+  onThemeChanged: (callback) => ipcRenderer.on('theme:changed', (event, theme) => callback(theme)),
+  onSettingsUpdated: (callback) => ipcRenderer.on('settings:updated', (event, s) => callback(s)),
+  onPermissionRequest: (callback) => ipcRenderer.on('permission:request', (event, data) => callback(data)),
+  respondPermissionRequest: (requestId, decision, remember) => ipcRenderer.invoke('permissions:respond', requestId, decision, remember),
 
   // Storage / Settings
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -56,10 +60,18 @@ contextBridge.exposeInMainWorld('mtcAPI', {
   getAdsBlockedCount: () => ipcRenderer.invoke('adblocker:getCount'),
   clearCache: () => ipcRenderer.invoke('cache:clear'),
 
-  // Downloads Bubble
+  // Floating Bubbles
   toggleDownloadBubble: (bounds) => ipcRenderer.invoke('download:toggleBubble', bounds),
   openDownloadBubble:   (bounds) => ipcRenderer.invoke('download:openBubble', bounds),
   closeDownloadBubble:  ()       => ipcRenderer.invoke('download:closeBubble'),
+  toggleExtensionBubble:(bounds) => ipcRenderer.invoke('extensions:toggleBubble', bounds),
+  openExtensionBubble:  (bounds) => ipcRenderer.invoke('extensions:openBubble', bounds),
+  closeExtensionBubble: ()       => ipcRenderer.invoke('extensions:closeBubble'),
+  toggleShieldBubble:   (bounds) => ipcRenderer.invoke('shield:toggleBubble', bounds),
+  openShieldBubble:     (bounds) => ipcRenderer.invoke('shield:openBubble', bounds),
+  closeShieldBubble:    ()       => ipcRenderer.invoke('shield:closeBubble'),
+  openPermissionBubble: (data)   => ipcRenderer.invoke('permissions:openBubble', data),
+  closePermissionBubble:()       => ipcRenderer.invoke('permissions:closeBubble'),
 
   // Auto-Update
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),

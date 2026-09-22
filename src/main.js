@@ -130,6 +130,15 @@ class ShmmothBrowserApp {
     // Password Save Bubble (Chrome Style Flyout)
     this.passwordBubbleWin = null;
     this.currentPasswordPrompt = null;
+
+    // Floating Bubbles (Chrome Style)
+    this.extensionBubbleWin = null;
+    this.shieldBubbleWin = null;
+    this.permissionBubbleWin = null;
+
+    // Windows 10 Lag & Compositor Caching
+    this._cachedHeaderHeight = 114;
+    this._resizeTimeout = null;
   }
 
   // ─── Initialisation ─────────────────────────────────────────────────────────
@@ -453,6 +462,239 @@ class ShmmothBrowserApp {
     }
   }
 
+  // ─── Extensions Floating Bubble (Chrome Style Flyout) ──────────────────────
+
+  toggleExtensionBubble(bounds, isIncognito = false) {
+    if (this.extensionBubbleWin && !this.extensionBubbleWin.isDestroyed()) {
+      this.closeExtensionBubble();
+      return false;
+    }
+    return this.openExtensionBubble(bounds, isIncognito);
+  }
+
+  openExtensionBubble(bounds, isIncognito = false) {
+    if (this.extensionBubbleWin && !this.extensionBubbleWin.isDestroyed()) {
+      this.extensionBubbleWin.show();
+      this.extensionBubbleWin.focus();
+      return true;
+    }
+
+    const parentWin = isIncognito ? this.incognitoWindow : this.mainWindow;
+    if (!parentWin || parentWin.isDestroyed()) return false;
+
+    const width = 300;
+    const height = 380;
+    const winBounds = parentWin.getBounds();
+
+    let x, y;
+    if (bounds && typeof bounds.x === 'number') {
+      x = Math.round(winBounds.x + bounds.x - width + (bounds.width || 30));
+      y = Math.round(winBounds.y + bounds.y + (bounds.height || 30) + 4);
+    } else {
+      x = winBounds.x + winBounds.width - width - 140;
+      y = winBounds.y + 82;
+    }
+
+    x = Math.max(winBounds.x + 10, Math.min(x, winBounds.x + winBounds.width - width - 10));
+
+    this.extensionBubbleWin = new BrowserWindow({
+      width,
+      height,
+      x,
+      y,
+      parent: parentWin,
+      frame: false,
+      resizable: false,
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        preload: PRELOAD_INTERNAL
+      }
+    });
+
+    this.extensionBubbleWin.loadFile(path.join(__dirname, 'pages', 'extension-bubble.html'));
+
+    this.extensionBubbleWin.once('ready-to-show', () => {
+      if (this.extensionBubbleWin && !this.extensionBubbleWin.isDestroyed()) {
+        this.extensionBubbleWin.show();
+      }
+    });
+
+    this.extensionBubbleWin.on('blur', () => {
+      setTimeout(() => {
+        if (this.extensionBubbleWin && !this.extensionBubbleWin.isDestroyed() && !this.extensionBubbleWin.isFocused()) {
+          this.closeExtensionBubble();
+        }
+      }, 150);
+    });
+
+    return true;
+  }
+
+  closeExtensionBubble() {
+    if (this.extensionBubbleWin && !this.extensionBubbleWin.isDestroyed()) {
+      this.extensionBubbleWin.close();
+      this.extensionBubbleWin = null;
+    }
+  }
+
+  // ─── AdBlocker Shield Floating Bubble (Chrome Style Flyout) ────────────────
+
+  toggleShieldBubble(bounds, isIncognito = false) {
+    if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed()) {
+      this.closeShieldBubble();
+      return false;
+    }
+    return this.openShieldBubble(bounds, isIncognito);
+  }
+
+  openShieldBubble(bounds, isIncognito = false) {
+    if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed()) {
+      this.shieldBubbleWin.show();
+      this.shieldBubbleWin.focus();
+      return true;
+    }
+
+    const parentWin = isIncognito ? this.incognitoWindow : this.mainWindow;
+    if (!parentWin || parentWin.isDestroyed()) return false;
+
+    const width = 300;
+    const height = 260;
+    const winBounds = parentWin.getBounds();
+
+    let x, y;
+    if (bounds && typeof bounds.x === 'number') {
+      x = Math.round(winBounds.x + bounds.x - width + (bounds.width || 30));
+      y = Math.round(winBounds.y + bounds.y + (bounds.height || 30) + 4);
+    } else {
+      x = winBounds.x + winBounds.width - width - 200;
+      y = winBounds.y + 82;
+    }
+
+    x = Math.max(winBounds.x + 10, Math.min(x, winBounds.x + winBounds.width - width - 10));
+
+    this.shieldBubbleWin = new BrowserWindow({
+      width,
+      height,
+      x,
+      y,
+      parent: parentWin,
+      frame: false,
+      resizable: false,
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        preload: PRELOAD_INTERNAL
+      }
+    });
+
+    this.shieldBubbleWin.loadFile(path.join(__dirname, 'pages', 'shield-bubble.html'));
+
+    this.shieldBubbleWin.once('ready-to-show', () => {
+      if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed()) {
+        this.shieldBubbleWin.show();
+      }
+    });
+
+    this.shieldBubbleWin.on('blur', () => {
+      setTimeout(() => {
+        if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed() && !this.shieldBubbleWin.isFocused()) {
+          this.closeShieldBubble();
+        }
+      }, 150);
+    });
+
+    return true;
+  }
+
+  closeShieldBubble() {
+    if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed()) {
+      this.shieldBubbleWin.close();
+      this.shieldBubbleWin = null;
+    }
+  }
+
+  // ─── Permission Request Floating Bubble (Chrome Style) ─────────────────────
+
+  openPermissionBubble(data, isIncognito = false) {
+    if (this.permissionBubbleWin && !this.permissionBubbleWin.isDestroyed()) {
+      this.closePermissionBubble();
+    }
+
+    const parentWin = isIncognito ? this.incognitoWindow : this.mainWindow;
+    if (!parentWin || parentWin.isDestroyed()) return false;
+
+    const width = 360;
+    const height = 160;
+    const winBounds = parentWin.getBounds();
+
+    let x = winBounds.x + 115;
+    let y = winBounds.y + (this.headerHeight ? (this.headerHeight - 34) : 80);
+
+    x = Math.max(winBounds.x + 10, Math.min(x, winBounds.x + winBounds.width - width - 10));
+
+    this.permissionBubbleWin = new BrowserWindow({
+      width,
+      height,
+      x,
+      y,
+      parent: parentWin,
+      frame: false,
+      resizable: false,
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: false,
+        preload: PRELOAD_INTERNAL
+      }
+    });
+
+    this.permissionBubbleWin.loadFile(path.join(__dirname, 'pages', 'permission-bubble.html'));
+
+    this.permissionBubbleWin.once('ready-to-show', () => {
+      if (this.permissionBubbleWin && !this.permissionBubbleWin.isDestroyed()) {
+        this.permissionBubbleWin.show();
+        this.permissionBubbleWin.webContents.send('permission:request', data);
+      }
+    });
+
+    return true;
+  }
+
+  closePermissionBubble() {
+    if (this.permissionBubbleWin && !this.permissionBubbleWin.isDestroyed()) {
+      this.permissionBubbleWin.close();
+      this.permissionBubbleWin = null;
+    }
+  }
+
+  // ─── Windows 10 Lag-Free Resize Throttler ───────────────────────────────────
+
+  throttledUpdateViewBounds(targetWin = null) {
+    if (this._resizeTimeout) return;
+    this._resizeTimeout = setTimeout(() => {
+      this._resizeTimeout = null;
+      this.updateViewBounds(targetWin);
+    }, 16);
+  }
+
   // ─── Protocol Handler ────────────────────────────────────────────────────
 
   setupProtocol() {
@@ -536,7 +778,7 @@ class ShmmothBrowserApp {
       }
     };
 
-    this.mainWindow.on('resize',     () => this.updateViewBounds());
+    this.mainWindow.on('resize',     () => this.throttledUpdateViewBounds(this.mainWindow));
     this.mainWindow.on('maximize',   () => {
       broadcastWindowState(true);
       setTimeout(() => this.updateViewBounds(), 50);
@@ -610,7 +852,7 @@ class ShmmothBrowserApp {
       }
     };
 
-    this.incognitoWindow.on('resize',     () => this.updateViewBounds(this.incognitoWindow));
+    this.incognitoWindow.on('resize',     () => this.throttledUpdateViewBounds(this.incognitoWindow));
     this.incognitoWindow.on('maximize',   () => {
       broadcastIncognitoWindowState(true);
       setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
@@ -858,22 +1100,30 @@ class ShmmothBrowserApp {
       }, 30000);
       this.pendingPermissionRequests[requestId].timeout = timeout;
 
-      targetWin.webContents.send('permission:request', {
+      const permData = {
         requestId,
         origin,
         permission,
         details: { mediaTypes: details.mediaTypes || [] },
         tabId: foundTab ? foundTab.id : null
-      });
+      };
+
+      targetWin.webContents.send('permission:request', permData);
+      this.openPermissionBubble(permData, Boolean(foundTab && foundTab.isIncognito));
       log.info(`Permission requested: ${permission} by ${origin}`, { requestId });
     });
   }
 
   // ─── View Bounds ─────────────────────────────────────────────────────────
 
-  updateHeaderHeight() {
+  updateHeaderHeight(force = false) {
+    if (this._cachedHeaderHeight !== undefined && !force) {
+      this.headerHeight = this._cachedHeaderHeight;
+      return;
+    }
     const settings = this.storage ? this.storage.getSettings() : {};
     this.headerHeight = (settings.showBookmarksBar !== false) ? 114 : 86;
+    this._cachedHeaderHeight = this.headerHeight;
   }
 
   updateViewBounds(targetWin = null) {
@@ -1433,6 +1683,11 @@ class ShmmothBrowserApp {
     const currentTab = this.tabs[tabId];
     if (!currentTab) return;
 
+    this.closePermissionBubble();
+    this.closeExtensionBubble();
+    this.closeShieldBubble();
+    this.closeDownloadBubble();
+
     const isIncognito = Boolean(currentTab.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     const prevActiveId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
@@ -1480,6 +1735,10 @@ class ShmmothBrowserApp {
   closeTab(tabId) {
     const tabData = this.tabs[tabId];
     if (!tabData) return;
+
+    this.closePermissionBubble();
+    this.closeExtensionBubble();
+    this.closeShieldBubble();
 
     const isIncognito = Boolean(tabData.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
@@ -1882,6 +2141,34 @@ class ShmmothBrowserApp {
     }
   }
 
+  broadcastThemeChange(theme) {
+    const wins = [this.mainWindow, this.incognitoWindow].filter(w => w && !w.isDestroyed() && w.webContents);
+    for (const win of wins) {
+      try { win.webContents.send('theme:changed', theme); } catch (_) {}
+    }
+    if (this.tabs) {
+      for (const tab of Object.values(this.tabs)) {
+        if (tab && tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+          try { tab.view.webContents.send('theme:changed', theme); } catch (_) {}
+        }
+      }
+    }
+  }
+
+  broadcastSettingsUpdated(settings) {
+    const wins = [this.mainWindow, this.incognitoWindow].filter(w => w && !w.isDestroyed() && w.webContents);
+    for (const win of wins) {
+      try { win.webContents.send('settings:updated', settings); } catch (_) {}
+    }
+    if (this.tabs) {
+      for (const tab of Object.values(this.tabs)) {
+        if (tab && tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+          try { tab.view.webContents.send('settings:updated', settings); } catch (_) {}
+        }
+      }
+    }
+  }
+
   // ─── Omnibox URL / Search Classification (Stage 1) ───────────────────────
 
   formatUrl(input) {
@@ -1933,13 +2220,15 @@ class ShmmothBrowserApp {
 
   _getSearchUrl(query) {
     const settings   = this.storage ? this.storage.getSettings() : {};
-    const engine     = settings.searchEngine || 'google';
-    const engineUrls = settings.searchEngineUrls || {
+    const engine     = (settings.searchEngine || 'google').toLowerCase();
+    const defaultUrls = {
       google:     'https://www.google.com/search?q=',
       bing:       'https://www.bing.com/search?q=',
-      duckduckgo: 'https://duckduckgo.com/?q='
+      duckduckgo: 'https://duckduckgo.com/?q=',
+      yahoo:      'https://search.yahoo.com/search?p='
     };
-    const baseUrl = engineUrls[engine] || engineUrls['google'] || 'https://www.google.com/search?q=';
+    const engineUrls = Object.assign({}, defaultUrls, settings.searchEngineUrls || {});
+    const baseUrl = engineUrls[engine] || defaultUrls[engine] || defaultUrls['google'];
     return baseUrl + encodeURIComponent(query);
   }
 
@@ -2325,6 +2614,9 @@ class ShmmothBrowserApp {
       const tab = this.tabs[tabId || this.activeTabId];
       if (tab && tab.view) {
         const safeUrl = this.formatUrl(validateUrl(targetUrl));
+        if (safeUrl.startsWith('mtc://') && (!tab.url || !tab.url.startsWith('mtc://'))) {
+          return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
+        }
         // IPC navigations are initiated by browser chrome UI
         const result  = checkNavigation('file:///renderer/index.html', safeUrl);
         if (!result.allowed) {
@@ -2339,6 +2631,9 @@ class ShmmothBrowserApp {
       const tab = this.tabs[this.activeTabId];
       if (tab && tab.view) {
         const safeUrl = this.formatUrl(validateUrl(targetUrl));
+        if (safeUrl.startsWith('mtc://') && (!tab.url || !tab.url.startsWith('mtc://'))) {
+          return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
+        }
         // IPC navigations are initiated by browser chrome UI
         const result  = checkNavigation('file:///renderer/index.html', safeUrl);
         if (!result.allowed) {
@@ -2460,12 +2755,21 @@ class ShmmothBrowserApp {
         throw new Error('settings:update requires a plain object');
       }
       const updated = this.storage.updateSettings(delta);
-      if (delta.adBlockerEnabled !== undefined) {
+      if (delta.adBlockerEnabled !== undefined && this.adBlocker) {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
       if (delta.showBookmarksBar !== undefined) {
+        this.updateHeaderHeight(true);
         this.updateViewBounds();
       }
+      if (delta.theme !== undefined) {
+        try {
+          const { nativeTheme } = require('electron');
+          nativeTheme.themeSource = delta.theme;
+        } catch (_) {}
+        this.broadcastThemeChange(delta.theme);
+      }
+      this.broadcastSettingsUpdated(updated);
       return updated;
     }));
 
@@ -2835,7 +3139,17 @@ class ShmmothBrowserApp {
         log.warn('Permission callback execution failed', { error: err.message });
       }
 
+      this.closePermissionBubble();
       return { success: true };
+    }));
+
+    ipcMain.handle('permissions:openBubble', secureHandlerRaw((event, data) => {
+      return this.openPermissionBubble(data, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('permissions:closeBubble', secureHandlerRaw(() => {
+      this.closePermissionBubble();
+      return true;
     }));
 
     // ── Password Manager (Stage 6) ──
@@ -3161,6 +3475,43 @@ class ShmmothBrowserApp {
     ipcMain.handle('extensions:openPopup', secureHandlerRaw(async (_, id, bounds) => {
       const safeId = sanitizeString(id || '', 64, 'extensionId');
       return this.openExtensionPopup(safeId, bounds);
+    }));
+
+    ipcMain.handle('extensions:toggleBubble', secureHandlerRaw((event, bounds) => {
+      return this.toggleExtensionBubble(bounds, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('extensions:openBubble', secureHandlerRaw((event, bounds) => {
+      return this.openExtensionBubble(bounds, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('extensions:closeBubble', secureHandlerRaw(() => {
+      this.closeExtensionBubble();
+      return true;
+    }));
+
+    ipcMain.handle('extensions:triggerAction', secureHandlerRaw(async (_, id) => {
+      const safeId = sanitizeString(id || '', 64, 'extensionId');
+      if (!safeId || !this.extensionManager) return false;
+      const record = this.extensionManager.extensions[safeId];
+      if (!record || !record.enabled) return false;
+      if (record.action && record.action.default_popup) {
+        return this.openExtensionPopup(safeId, null);
+      }
+      return true;
+    }));
+
+    ipcMain.handle('shield:toggleBubble', secureHandlerRaw((event, bounds) => {
+      return this.toggleShieldBubble(bounds, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('shield:openBubble', secureHandlerRaw((event, bounds) => {
+      return this.openShieldBubble(bounds, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('shield:closeBubble', secureHandlerRaw(() => {
+      this.closeShieldBubble();
+      return true;
     }));
 
     // ── Auto-Update (Chromium / electron-updater) ──
