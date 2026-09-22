@@ -256,7 +256,6 @@ class ShmmothBrowserApp {
 
     // Ensure built-in ad blocker extensions are registered in the manager
     const builtIns = [
-      { name: 'Adblock Plus', path: path.join(__dirname, '..', 'extensions', 'adblockplus') },
       { name: 'uBlock Origin', path: path.join(__dirname, '..', 'extensions', 'uBlock0.chromium') }
     ];
 
