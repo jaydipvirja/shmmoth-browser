@@ -54,6 +54,7 @@ function requestWithRedirects(targetUrl, options = {}, maxRedirects = 5) {
     // Bind to specific local IP interface for Multi-WAN Internet Bonding
     if (options.localAddress && typeof options.localAddress === 'string') {
       reqOptions.localAddress = options.localAddress;
+      reqOptions.family = 4;
     }
 
     const req = client.request(reqOptions, (res) => {
@@ -70,7 +71,16 @@ function requestWithRedirects(targetUrl, options = {}, maxRedirects = 5) {
       req.destroy(new Error('ETIMEDOUT: Socket connection timed out'));
     });
 
-    req.on('error', reject);
+    req.on('error', (err) => {
+      // If localAddress binding failed (e.g. EINVAL / EADDRNOTAVAIL on Windows dual-stack), retry without localAddress
+      if (reqOptions.localAddress && /EINVAL|EADDRNOTAVAIL/i.test(err.code || err.message)) {
+        const fallbackOpts = { ...options, localAddress: undefined };
+        return requestWithRedirects(targetUrl, fallbackOpts, maxRedirects)
+          .then(resolve)
+          .catch(reject);
+      }
+      reject(err);
+    });
 
     if (options.body) {
       req.write(options.body);
@@ -308,6 +318,7 @@ class TurboDownloadEngine extends EventEmitter {
       lastReceivedBytes: 0,
       timer: null
     };
+    task.headers = headers;
 
     this.activeTasks.set(id, task);
 
@@ -338,13 +349,14 @@ class TurboDownloadEngine extends EventEmitter {
     task.segments = [];
 
     const activeIfaces = task.interfaces.filter(i => !i.failed);
+    const isBonding = Boolean(task.isMultiSource && activeIfaces.length > 1);
 
     for (let i = 0; i < numThreads; i++) {
       const start = i * chunkSize;
       const end = (i === numThreads - 1) ? totalBytes - 1 : ((i + 1) * chunkSize - 1);
 
-      // Assign round-robin to network interfaces if multi-source bonding is enabled
-      const assignedIface = (task.isMultiSource && activeIfaces.length > 1)
+      // Assign round-robin to network interfaces ONLY if multi-source bonding is active (2+ interfaces)
+      const assignedIface = isBonding
         ? activeIfaces[i % activeIfaces.length]
         : (activeIfaces[0] || null);
 
@@ -357,7 +369,7 @@ class TurboDownloadEngine extends EventEmitter {
         currentOffset: start,
         isCompleted: false,
         interfaceName: assignedIface ? assignedIface.name : 'Default',
-        interfaceAddress: assignedIface ? assignedIface.address : null,
+        interfaceAddress: (isBonding && assignedIface) ? assignedIface.address : null,
         req: null
       });
     }
@@ -555,67 +567,71 @@ class TurboDownloadEngine extends EventEmitter {
   _startSpeedMonitoring(task) {
     if (task.timer) clearInterval(task.timer);
 
+    const emitProgressNow = () => {
+      const now = Date.now();
+      const deltaSec = Math.max(0.01, (now - task.lastCalculatedTime) / 1000);
+      const deltaBytes = task.receivedBytes - task.lastReceivedBytes;
+      task.speed = Math.max(0, Math.round(deltaBytes / deltaSec));
+      task.lastCalculatedTime = now;
+      task.lastReceivedBytes = task.receivedBytes;
+
+      // Calculate per-interface speeds
+      if (task.interfaces && task.interfaces.length > 0) {
+        task.interfaces.forEach(iface => {
+          const ifaceDelta = iface.receivedBytes - iface.lastReceivedBytes;
+          iface.speed = Math.max(0, Math.round(ifaceDelta / deltaSec));
+          iface.lastReceivedBytes = iface.receivedBytes;
+        });
+      }
+
+      const remaining = task.totalBytes - task.receivedBytes;
+      task.eta = (task.speed > 0 && remaining > 0) ? Math.ceil(remaining / task.speed) : null;
+
+      const percent = task.totalBytes > 0
+        ? Math.min(100, Math.round((task.receivedBytes / task.totalBytes) * 100))
+        : 0;
+
+      this.emit('progress', {
+        id: task.id,
+        state: task.state,
+        received: task.receivedBytes,
+        total: task.totalBytes,
+        percent,
+        speed: task.speed,
+        eta: task.eta,
+        isTurbo: task.isTurbo,
+        isMultiSource: task.isMultiSource,
+        threads: task.threadsCount,
+        interfaces: task.interfaces.map(i => ({
+          name: i.name,
+          address: i.address,
+          speed: i.speed,
+          received: i.receivedBytes,
+          failed: i.failed
+        })),
+        segments: task.segments.map(s => ({
+          index: s.index,
+          start: s.start,
+          end: s.end,
+          received: s.received,
+          total: s.total,
+          percent: s.total > 0 ? Math.min(100, Math.round((s.received / s.total) * 100)) : 0,
+          isCompleted: s.isCompleted,
+          interfaceName: s.interfaceName,
+          interfaceAddress: s.interfaceAddress
+        }))
+      });
+    };
+
+    // Emit initial progress immediately on stream start
+    emitProgressNow();
+
     task.timer = setInterval(() => {
       if (task.state !== 'progressing') {
         clearInterval(task.timer);
         return;
       }
-
-      const now = Date.now();
-      const deltaSec = (now - task.lastCalculatedTime) / 1000;
-      if (deltaSec > 0.3) {
-        const deltaBytes = task.receivedBytes - task.lastReceivedBytes;
-        task.speed = Math.max(0, Math.round(deltaBytes / deltaSec));
-        task.lastCalculatedTime = now;
-        task.lastReceivedBytes = task.receivedBytes;
-
-        // Calculate per-interface speeds
-        if (task.interfaces && task.interfaces.length > 0) {
-          task.interfaces.forEach(iface => {
-            const ifaceDelta = iface.receivedBytes - iface.lastReceivedBytes;
-            iface.speed = Math.max(0, Math.round(ifaceDelta / deltaSec));
-            iface.lastReceivedBytes = iface.receivedBytes;
-          });
-        }
-
-        const remaining = task.totalBytes - task.receivedBytes;
-        task.eta = (task.speed > 0 && remaining > 0) ? Math.ceil(remaining / task.speed) : null;
-
-        const percent = task.totalBytes > 0
-          ? Math.min(100, Math.round((task.receivedBytes / task.totalBytes) * 100))
-          : 0;
-
-        this.emit('progress', {
-          id: task.id,
-          state: task.state,
-          received: task.receivedBytes,
-          total: task.totalBytes,
-          percent,
-          speed: task.speed,
-          eta: task.eta,
-          isTurbo: task.isTurbo,
-          isMultiSource: task.isMultiSource,
-          threads: task.threadsCount,
-          interfaces: task.interfaces.map(i => ({
-            name: i.name,
-            address: i.address,
-            speed: i.speed,
-            received: i.receivedBytes,
-            failed: i.failed
-          })),
-          segments: task.segments.map(s => ({
-            index: s.index,
-            start: s.start,
-            end: s.end,
-            received: s.received,
-            total: s.total,
-            percent: s.total > 0 ? Math.min(100, Math.round((s.received / s.total) * 100)) : 0,
-            isCompleted: s.isCompleted,
-            interfaceName: s.interfaceName,
-            interfaceAddress: s.interfaceAddress
-          }))
-        });
-      }
+      emitProgressNow();
     }, 400);
   }
 
@@ -694,11 +710,16 @@ class TurboDownloadEngine extends EventEmitter {
       task.fd = fs.openSync(task.savePath, 'r+');
     }
 
+    const effectiveHeaders = {
+      ...(task.headers || {}),
+      ...(headers || {})
+    };
+
     this._startSpeedMonitoring(task);
 
     task.segments.forEach(s => {
       if (!s.isCompleted) {
-        this._downloadSegment(task, s, headers);
+        this._downloadSegment(task, s, effectiveHeaders);
       }
     });
 

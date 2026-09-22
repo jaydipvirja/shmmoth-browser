@@ -486,6 +486,7 @@ class DownloadManager {
       threadsCount: threadCount,
       received: 0,
       total: opts.totalBytes || probe.totalBytes || 0,
+      headers: headers,
       speed: 0,
       eta: null,
       startedAt: Date.now(),
@@ -769,7 +770,26 @@ class DownloadManager {
     const record = this.downloads[id];
     if (!record) return false;
     if (record.isTurbo) {
-      return this.turboEngine.resume(id);
+      if (this.turboEngine.activeTasks && this.turboEngine.activeTasks.has(id)) {
+        return this.turboEngine.resume(id, record.headers || {});
+      } else {
+        record.state = 'progressing';
+        record.isPaused = false;
+        this._notify(record);
+        this.turboEngine.start({
+          id,
+          url: record.url,
+          savePath: record.savePath,
+          headers: record.headers || {},
+          threads: record.threadsCount || this.getTurboThreads(),
+          totalBytes: record.total,
+          multiSource: record.isMultiSource
+        }).catch(err => {
+          record.state = 'interrupted';
+          this._notify(record);
+        });
+        return true;
+      }
     }
     if (!record.item) return false;
     if (record.item.canResume()) {
