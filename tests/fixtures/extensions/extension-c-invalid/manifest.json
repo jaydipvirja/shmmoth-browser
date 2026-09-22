@@ -1,0 +1,5 @@
+{
+  "name": "Invalid Extension Missing Fields",
+  "manifest_version": 99,
+  "description": "Invalid manifest missing version and invalid manifest_version"
+}

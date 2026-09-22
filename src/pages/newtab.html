@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>New Tab - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="newtab.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="dark-theme">
+  <div class="background-overlay"></div>
+
+  <div class="newtab-container">
+    <!-- Top Right Quick Access -->
+    <header class="top-nav">
+      <button id="btn-open-bookmarks" class="nav-btn" title="Bookmarks">★ Bookmarks</button>
+      <button id="btn-open-history" class="nav-btn" title="History">🕒 History</button>
+      <button id="btn-open-settings" class="nav-btn" title="Settings">⚙️ Settings</button>
+    </header>
+
+    <!-- Center Section: Brand, Clock, Greeting, Search -->
+    <main class="center-content">
+      <div class="brand-badge">
+        <span class="brand-dot"></span>
+        <span class="brand-text">SHMMOTH BROWSER</span>
+      </div>
+
+      <div class="clock-section">
+        <h1 id="live-time" class="time-display">00:00</h1>
+        <p id="live-date" class="date-display">Loading date...</p>
+        <p id="live-greeting" class="greeting-display">Welcome</p>
+      </div>
+
+      <!-- Google Search Form -->
+      <form id="search-form" class="search-box">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="search-input" placeholder="Search Google or type a URL..." autofocus autocomplete="off">
+        <button type="submit" class="search-submit-btn" title="Search">➜</button>
+      </form>
+
+      <!-- Incognito Notice (Stage 4) -->
+      <div id="incognito-panel" class="incognito-panel hidden">
+        <div class="incognito-hero-icon">🕵️</div>
+        <h2 class="incognito-title">You've gone Incognito</h2>
+        <p class="incognito-desc">
+          Pages you view in incognito tabs won't stick around in your browser's history, cookie store, or search history after you've closed all your incognito tabs.
+        </p>
+        <div class="incognito-features-grid">
+          <div class="incognito-feature-card">
+            <h4>What Incognito does:</h4>
+            <ul>
+              <li>Won't save your browsing history</li>
+              <li>Clears cookies and site data when closed</li>
+              <li>Excludes temporary cache from normal storage</li>
+            </ul>
+          </div>
+          <div class="incognito-feature-card">
+            <h4>Your activity might still be visible to:</h4>
+            <ul>
+              <li>Websites that you visit</li>
+              <li>Your employer or school</li>
+              <li>Your internet service provider</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Speed Dial / Shortcuts Grid -->
+      <section class="shortcuts-container" id="shortcuts-section">
+        <div id="shortcuts-grid" class="shortcuts-grid">
+          <!-- Dynamically filled -->
+        </div>
+        <button id="btn-add-shortcut" class="add-shortcut-card" title="Add Shortcut">
+          <span class="plus-icon">+</span>
+          <span class="card-label">Add Shortcut</span>
+        </button>
+      </section>
+    </main>
+
+    <!-- Footer Stats / Status -->
+    <footer class="footer-bar">
+      <div class="footer-stat">
+        <span class="shield-icon">🛡️</span>
+        <span id="stat-ads-blocked">Ad-Blocker: Active</span>
+      </div>
+      <div class="footer-stat">
+        <span class="stat-icon">⚡</span>
+        <span id="stat-ram-saver">RAM Saver: On</span>
+      </div>
+      <div class="footer-stat">
+        <span class="stat-icon">🌐</span>
+        <span>Engine: Chromium 130</span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Add Shortcut Modal -->
+  <div id="shortcut-modal" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <h3>Add New Shortcut</h3>
+      <div class="input-group">
+        <label>Name</label>
+        <input type="text" id="modal-name" placeholder="e.g. Gmail">
+      </div>
+      <div class="input-group">
+        <label>URL</label>
+        <input type="text" id="modal-url" placeholder="https://mail.google.com">
+      </div>
+      <div class="modal-actions">
+        <button id="modal-cancel-btn" class="btn-secondary">Cancel</button>
+        <button id="modal-save-btn" class="btn-primary">Save Shortcut</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="newtab.js"></script>
+</body>
+</html>

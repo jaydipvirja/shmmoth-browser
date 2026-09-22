@@ -1,0 +1,9 @@
+{
+  "name": "Failing Runtime Extension",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "description": "Extension with failing runtime script to test crash handling",
+  "background": {
+    "service_worker": "failing_worker.js"
+  }
+}

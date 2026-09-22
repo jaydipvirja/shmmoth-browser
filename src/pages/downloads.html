@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Downloads - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="settings.css">
+  <style>
+    .dl-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
+    .dl-item {
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 10px;
+      padding: 14px 18px;
+      display: flex;
+      gap: 14px;
+      align-items: flex-start;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .dl-item:hover {
+      background: #253347;
+      border-color: rgba(255,255,255,0.15);
+    }
+    .dl-icon-container {
+      font-size: 28px;
+      line-height: 1;
+      padding-top: 2px;
+      user-select: none;
+    }
+    .dl-body {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .dl-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+    .dl-filename { font-size: 14.5px; font-weight: 600; color: #f1f5f9; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-state { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 12px; text-transform: capitalize; }
+    .dl-state.progressing { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+    .dl-state.paused      { background: rgba(234,179,8,0.2);  color: #facc15; border: 1px solid rgba(250,204,21,0.3); }
+    .dl-state.completed   { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
+    .dl-state.cancelled   { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); }
+    .dl-state.interrupted { background: rgba(239,68,68,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
+    .dl-url { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-progress-bar { height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; }
+    .dl-progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.25s ease-out; }
+    .dl-progress-fill.paused { background: #eab308; }
+    .dl-footer { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #64748b; flex-wrap: wrap; gap: 8px; }
+    .dl-meta { display: flex; align-items: center; gap: 10px; color: #94a3b8; }
+    .dl-speed { color: #60a5fa; font-weight: 500; }
+    .dl-eta { color: #cbd5e1; }
+    .dl-actions { display: flex; gap: 6px; align-items: center; }
+    .btn-dl-action {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.14);
+      color: #cbd5e1;
+      padding: 5px 12px;
+      border-radius: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .btn-dl-action:hover {
+      background: #3b82f6;
+      border-color: #60a5fa;
+      color: #ffffff;
+    }
+    .btn-dl-action.danger:hover {
+      background: #ef4444;
+      border-color: #ef4444;
+      color: #ffffff;
+    }
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+    }
+    .search-downloads-input {
+      flex: 1;
+      min-width: 240px;
+      background: #1e293b;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: #ffffff;
+      font-size: 13px;
+      outline: none;
+    }
+    .search-downloads-input:focus {
+      border-color: #3b82f6;
+    }
+    .empty-state { color: #64748b; padding: 48px 0; text-align: center; font-size: 14px; }
+    .security-note {
+      background: rgba(16,185,129,0.08);
+      border: 1px solid rgba(16,185,129,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: #6ee7b7;
+      margin-bottom: 16px;
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <span class="brand-dot"></span>
+          <span>SHMMOTH BROWSER</span>
+        </div>
+        <h2>Downloads</h2>
+      </div>
+      <div style="padding: 0 8px; display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-open-folder" class="btn-secondary" style="width:100%;">📂 Open Downloads Folder</button>
+        <button id="btn-clear-completed" class="btn-secondary" style="width:100%;">Clear Completed</button>
+        <button id="btn-back" class="btn-return" style="width:100%; margin-top: 8px;">← Back to Browsing</button>
+      </div>
+    </aside>
+
+    <main class="content-area">
+      <div class="section-title">
+        <h2>Download Manager</h2>
+        <p>Monitor real-time download progress, transfer speed, and manage completed files.</p>
+      </div>
+
+      <div class="security-note">
+        🔒 <strong>Security Guarantee:</strong> Downloaded files are never executed automatically.
+        Use "Open File" or "Show in Folder" to inspect files after download.
+      </div>
+
+      <div class="toolbar">
+        <input type="text" id="search-downloads" class="search-downloads-input" placeholder="Search downloads by filename or URL...">
+        <button id="btn-refresh" class="btn-secondary">↻ Refresh</button>
+      </div>
+
+      <div id="downloads-list" class="dl-list">
+        <p class="empty-state">Loading downloads...</p>
+      </div>
+    </main>
+  </div>
+
+  <script src="downloads.js"></script>
+</body>
+</html>

@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>History - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="settings.css">
+  <style>
+    .history-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-top: 16px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+    .history-search-box {
+      flex: 1;
+      min-width: 250px;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .history-search-box input {
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 8px;
+      padding: 9px 14px 9px 36px;
+      color: #ffffff;
+      font-size: 13.5px;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .history-search-box input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+    .history-search-box .search-icon {
+      position: absolute;
+      left: 12px;
+      font-size: 14px;
+      color: #94a3b8;
+      pointer-events: none;
+    }
+    .selection-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(59, 130, 246, 0.12);
+      border: 1px solid rgba(59, 130, 246, 0.3);
+      border-radius: 8px;
+      padding: 8px 14px;
+      margin-bottom: 14px;
+      font-size: 13px;
+    }
+    .selection-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .date-group-header {
+      font-size: 13px;
+      font-weight: 700;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 20px 0 8px 4px;
+    }
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .history-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 8px;
+      padding: 10px 14px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .history-item:hover {
+      background: #334155;
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+    .history-checkbox {
+      cursor: pointer;
+      width: 16px;
+      height: 16px;
+      accent-color: #3b82f6;
+    }
+    .history-favicon {
+      width: 18px;
+      height: 18px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      flex-shrink: 0;
+    }
+    .history-favicon img {
+      width: 16px;
+      height: 16px;
+      border-radius: 3px;
+    }
+    .history-main {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      cursor: pointer;
+      flex: 1;
+      overflow: hidden;
+    }
+    .history-title {
+      font-size: 13.5px;
+      font-weight: 600;
+      color: #38bdf8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-title:hover {
+      text-decoration: underline;
+    }
+    .history-url {
+      font-size: 11.5px;
+      color: #94a3b8;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .history-meta {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 11.5px;
+      color: #64748b;
+      flex-shrink: 0;
+    }
+    .visit-count-badge {
+      background: rgba(255, 255, 255, 0.08);
+      padding: 2px 7px;
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-size: 11px;
+    }
+    .delete-item-btn {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      font-size: 14px;
+      padding: 4px 8px;
+      border-radius: 4px;
+      transition: color 0.15s, background 0.15s;
+    }
+    .delete-item-btn:hover {
+      color: #ef4444;
+      background: rgba(239, 68, 68, 0.12);
+    }
+    /* Clear Range Modal */
+    .modal-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    .modal-card {
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 12px;
+      padding: 24px;
+      width: 380px;
+      max-width: 90vw;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+    .modal-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #ffffff;
+    }
+    .modal-desc {
+      font-size: 13px;
+      color: #94a3b8;
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+    .modal-select {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #ffffff;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      outline: none;
+    }
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+    .btn-cancel {
+      background: transparent;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      cursor: pointer;
+    }
+    .btn-confirm-delete {
+      background: #dc2626;
+      border: 1px solid #ef4444;
+      color: #ffffff;
+      padding: 6px 16px;
+      border-radius: 6px;
+      font-size: 12.5px;
+      cursor: pointer;
+      font-weight: 600;
+    }
+  </style>
+</head>
+<body>
+  <div class="settings-layout">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <span class="brand-dot"></span>
+          <span>SHMMOTH BROWSER</span>
+        </div>
+        <h2>History</h2>
+      </div>
+      <div style="padding: 0 8px;">
+        <button id="btn-open-clear-modal" class="btn-danger" style="width: 100%; margin-bottom: 10px;">Clear Browsing Data</button>
+        <button id="btn-back" class="btn-return">← Back to Browsing</button>
+      </div>
+    </aside>
+
+    <main class="content-area">
+      <div class="section-title">
+        <h2>Browsing History</h2>
+        <p>Search, manage, or delete your visited web pages.</p>
+      </div>
+
+      <!-- Search & Toolbar -->
+      <div class="history-toolbar">
+        <div class="history-search-box">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="history-search-input" placeholder="Search history by title or URL..." autocomplete="off">
+        </div>
+      </div>
+
+      <!-- Selection Action Bar (Shown when items are checked) -->
+      <div id="selection-bar" class="selection-bar hidden">
+        <span id="selection-count">0 items selected</span>
+        <div class="selection-actions">
+          <button id="btn-select-all" class="btn-secondary" style="padding: 4px 10px; font-size: 12px;">Select All</button>
+          <button id="btn-delete-selected" class="btn-danger" style="padding: 4px 12px; font-size: 12px;">Delete Selected</button>
+          <button id="btn-cancel-selection" class="btn-cancel" style="padding: 4px 10px; font-size: 12px;">Cancel</button>
+        </div>
+      </div>
+
+      <div id="history-container" class="history-list">
+        <!-- Dynamically filled -->
+      </div>
+    </main>
+  </div>
+
+  <!-- Clear History by Range Modal -->
+  <div id="clear-range-modal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <h3 class="modal-title">Clear Browsing History</h3>
+      <p class="modal-desc">Select the time range of history you wish to remove from SHMMOTH Browser:</p>
+      <select id="range-select" class="modal-select">
+        <option value="hour">Last hour</option>
+        <option value="day" selected>Last 24 hours</option>
+        <option value="week">Last 7 days</option>
+        <option value="month">Last 4 weeks</option>
+        <option value="all">All time</option>
+      </select>
+      <div class="modal-actions">
+        <button id="btn-close-modal" class="btn-cancel">Cancel</button>
+        <button id="btn-confirm-range-clear" class="btn-confirm-delete">Clear Data</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="history.js"></script>
+</body>
+</html>

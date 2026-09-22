@@ -1,0 +1,21 @@
+{
+  "name": "Test Content Script Extension",
+  "version": "2.1.0",
+  "manifest_version": 3,
+  "description": "Test extension with content script and high-risk permissions",
+  "permissions": [
+    "cookies",
+    "webRequest",
+    "tabs"
+  ],
+  "host_permissions": [
+    "<all_urls>",
+    "https://*.example.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://*.example.com/*"],
+      "js": ["content.js"]
+    }
+  ]
+}

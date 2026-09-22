@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Extensions - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="settings.css">
+  <link rel="stylesheet" href="extensions.css">
+</head>
+<body class="extensions-body">
+  <!-- Top Navigation Header -->
+  <header class="ext-header">
+    <div class="ext-header-left">
+      <div class="ext-logo">
+        <span class="ext-logo-icon">🧩</span>
+        <span class="ext-logo-text">Extensions</span>
+      </div>
+      <div class="ext-search-wrapper">
+        <input type="text" id="ext-search-input" placeholder="Search extensions..." autocomplete="off">
+      </div>
+    </div>
+    <div class="ext-header-right">
+      <div class="dev-mode-group">
+        <span class="dev-mode-label">Developer mode</span>
+        <label class="switch">
+          <input type="checkbox" id="dev-mode-toggle">
+          <span class="slider round"></span>
+        </label>
+      </div>
+    </div>
+  </header>
+
+  <!-- Developer Toolbar (Visible when Dev Mode is Active) -->
+  <div id="dev-toolbar" class="dev-toolbar hidden">
+    <div class="dev-actions">
+      <button id="btn-load-unpacked" class="btn-dev-action primary">
+        <span>📂 Load unpacked</span>
+      </button>
+      <button id="btn-pack-ext" class="btn-dev-action secondary" disabled title="Extension packing is not required for unpacked development">
+        <span>📦 Pack extension</span>
+      </button>
+      <button id="btn-update-extensions" class="btn-dev-action secondary">
+        <span>🔄 Update</span>
+      </button>
+    </div>
+    <div class="dev-notice">
+      <span>Developer mode active — unpacked extensions can be loaded, reloaded, and inspected.</span>
+    </div>
+  </div>
+
+  <!-- Main Content Container -->
+  <main class="ext-main">
+    <div class="ext-section-header">
+      <h2>Installed Extensions</h2>
+      <span id="ext-count-badge" class="ext-count-badge">0 extensions</span>
+    </div>
+
+    <!-- Empty State -->
+    <div id="ext-empty-state" class="ext-empty-state hidden">
+      <div class="empty-icon">🧩</div>
+      <h3>No extensions installed</h3>
+      <p>Turn on Developer mode above and click "Load unpacked" to install an extension from your local drive.</p>
+    </div>
+
+    <!-- Extension Cards Grid -->
+    <div id="extensions-grid" class="extensions-grid">
+      <!-- Dynamic Extension Cards injected here -->
+    </div>
+  </main>
+
+  <!-- ─── Modal 1: Permission Review & Install Approval ─── -->
+  <div id="modal-install-approval" class="modal-overlay hidden">
+    <div class="modal-card modal-install">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon">🛡️</span>
+          <h3>Install Unpacked Extension?</h3>
+        </div>
+        <button id="btn-close-install-modal" class="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="install-preview-header">
+          <div class="install-ext-icon">🧩</div>
+          <div class="install-ext-meta">
+            <h4 id="install-ext-name">Extension Name</h4>
+            <div class="install-ext-sub">
+              <span id="install-ext-version">Version 1.0.0</span> •
+              <span id="install-ext-mv">Manifest V3</span>
+            </div>
+          </div>
+        </div>
+
+        <p id="install-ext-desc" class="install-desc">Extension description goes here.</p>
+
+        <!-- High Risk Warning Banner -->
+        <div id="install-high-risk-alert" class="alert-banner danger hidden">
+          <span class="alert-icon">⚠️</span>
+          <div class="alert-content">
+            <strong>High-Risk Permissions Requested</strong>
+            <p>This extension requests powerful permissions that allow inspection or modification of sensitive data.</p>
+            <ul id="install-high-risk-list"></ul>
+          </div>
+        </div>
+
+        <!-- Standard Permissions List -->
+        <div class="permissions-section">
+          <h5>Permissions</h5>
+          <ul id="install-permissions-list" class="permissions-list">
+            <!-- Dynamic permissions items -->
+          </ul>
+        </div>
+
+        <!-- Host Permissions (Sites Access) -->
+        <div id="install-host-perms-section" class="permissions-section hidden">
+          <h5>Website Access</h5>
+          <ul id="install-host-list" class="permissions-list">
+            <!-- Dynamic host permissions -->
+          </ul>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button id="btn-cancel-install" class="btn-modal-cancel">Cancel</button>
+        <button id="btn-confirm-install" class="btn-modal-confirm">Install and Enable</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Modal 2: Extension Details ─── -->
+  <div id="modal-extension-details" class="modal-overlay hidden">
+    <div class="modal-card modal-details">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span id="details-ext-icon" class="modal-icon">🧩</span>
+          <h3 id="details-ext-title">Extension Details</h3>
+        </div>
+        <button id="btn-close-details-modal" class="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="details-section">
+          <div class="detail-row">
+            <span class="detail-label">Version</span>
+            <span id="details-version" class="detail-val">1.0.0</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Manifest Version</span>
+            <span id="details-mv" class="detail-val">3</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Extension ID</span>
+            <span id="details-id" class="detail-val mono">abcdef...</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Size on disk</span>
+            <span id="details-size" class="detail-val">0 KB</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Source Path</span>
+            <span id="details-path" class="detail-val path-val">C:\...</span>
+          </div>
+        </div>
+
+        <div class="details-section">
+          <h4>Permissions</h4>
+          <ul id="details-permissions-list" class="details-perm-list"></ul>
+        </div>
+
+        <div class="details-section">
+          <h4>Site Access</h4>
+          <div class="site-access-options">
+            <label class="radio-label">
+              <input type="radio" name="site-access" value="all" id="sa-all" checked>
+              <span>On all sites</span>
+            </label>
+            <label class="radio-label">
+              <input type="radio" name="site-access" value="click" id="sa-click">
+              <span>On click</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="details-section">
+          <h4>Access Controls</h4>
+          <div class="setting-toggle-row">
+            <div class="toggle-info">
+              <span>Allow in Incognito</span>
+              <small class="text-muted">SHMMOTH Browser cannot prevent extensions from recording browsing history in incognito mode.</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="details-toggle-incognito">
+              <span class="slider round"></span>
+            </label>
+          </div>
+          <div class="setting-toggle-row">
+            <div class="toggle-info">
+              <span>Allow access to file URLs</span>
+              <small class="text-muted">Allows extension to read and run on local file:// documents.</small>
+            </div>
+            <label class="switch">
+              <input type="checkbox" id="details-toggle-file-access">
+              <span class="slider round"></span>
+            </label>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer split">
+        <button id="btn-details-remove" class="btn-danger-outline">Remove extension</button>
+        <button id="btn-details-done" class="btn-modal-confirm">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Modal 3: Extension Errors ─── -->
+  <div id="modal-extension-errors" class="modal-overlay hidden">
+    <div class="modal-card modal-errors">
+      <div class="modal-header">
+        <div class="modal-title-group">
+          <span class="modal-icon error">⚠️</span>
+          <h3 id="errors-ext-title">Extension Errors</h3>
+        </div>
+        <button id="btn-close-errors-modal" class="modal-close-btn">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="errors-summary">
+          <p>The following runtime or background script errors were caught. SHMMOTH Browser isolated these errors to prevent browser failure.</p>
+        </div>
+        <div id="errors-log-container" class="errors-log-container">
+          <!-- Dynamic error entries -->
+        </div>
+      </div>
+      <div class="modal-footer split">
+        <button id="btn-errors-clear" class="btn-modal-cancel">Clear errors</button>
+        <div class="modal-footer-right">
+          <button id="btn-errors-reload" class="btn-modal-confirm">Reload extension</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <script src="extensions.js"></script>
+</body>
+</html>

@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Settings - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="settings.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="settings-layout">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <div class="brand-badge">
+          <span class="brand-dot"></span>
+          <span>SHMMOTH BROWSER</span>
+        </div>
+        <h2>Settings</h2>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#general" class="nav-item active" data-tab="general">🔍 Search & General</a>
+        <a href="#privacy" class="nav-item" data-tab="privacy">🛡️ Ad-Blocker & Privacy</a>
+        <a href="#passwords" class="nav-item" data-tab="passwords">🔑 Passwords</a>
+        <a href="#autofill" class="nav-item" data-tab="autofill">📝 Autofill</a>
+        <a href="#network" class="nav-item" data-tab="network">🌐 Network & Proxy</a>
+        <a href="#downloads" class="nav-item" data-tab="downloads">📥 Downloads</a>
+        <a href="mtc://extensions" class="nav-item">🧩 Extensions</a>
+        <a href="#ai" class="nav-item" data-tab="ai">✨ AI Assistant</a>
+        <a href="#performance" class="nav-item" data-tab="performance">⚡ Performance & RAM</a>
+        <a href="#appearance" class="nav-item" data-tab="appearance">🎨 Appearance</a>
+        <a href="#about" class="nav-item" data-tab="about">ℹ️ About SHMMOTH</a>
+      </nav>
+
+      <div class="sidebar-footer">
+        <button id="btn-back-to-browsing" class="btn-return">← Back to Browsing</button>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="content-area">
+      <!-- Search & General -->
+      <section id="tab-general" class="tab-pane active">
+        <div class="section-title">
+          <h2>Search Engine & General</h2>
+          <p>Configure your default search engine and home page.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Default Search Engine</label>
+              <span class="setting-desc">Used when searching directly from the address bar (Omnibox).</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-search-engine" class="select-dropdown">
+                <option value="google" selected>Google (Default)</option>
+                <option value="duckduckgo">DuckDuckGo (Privacy Focused)</option>
+                <option value="bing">Microsoft Bing</option>
+                <option value="yahoo">Yahoo Search</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Show Bookmarks Bar</label>
+              <span class="setting-desc">Display quick access bookmarks underneath the address bar.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-bookmarks-bar" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ad-Blocker & Privacy -->
+      <section id="tab-privacy" class="tab-pane">
+        <div class="section-title">
+          <h2>Ad-Blocker & Privacy Shield</h2>
+          <p>Block annoying advertisements, popup banners, and third-party trackers.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Built-in Ad-Blocker</label>
+              <span class="setting-desc">Automatically blocks popup ads, banner ads, and malicious scripts.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-adblocker" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Total Ads & Trackers Intercepted</label>
+              <span class="setting-desc">Live counter of ads stopped in this session.</span>
+            </div>
+            <div class="setting-control">
+              <span id="badge-blocked-count" class="badge-pill">0 Blocked</span>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Clear Browsing Data</label>
+              <span class="setting-desc">Erase visited websites history, temporary cache, download history, and saved cookies.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-clear-data" class="btn-primary">Clear Browsing Data...</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Cookies & Stored Site Data</label>
+              <span class="setting-desc">View, filter, or delete cookies saved by websites across sessions.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-cookies-modal" class="btn-secondary">Manage Cookies & Site Data</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Site Permissions & Exceptions</label>
+              <span class="setting-desc">Control camera, microphone, geolocation, and notification access for sites.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-permissions-modal" class="btn-secondary">Manage Site Permissions</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Passwords (Stage 6) -->
+      <section id="tab-passwords" class="tab-pane">
+        <div class="section-title">
+          <h2>Password Manager</h2>
+          <p>Manage and protect your securely saved credentials. Passwords are encrypted using OS-level security.</p>
+        </div>
+
+        <div class="card">
+          <div class="passwords-toolbar">
+            <input type="text" id="passwords-search-input" class="text-input" placeholder="Search saved passwords by website or username...">
+            <div class="toolbar-actions">
+              <button id="btn-add-password-modal" class="btn-primary">+ Add Password</button>
+              <button id="btn-clear-all-passwords" class="btn-danger">Clear All</button>
+            </div>
+          </div>
+
+          <div id="passwords-list" class="passwords-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Autofill (Stage 6) -->
+      <section id="tab-autofill" class="tab-pane">
+        <div class="section-title">
+          <h2>Form Autofill</h2>
+          <p>Automatically fill contact and address information in web forms without exposing whole profiles.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Enable Autofill</label>
+              <span class="setting-desc">Suggest saved names, emails, phones, and addresses when filling forms.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-autofill" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="autofill-toolbar">
+            <h3>Saved Profiles</h3>
+            <div class="toolbar-actions">
+              <button id="btn-add-profile-modal" class="btn-primary">+ Add Profile</button>
+              <button id="btn-clear-all-profiles" class="btn-danger">Clear All</button>
+            </div>
+          </div>
+
+          <div id="autofill-list" class="autofill-list">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Network & Proxy (Stage 6) -->
+      <section id="tab-network" class="tab-pane">
+        <div class="section-title">
+          <h2>Network & Proxy Configuration</h2>
+          <p>Configure how SHMMOTH Browser routes web requests. Supports Direct, System Default, or Manual Proxy.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Connection Mode</label>
+              <span class="setting-desc">Choose whether to use the operating system proxy, connect directly, or configure a custom proxy.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-proxy-mode" class="select-dropdown">
+                <option value="system">System Default Proxy (Recommended)</option>
+                <option value="direct">Direct Connection (No Proxy)</option>
+                <option value="manual">Manual Proxy Configuration</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Manual Proxy Fields Container -->
+          <div id="manual-proxy-container" class="manual-proxy-fields hidden">
+            <div class="divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Proxy Protocol</label>
+                <span class="setting-desc">Select proxy communication protocol.</span>
+              </div>
+              <div class="setting-control">
+                <select id="select-proxy-protocol" class="select-dropdown">
+                  <option value="http">HTTP</option>
+                  <option value="https">HTTPS</option>
+                  <option value="socks5">SOCKS5</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Proxy Server</label>
+                <span class="setting-desc">Hostname or IP address and port number.</span>
+              </div>
+              <div class="setting-control proxy-endpoint-group">
+                <input type="text" id="input-proxy-host" class="text-input" placeholder="e.g. proxy.example.com">
+                <input type="number" id="input-proxy-port" class="text-input port-input" placeholder="Port" min="1" max="65535" value="8080">
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Proxy Authentication (Optional)</label>
+                <span class="setting-desc">Credentials for authenticated proxy servers (passwords are stored encrypted).</span>
+              </div>
+              <div class="setting-control proxy-auth-group">
+                <input type="text" id="input-proxy-user" class="text-input" placeholder="Username (optional)">
+                <input type="password" id="input-proxy-pass" class="text-input" placeholder="Password (leave blank to keep existing)">
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label">Bypass Proxy Rules</label>
+                <span class="setting-desc">Semicolon-separated list of hosts or patterns to bypass the proxy.</span>
+              </div>
+              <div class="setting-control bypass-input-group">
+                <input type="text" id="input-proxy-bypass" class="text-input" value="<local>;localhost;127.0.0.1">
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="proxy-actions-row">
+            <div class="proxy-test-status" id="proxy-test-status"></div>
+            <div class="proxy-buttons">
+              <button id="btn-test-proxy" class="btn-secondary">Test Connection</button>
+              <button id="btn-reset-proxy" class="btn-secondary">Reset to System Default</button>
+              <button id="btn-save-proxy" class="btn-primary">Save & Apply</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Downloads -->
+      <section id="tab-downloads" class="tab-pane">
+        <div class="section-title">
+          <h2>Downloads</h2>
+          <p>Configure where downloaded files are saved and prompt preferences.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Download Location</label>
+              <span class="setting-desc" id="label-download-path">Default system downloads folder</span>
+            </div>
+            <div class="setting-control" style="display: flex; gap: 8px;">
+              <button id="btn-change-download-folder" class="btn-secondary">Change...</button>
+              <button id="btn-open-download-folder-settings" class="btn-secondary">Open Folder</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Ask where to save each file before downloading</label>
+              <span class="setting-desc">When enabled, a save dialog will prompt you for every download.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-ask-where-to-save">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Assistant -->
+      <section id="tab-ai" class="tab-pane">
+        <div class="section-title">
+          <h2>AI Assistant Sidebar</h2>
+          <p>Access your favorite AI companion in a sliding side panel while you browse.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Enable AI Sidebar</label>
+              <span class="setting-desc">Show the ✨ AI Assistant button in the top toolbar.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-ai-sidebar" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Preferred AI Provider</label>
+              <span class="setting-desc">Choose which AI service opens when the sidebar is activated.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-ai-provider" class="select-dropdown">
+                <option value="gemini" selected>Google Gemini (gemini.google.com)</option>
+                <option value="chatgpt">OpenAI ChatGPT (chatgpt.com)</option>
+                <option value="custom">Custom AI Web App URL</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-row" id="row-custom-ai" style="display:none; margin-top:12px;">
+            <div class="setting-info">
+              <label class="setting-label">Custom AI URL</label>
+            </div>
+            <div class="setting-control" style="flex:1; max-width:320px;">
+              <input type="text" id="input-custom-ai" class="text-input" placeholder="https://..." value="https://gemini.google.com">
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Performance & RAM -->
+      <section id="tab-performance" class="tab-pane">
+        <div class="section-title">
+          <h2>Performance & RAM Saver</h2>
+          <p>Keep your PC running fast by automatically freezing unused background tabs.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Automatic Tab Sleep (RAM Saver)</label>
+              <span class="setting-desc">Suspends idle background tabs to free up RAM and reduce CPU usage.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-ram-saver" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Inactivity Sleep Timeout</label>
+              <span class="setting-desc">How long a background tab can remain idle before sleeping.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-ram-timeout" class="select-dropdown">
+                <option value="5">5 Minutes (Aggressive)</option>
+                <option value="15" selected>15 Minutes (Balanced)</option>
+                <option value="30">30 Minutes</option>
+                <option value="60">1 Hour</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Appearance -->
+      <section id="tab-appearance" class="tab-pane">
+        <div class="section-title">
+          <h2>Appearance & Theme</h2>
+          <p>Customize the visual styling of MTC BROWSER.</p>
+        </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Theme Mode</label>
+              <span class="setting-desc">Select dark, light, or midnight slate aesthetic.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-theme" class="select-dropdown">
+                <option value="dark" selected>Dark Glass (Recommended)</option>
+                <option value="light">Classic Light</option>
+                <option value="midnight">Midnight OLED</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- About SHMMOTH -->
+      <section id="tab-about" class="tab-pane">
+        <div class="section-title">
+          <h2>About SHMMOTH BROWSER</h2>
+          <p>Personal Chromium Desktop Browser Information.</p>
+        </div>
+
+        <!-- Chrome-Style Auto-Update Card -->
+        <div class="card update-card" id="update-card">
+          <div class="update-header">
+            <div class="update-status-row">
+              <span id="update-spinner" class="update-spinner hidden">🔄</span>
+              <span id="update-status-icon" class="update-status-icon">🚀</span>
+              <div class="update-info">
+                <h4 id="update-status-title">SHMMOTH Browser is up to date</h4>
+                <p id="update-status-desc">Version <strong id="about-browser-version">1.0.0</strong> (Official 64-bit Build)</p>
+              </div>
+            </div>
+            <div class="update-actions">
+              <button id="btn-check-updates" class="btn-primary">Check for updates</button>
+              <button id="btn-relaunch-update" class="btn-success hidden">Relaunch to update</button>
+            </div>
+          </div>
+          <div id="update-progress-container" class="update-progress-container hidden">
+            <div class="progress-bar-wrap">
+              <div id="update-progress-bar" class="progress-bar-fill" style="width: 0%"></div>
+            </div>
+            <div class="update-progress-meta">
+              <span id="update-progress-text">Downloading update: 0%</span>
+              <span id="update-progress-speed"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card about-card">
+          <div class="about-logo">
+            <span class="about-icon">🌐</span>
+          </div>
+          <h3>SHMMOTH BROWSER</h3>
+          <p class="about-tagline">Fast, Private & Secure Desktop Web Browser</p>
+          <div class="about-meta">
+            <div class="meta-item"><span>Version:</span> <strong id="about-meta-version">1.0.0</strong></div>
+            <div class="meta-item"><span>Rendering Engine:</span> <strong>Chromium Blink + V8</strong></div>
+            <div class="meta-item"><span>Default Search:</span> <strong>Google</strong></div>
+            <div class="meta-item"><span>Privacy Mode:</span> <strong>Ad-Blocker & RAM Saver Active</strong></div>
+          </div>
+          <div class="about-actions">
+            <button id="btn-reset-defaults" class="btn-secondary">Reset to Default Settings</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast hidden">Settings Saved!</div>
+
+  <!-- Clear Browsing Data Modal (Stage 4) -->
+  <div id="modal-clear-data" class="modal-backdrop hidden">
+    <div class="modal-card clear-data-card">
+      <div class="modal-header">
+        <h3>Clear Browsing Data</h3>
+        <button id="btn-close-clear-modal" class="modal-close-btn" title="Close">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="select-clear-range">Time Range</label>
+          <select id="select-clear-range" class="select-dropdown">
+            <option value="hour">Last hour</option>
+            <option value="day">Last 24 hours</option>
+            <option value="week">Last 7 days</option>
+            <option value="month">Last 4 weeks</option>
+            <option value="all" selected>All time</option>
+          </select>
+        </div>
+
+        <div class="clear-data-checklist">
+          <label class="checkbox-row">
+            <input type="checkbox" id="cb-clear-history" checked>
+            <div class="checkbox-label-group">
+              <span class="checkbox-title">Browsing history</span>
+              <span class="checkbox-subtitle">Clears URLs, titles, and revisit statistics from device</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cb-clear-cookies" checked>
+            <div class="checkbox-label-group">
+              <span class="checkbox-title">Cookies and other site data</span>
+              <span class="checkbox-subtitle">Signs you out of most sites and clears saved website state</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cb-clear-cache" checked>
+            <div class="checkbox-label-group">
+              <span class="checkbox-title">Cached images and files</span>
+              <span class="checkbox-subtitle">Frees disk space and refreshes web asset bundles</span>
+            </div>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" id="cb-clear-downloads">
+            <div class="checkbox-label-group">
+              <span class="checkbox-title">Download history</span>
+              <span class="checkbox-subtitle">Clears the downloaded files log (files on disk remain intact)</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-cancel-clear-modal" class="btn-secondary">Cancel</button>
+        <button id="btn-confirm-clear-data" class="btn-danger">Clear Data</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cookies & Site Data Manager Modal (Stage 4) -->
+  <div id="modal-cookies-data" class="modal-backdrop hidden">
+    <div class="modal-card cookies-data-card">
+      <div class="modal-header">
+        <div>
+          <h3>Cookies & Site Data</h3>
+          <span class="modal-subtitle" id="cookies-count-label">Loading stored cookies...</span>
+        </div>
+        <button id="btn-close-cookies-modal" class="modal-close-btn" title="Close">✕</button>
+      </div>
+
+      <div class="cookies-toolbar">
+        <input type="text" id="cookies-search-input" class="text-input" placeholder="Filter cookies by domain or name...">
+        <button id="btn-clear-all-cookies" class="btn-danger">Clear All Cookies</button>
+      </div>
+
+      <div id="cookies-list" class="cookies-list">
+        <!-- Rendered cookies dynamically -->
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-done-cookies-modal" class="btn-secondary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Site Permissions Manager Modal (Stage 5) -->
+  <div id="modal-permissions-data" class="modal-backdrop hidden">
+    <div class="modal-card permissions-data-card">
+      <div class="modal-header">
+        <div>
+          <h3>Site Permissions</h3>
+          <span class="modal-subtitle" id="permissions-count-label">Configured origin permissions</span>
+        </div>
+        <button id="btn-close-permissions-modal" class="modal-close-btn" title="Close">✕</button>
+      </div>
+
+      <div class="permissions-toolbar">
+        <input type="text" id="permissions-search-input" class="text-input" placeholder="Filter permissions by site origin...">
+        <button id="btn-clear-all-permissions" class="btn-danger">Reset All Permissions</button>
+      </div>
+
+      <div id="permissions-list" class="permissions-list">
+        <!-- Rendered origin permission rows dynamically -->
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-done-permissions-modal" class="btn-secondary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Password Modal (Stage 6) -->
+  <div id="modal-password-edit" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="password-modal-title">Add Saved Password</h3>
+        <button id="btn-close-password-modal" class="modal-close-btn" title="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="input-password-id">
+        <div class="input-group">
+          <label for="input-password-origin">Website / Origin</label>
+          <input type="text" id="input-password-origin" class="text-input" placeholder="https://example.com">
+        </div>
+        <div class="input-group">
+          <label for="input-password-user">Username / Email</label>
+          <input type="text" id="input-password-user" class="text-input" placeholder="user@example.com">
+        </div>
+        <div class="input-group">
+          <label for="input-password-val">Password</label>
+          <input type="password" id="input-password-val" class="text-input" placeholder="Password">
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-password-modal" class="btn-secondary">Cancel</button>
+        <button id="btn-save-password-entry" class="btn-primary">Save Credential</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add/Edit Autofill Profile Modal (Stage 6) -->
+  <div id="modal-autofill-edit" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="autofill-modal-title">Add Autofill Profile</h3>
+        <button id="btn-close-autofill-modal" class="modal-close-btn" title="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="input-autofill-id">
+        <div class="form-row-two">
+          <div class="input-group">
+            <label for="input-autofill-name">Full Name</label>
+            <input type="text" id="input-autofill-name" class="text-input" placeholder="e.g. John Doe">
+          </div>
+          <div class="input-group">
+            <label for="input-autofill-email">Email</label>
+            <input type="email" id="input-autofill-email" class="text-input" placeholder="john@example.com">
+          </div>
+        </div>
+        <div class="form-row-two">
+          <div class="input-group">
+            <label for="input-autofill-phone">Phone</label>
+            <input type="tel" id="input-autofill-phone" class="text-input" placeholder="+1 (555) 019-2834">
+          </div>
+          <div class="input-group">
+            <label for="input-autofill-country">Country</label>
+            <input type="text" id="input-autofill-country" class="text-input" placeholder="United States">
+          </div>
+        </div>
+        <div class="input-group">
+          <label for="input-autofill-address">Street Address</label>
+          <input type="text" id="input-autofill-address" class="text-input" placeholder="123 Main Street, Apt 4B">
+        </div>
+        <div class="form-row-three">
+          <div class="input-group">
+            <label for="input-autofill-city">City</label>
+            <input type="text" id="input-autofill-city" class="text-input" placeholder="San Francisco">
+          </div>
+          <div class="input-group">
+            <label for="input-autofill-state">State / Province</label>
+            <input type="text" id="input-autofill-state" class="text-input" placeholder="CA">
+          </div>
+          <div class="input-group">
+            <label for="input-autofill-postal">Postal / ZIP Code</label>
+            <input type="text" id="input-autofill-postal" class="text-input" placeholder="94105">
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-autofill-modal" class="btn-secondary">Cancel</button>
+        <button id="btn-save-autofill-profile" class="btn-primary">Save Profile</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="settings.js"></script>
+</body>
+</html>

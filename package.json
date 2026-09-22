@@ -1,0 +1,59 @@
+{
+  "name": "mtc-browser",
+  "version": "1.0.1",
+  "description": "MTC BROWSER - A Fast, Modern, Personal Desktop Browser powered by Chromium",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "browser",
+    "chromium",
+    "electron",
+    "mtc-browser"
+  ],
+  "author": "MTC",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "@ghostery/adblocker-electron": "^2.18.2",
+    "cross-fetch": "^4.1.0",
+    "electron-updater": "^6.8.9"
+  },
+  "build": {
+    "appId": "com.mtc.shmmothbrowser",
+    "productName": "SHMMOTH Browser",
+    "directories": {
+      "output": "dist"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jaydipvirja",
+        "repo": "shmmoth-browser"
+      }
+    ],
+    "files": [
+      "src/**/*",
+      "extensions/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SHMMOTH Browser"
+    }
+  }
+}

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Quick Notes - MTC BROWSER</title>
+  <link rel="stylesheet" href="settings.css">
+  <style>
+    body {
+      background: #1e293b;
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+    .notes-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+    .notes-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 15px;
+      font-weight: 700;
+      color: #38bdf8;
+    }
+    .header-actions {
+      display: flex;
+      gap: 6px;
+    }
+    .action-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      color: #cbd5e1;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .action-btn:hover {
+      background: rgba(255, 255, 255, 0.15);
+      color: #ffffff;
+    }
+    .action-btn.danger:hover {
+      background: #dc2626;
+      border-color: #ef4444;
+    }
+    .notes-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    textarea {
+      flex: 1;
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 14px;
+      color: #f8fafc;
+      font-family: inherit;
+      font-size: 13.5px;
+      line-height: 1.6;
+      resize: none;
+      outline: none;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    textarea:focus {
+      border-color: #3b82f6;
+    }
+    .notes-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    .save-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      color: #10b981;
+    }
+  </style>
+</head>
+<body>
+  <div class="notes-header">
+    <div class="notes-title">
+      <span>📝</span>
+      <span>MTC Quick Scratchpad</span>
+    </div>
+    <div class="header-actions">
+      <button id="btn-copy" class="action-btn" title="Copy all notes">Copy All</button>
+      <button id="btn-clear" class="action-btn danger" title="Clear notes">Clear</button>
+    </div>
+  </div>
+
+  <div class="notes-body">
+    <textarea id="notes-content" placeholder="Type or paste any notes, links, code, or ideas here... They will be saved automatically as you type!"></textarea>
+  </div>
+
+  <div class="notes-footer">
+    <span id="stats">0 words | 0 chars</span>
+    <span id="status" class="save-status">✓ All changes saved</span>
+  </div>
+
+  <script>
+    const textarea = document.getElementById('notes-content');
+    const status = document.getElementById('status');
+    const stats = document.getElementById('stats');
+    const btnCopy = document.getElementById('btn-copy');
+    const btnClear = document.getElementById('btn-clear');
+
+    let debounceTimer = null;
+
+    function updateStats() {
+      const text = textarea.value.trim();
+      const chars = textarea.value.length;
+      const words = text ? text.split(/\s+/).length : 0;
+      stats.textContent = `${words} words | ${chars} chars`;
+    }
+
+    async function loadNotes() {
+      if (window.mtcAPI && window.mtcAPI.getNotes) {
+        const content = await window.mtcAPI.getNotes();
+        textarea.value = content || '';
+        updateStats();
+      }
+    }
+
+    textarea.addEventListener('input', () => {
+      status.textContent = 'Saving...';
+      status.style.color = '#f59e0b';
+      updateStats();
+
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(async () => {
+        if (window.mtcAPI && window.mtcAPI.saveNotes) {
+          await window.mtcAPI.saveNotes(textarea.value);
+          status.textContent = '✓ All changes saved';
+          status.style.color = '#10b981';
+        }
+      }, 500);
+    });
+
+    btnCopy.addEventListener('click', () => {
+      navigator.clipboard.writeText(textarea.value);
+      const prev = btnCopy.textContent;
+      btnCopy.textContent = 'Copied!';
+      setTimeout(() => btnCopy.textContent = prev, 1500);
+    });
+
+    btnClear.addEventListener('click', async () => {
+      if (confirm('Clear all notes?')) {
+        textarea.value = '';
+        updateStats();
+        if (window.mtcAPI && window.mtcAPI.saveNotes) {
+          await window.mtcAPI.saveNotes('');
+        }
+      }
+    });
+
+    loadNotes();
+  </script>
+</body>
+</html>

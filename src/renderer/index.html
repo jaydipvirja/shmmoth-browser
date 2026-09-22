@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body class="theme-dark">
+  <!-- Top Browser Chrome Window Header -->
+  <header id="browser-chrome" class="browser-chrome">
+    <!-- Tabs Strip & Window Controls -->
+    <div class="tabs-header-row">
+      <div class="brand-chip" title="SHMMOTH Browser">
+        <span class="brand-logo-icon">🌐</span>
+        <span class="brand-title">SHMMOTH</span>
+      </div>
+
+      <!-- Tabs Strip -->
+      <div id="tabs-strip" class="tabs-strip">
+        <!-- Dynamic tabs will be rendered here -->
+      </div>
+
+      <!-- Add Tab Button -->
+      <button id="btn-new-tab" class="btn-chrome btn-new-tab" title="New Tab (Ctrl+T)">+</button>
+
+      <!-- Incognito Mode Badge (Stage 4) -->
+      <div id="incognito-badge" class="incognito-badge hidden" title="You've gone Incognito. Your browsing activity is not saved.">
+        <span class="incognito-icon">🕶️</span>
+        <span class="incognito-text">Incognito</span>
+      </div>
+
+      <!-- Window Controls (Windows Minimize, Maximize, Close) -->
+      <div class="window-controls">
+        <button id="btn-win-min" class="btn-win" title="Minimize">─</button>
+        <button id="btn-win-max" class="btn-win" title="Maximize">□</button>
+        <button id="btn-win-close" class="btn-win btn-win-close" title="Close">✕</button>
+      </div>
+    </div>
+
+    <!-- Navigation Bar (Omnibox & Actions) -->
+    <div class="nav-toolbar">
+      <div class="nav-buttons">
+        <button id="btn-back" class="btn-tool" title="Back (Alt+Left)" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        </button>
+        <button id="btn-forward" class="btn-tool" title="Forward (Alt+Right)" disabled>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+        </button>
+        <button id="btn-reload" class="btn-tool" title="Reload (Ctrl+R)">
+          <!-- Reload Icon -->
+          <svg id="icon-reload" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          <!-- Stop Icon (hidden by default) -->
+          <svg id="icon-stop" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+        <button id="btn-home" class="btn-tool" title="Home">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </button>
+      </div>
+
+      <!-- Omnibox (Address & Search Bar) -->
+      <div class="omnibox-wrapper">
+        <span id="omnibox-security" class="omnibox-icon lock" title="Secure Connection">🔒</span>
+        <input type="text" id="omnibox-input" placeholder="Search Google or type a URL..." autocomplete="off" spellcheck="false">
+        <button id="omnibox-zoom-badge" class="zoom-badge hidden" title="Reset zoom to 100% (Ctrl+0)">100%</button>
+        <button id="btn-star-bookmark" class="omnibox-action-btn" title="Bookmark this tab (Ctrl+D)">★</button>
+      </div>
+
+      <!-- Action Tools -->
+      <div class="action-tools">
+        <!-- Ad Blocker Indicator -->
+        <button id="btn-adblocker-status" class="tool-badge-btn" title="SHMMOTH Shield Active">
+          <span class="shield">🛡️</span>
+          <span id="ad-counter" class="counter">0</span>
+        </button>
+
+        <!-- Live Download Status Chip in Toolbar -->
+        <div id="toolbar-download-status" class="toolbar-download-status hidden" title="Click to view Downloads (Ctrl+J)">
+          <span class="tb-dl-icon">⬇️</span>
+          <span id="toolbar-download-filename" class="tb-dl-filename">Downloading...</span>
+          <div class="tb-dl-progress-bg">
+            <div id="toolbar-download-bar" class="tb-dl-progress-bar"></div>
+          </div>
+          <span id="toolbar-download-meta" class="tb-dl-meta">0%</span>
+        </div>
+
+        <!-- Downloads Page Trigger Button -->
+        <button id="btn-downloads" class="btn-tool btn-downloads" title="Downloads (Ctrl+J)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="download-badge" class="download-badge hidden">0</span>
+        </button>
+
+        <!-- Pinned Extension Action Icons (Stage 7) -->
+        <div id="extension-action-icons" class="extension-action-icons"></div>
+
+        <!-- Extensions Menu (Stage 7) -->
+        <button id="btn-extensions" class="btn-tool" title="Extensions">
+          <span>🧩</span>
+        </button>
+
+        <!-- New Incognito Window (Stage 4) -->
+        <button id="btn-incognito" class="btn-tool" title="New Incognito Window (Ctrl+Shift+N)">
+          <span>🕶️</span>
+        </button>
+
+        <!-- Quick Notes Toggle -->
+        <button id="btn-toggle-notes" class="btn-tool" title="Quick Notes Scratchpad">
+          <span>📝</span>
+        </button>
+
+        <!-- DevTools Toggle -->
+        <button id="btn-devtools" class="btn-tool" title="Developer Tools (F12)">
+          <span>🛠️</span>
+        </button>
+
+        <!-- Settings Button -->
+        <button id="btn-settings" class="btn-tool" title="Settings">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Bookmarks Bar -->
+    <div id="bookmarks-bar" class="bookmarks-bar">
+      <!-- Dynamic bookmarks items -->
+    </div>
+
+    <!-- Floating Find in Page Bar (Stage 3) -->
+    <div id="find-bar" class="find-bar hidden">
+      <div class="find-input-wrapper">
+        <input type="text" id="find-input" placeholder="Find in page..." autocomplete="off" spellcheck="false">
+        <span id="find-match-count" class="find-match-count">0 of 0</span>
+      </div>
+      <button id="btn-find-prev" class="btn-find" title="Previous match (Shift+Enter)">▲</button>
+      <button id="btn-find-next" class="btn-find" title="Next match (Enter)">▼</button>
+      <button id="btn-find-close" class="btn-find btn-find-close" title="Close (Escape)">✕</button>
+    </div>
+
+    <!-- Site Information & Permissions Popup (Stage 5) -->
+    <div id="site-info-popup" class="site-info-popup hidden">
+      <div class="site-info-header">
+        <div class="site-security-badge" id="site-security-badge">
+          <span id="site-security-icon">🔒</span>
+          <span id="site-security-title">Connection is secure</span>
+        </div>
+        <span id="site-security-host" class="site-security-host">example.com</span>
+      </div>
+
+      <div class="site-info-section">
+        <h4 class="site-info-heading">Permissions</h4>
+        <div class="site-perm-item">
+          <span class="perm-label">📷 Camera</span>
+          <select id="perm-select-camera" class="perm-select" data-perm="media">
+            <option value="ask">Ask (Default)</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+        <div class="site-perm-item">
+          <span class="perm-label">🎤 Microphone</span>
+          <select id="perm-select-mic" class="perm-select" data-perm="media">
+            <option value="ask">Ask (Default)</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+        <div class="site-perm-item">
+          <span class="perm-label">📍 Location</span>
+          <select id="perm-select-geo" class="perm-select" data-perm="geolocation">
+            <option value="ask">Ask (Default)</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+        <div class="site-perm-item">
+          <span class="perm-label">🔔 Notifications</span>
+          <select id="perm-select-notif" class="perm-select" data-perm="notifications">
+            <option value="ask">Ask (Default)</option>
+            <option value="allow">Allow</option>
+            <option value="block">Block</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="site-info-footer">
+        <button id="btn-reset-site-perms" class="btn-text">Reset site permissions</button>
+      </div>
+    </div>
+
+    <!-- Live Permission Request Prompt (Stage 5) -->
+    <div id="permission-prompt-card" class="permission-prompt-card hidden">
+      <div class="perm-prompt-header">
+        <span id="perm-prompt-icon">🔒</span>
+        <div class="perm-prompt-text-group">
+          <strong id="perm-prompt-origin">example.com</strong>
+          <span id="perm-prompt-desc">wants to access your camera</span>
+        </div>
+        <button id="btn-perm-close" class="perm-close-btn" title="Dismiss">✕</button>
+      </div>
+      <div class="perm-prompt-options">
+        <label class="perm-remember-label">
+          <input type="checkbox" id="cb-perm-remember" checked>
+          <span>Always remember for this site</span>
+        </label>
+      </div>
+      <div class="perm-prompt-actions">
+        <button id="btn-perm-block" class="btn-perm-block">Block</button>
+        <button id="btn-perm-allow" class="btn-perm-allow">Allow</button>
+      </div>
+    </div>
+
+    <!-- Password Save / Offer Prompt (Stage 6) -->
+    <div id="password-save-card" class="password-save-card hidden">
+      <div class="password-prompt-header">
+        <span class="password-icon">🔑</span>
+        <div class="password-prompt-info">
+          <strong class="password-title">Save Password?</strong>
+          <span id="password-prompt-origin" class="password-prompt-origin">example.com</span>
+        </div>
+        <button id="btn-password-close" class="password-close-btn" title="Dismiss">✕</button>
+      </div>
+      <div class="password-prompt-details">
+        <div class="password-prompt-field">
+          <span class="password-field-label">Username:</span>
+          <span id="password-prompt-user" class="password-field-value"></span>
+        </div>
+      </div>
+      <div class="password-prompt-actions">
+        <button id="btn-password-never" class="btn-password-secondary">Never</button>
+        <button id="btn-password-notnow" class="btn-password-secondary">Not now</button>
+        <button id="btn-password-save" class="btn-password-primary">Save</button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Quick Notes Floating Drawer -->
+  <aside id="notes-drawer" class="notes-drawer hidden">
+    <div class="notes-header">
+      <div class="notes-title">
+        <span>📝</span>
+        <h3>Quick Scratchpad</h3>
+      </div>
+      <button id="btn-close-notes" class="btn-close-drawer">✕</button>
+    </div>
+    <textarea id="notes-textarea" placeholder="Jot down quick links, notes, or thoughts... (Saved automatically)"></textarea>
+    <div class="notes-footer">
+      <span id="notes-status">Saved locally</span>
+    </div>
+  </aside>
+
+  <!-- Tab Context Menu -->
+  <div id="tab-context-menu" class="custom-context-menu hidden">
+    <div class="menu-item" data-action="new-tab">
+      <span>New Tab</span>
+      <span class="menu-shortcut">Ctrl+T</span>
+    </div>
+    <div class="menu-item" data-action="reload-tab">
+      <span>Reload</span>
+      <span class="menu-shortcut">Ctrl+R</span>
+    </div>
+    <div class="menu-item" data-action="duplicate-tab">
+      <span>Duplicate</span>
+    </div>
+    <div class="menu-item" data-action="pin-tab">
+      <span id="ctx-pin-label">Pin Tab</span>
+    </div>
+    <div class="menu-item" data-action="mute-tab">
+      <span id="ctx-mute-label">Mute Tab</span>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" data-action="close-tab">
+      <span>Close</span>
+      <span class="menu-shortcut">Ctrl+W</span>
+    </div>
+    <div class="menu-item" data-action="close-other-tabs">
+      <span>Close Other Tabs</span>
+    </div>
+    <div class="menu-item" data-action="close-tabs-right">
+      <span>Close Tabs to the Right</span>
+    </div>
+    <div class="menu-divider"></div>
+    <div class="menu-item" data-action="reopen-closed-tab">
+      <span>Reopen Closed Tab</span>
+      <span class="menu-shortcut">Ctrl+Shift+T</span>
+    </div>
+  </div>
+
+  <!-- Tab Strip Empty Space Context Menu -->
+  <div id="tabstrip-context-menu" class="custom-context-menu hidden">
+    <div class="menu-item" data-action="new-tab">
+      <span>New Tab</span>
+      <span class="menu-shortcut">Ctrl+T</span>
+    </div>
+    <div class="menu-item" data-action="reopen-closed-tab">
+      <span>Reopen Closed Tab</span>
+      <span class="menu-shortcut">Ctrl+Shift+T</span>
+    </div>
+  </div>
+
+  <!-- Extension Menu Dropdown (Stage 7) -->
+  <div id="extension-menu-dropdown" class="extension-menu-dropdown hidden">
+    <div class="ext-menu-header">
+      <span class="ext-menu-title">Extensions</span>
+    </div>
+    <div id="ext-menu-list" class="ext-menu-list">
+      <!-- Dynamic extension items injected by app.js -->
+    </div>
+    <div class="ext-menu-footer">
+      <button id="btn-manage-extensions" class="btn-manage-ext">
+        <span>🧩 Manage extensions</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Floating Download Tray Dropdown (Chrome/Edge Style) -->
+  <div id="download-tray" class="download-tray hidden">
+    <div class="download-tray-header">
+      <div class="download-tray-title">
+        <span class="tray-title-icon">⬇️</span>
+        <span class="tray-title-text">Downloads</span>
+      </div>
+      <div class="download-tray-actions">
+        <button id="btn-tray-open-folder" class="btn-tray-icon" title="Open Downloads Folder">📁</button>
+        <button id="btn-tray-close" class="btn-tray-icon" title="Close">✕</button>
+      </div>
+    </div>
+    <div id="download-tray-list" class="download-tray-list">
+      <!-- Dynamic download items rendered by app.js -->
+    </div>
+    <div class="download-tray-footer">
+      <button id="btn-tray-all-downloads" class="btn-tray-link">Show all downloads</button>
+      <button id="btn-tray-clear" class="btn-tray-link btn-tray-clear">Clear finished</button>
+    </div>
+  </div>
+
+  <!-- Download Completion Toast -->
+  <div id="download-toast" class="download-toast hidden">
+    <div class="download-toast-icon">✅</div>
+    <div class="download-toast-body">
+      <strong id="download-toast-title" class="download-toast-title">Download complete</strong>
+      <span id="download-toast-filename" class="download-toast-filename">filename.ext</span>
+    </div>
+    <div class="download-toast-actions">
+      <button id="btn-toast-open" class="btn-toast-action">Open</button>
+      <button id="btn-toast-folder" class="btn-toast-action" title="Show in folder">📁</button>
+      <button id="btn-toast-close" class="btn-toast-close" title="Dismiss">✕</button>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
