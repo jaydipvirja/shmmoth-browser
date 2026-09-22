@@ -1252,5 +1252,18 @@ function setupAutoUpdateController() {
       }
     });
   }
+
+  // Handle direct manual download button click
+  const btnManualDownload = document.getElementById('btn-manual-download');
+  if (btnManualDownload) {
+    btnManualDownload.addEventListener('click', () => {
+      const url = 'https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.10/SHMMOTH-Browser-Setup-1.0.10.exe';
+      if (window.mtcAPI && window.mtcAPI.createTab) {
+        window.mtcAPI.createTab(url);
+      } else {
+        window.open(url, '_blank');
+      }
+    });
+  }
 }
 

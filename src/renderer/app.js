@@ -1920,7 +1920,7 @@ function setupUpdateToolbarListeners() {
 
     // 3. Trigger manual check if idle, not-available, or error
     if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
-      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.9' });
+      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.10' });
       if (api && api.checkForUpdates) {
         try {
           const res = await api.checkForUpdates();

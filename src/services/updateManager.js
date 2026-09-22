@@ -208,18 +208,6 @@ class UpdateManager extends EventEmitter {
       return { ...this._status };
     }
 
-    // In dev mode (unpackaged app), skip unless forced
-    if (app && !app.isPackaged && !process.env.FORCE_UPDATE_CHECK) {
-      if (log) log.info('Skipping auto-update check in development mode');
-      this._updateStatus({
-        status: 'not-available',
-        lastChecked: new Date().toISOString(),
-        message: `SHMMOTH Browser v${this._status.currentVersion} (Development build).`,
-        error: null
-      });
-      return { ...this._status };
-    }
-
     this._updateStatus({
       status: 'checking',
       message: 'Checking for updates...',
@@ -380,15 +368,26 @@ class UpdateManager extends EventEmitter {
       if (log) log.info('Launching downloaded installer', { path: this.downloadedInstallerPath });
 
       try {
-        const child = spawn(this.downloadedInstallerPath, ['--updated'], {
-          detached: true,
-          stdio: 'ignore'
-        });
-        child.unref();
+        let launched = false;
+        try {
+          const { shell } = require('electron');
+          if (shell && typeof shell.openPath === 'function') {
+            shell.openPath(this.downloadedInstallerPath);
+            launched = true;
+          }
+        } catch (_) {}
+
+        if (!launched) {
+          const child = spawn(this.downloadedInstallerPath, [], {
+            detached: true,
+            stdio: 'ignore'
+          });
+          child.unref();
+        }
 
         setTimeout(() => {
           if (app) app.quit();
-        }, 500);
+        }, 800);
 
         return true;
       } catch (err) {
