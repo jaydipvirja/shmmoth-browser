@@ -413,6 +413,19 @@ class DownloadManager {
     const { url, filename: customFilename, headers = {}, isIncognito = false, threads } = opts;
     if (!url || typeof url !== 'string') throw new Error('Valid URL required for Turbo download');
 
+    // Anti-duplicate protection for Turbo downloads
+    const now = Date.now();
+    const isDuplicate = Object.values(this.downloads).some(d => {
+      if (!d || d.url !== url) return false;
+      if (d.state === 'progressing' && !d.isPaused) return true;
+      if (d.startedAt && (now - d.startedAt) < 4000) return true;
+      return false;
+    });
+    if (isDuplicate) {
+      log.warn(`Smart Duplicate Protection: Skipped duplicate Turbo download for URL: ${url.slice(0, 100)}`);
+      return null;
+    }
+
     const id = generateId();
     this._resolveSaveDir();
 
@@ -496,6 +509,28 @@ class DownloadManager {
     const url = item.getURL();
     const total = item.getTotalBytes() || 0;
     const isIncognito = Boolean(options.isIncognito);
+    const now = Date.now();
+
+    // ── Smart Anti-Duplicate / Anti-Spam Protection ──
+    // Prevents parallel duplicate downloads when websites (like HDHub4u / HubCloud / Mediator)
+    // fire window.open + location.href concurrently (within milliseconds), or rapid double-clicks.
+    // This prevents server-side bandwidth throttling (e.g. Google Drive 5 B/s cap) and duplicate files.
+    const isDuplicate = Object.values(this.downloads).some(d => {
+      if (!d || d.url !== url) return false;
+      const rawBase = path.basename(filename, path.extname(filename));
+      const dBase = path.basename(d.filename || '', path.extname(d.filename || '')).replace(/ \(\d+\)$/, '');
+      if (rawBase === dBase) {
+        if (d.state === 'progressing' && !d.isPaused) return true;
+        if (d.startedAt && (now - d.startedAt) < 4000) return true;
+      }
+      return false;
+    });
+
+    if (isDuplicate) {
+      log.warn(`Smart Duplicate Protection: Prevented duplicate stream for "${filename}" from URL: ${url.slice(0, 100)}`);
+      try { item.cancel(); } catch (_) {}
+      return;
+    }
 
     this._resolveSaveDir();
     let savePath = getUniqueSavePath(this._saveDir, filename);

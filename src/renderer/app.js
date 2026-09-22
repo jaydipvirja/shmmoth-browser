@@ -885,7 +885,7 @@ function setupEventListeners() {
 
   // Ad blocker button
   btnAdblockerStatus.addEventListener('click', () => {
-    if (api && api.navigateTab) api.navigateTab(activeTabId, 'mtc://settings#privacy');
+    openSettingsTab('privacy');
   });
 
   // Downloads Button & Live Toolbar Status Trigger (Chrome Style Flyout)
@@ -935,7 +935,7 @@ function setupEventListeners() {
 
   // Settings Button
   btnSettings.addEventListener('click', () => {
-    if (api && api.navigateTab) api.navigateTab(activeTabId, 'mtc://settings');
+    openSettingsTab();
   });
 
   // New Incognito Window Button (Stage 4)
@@ -1243,7 +1243,7 @@ function setupKeyboardShortcuts() {
     // Ctrl+Shift+Delete: Open Clear Browsing Data / Privacy Settings (Stage 4)
     else if (e.ctrlKey && e.shiftKey && (e.key === 'Delete' || e.key === 'Del')) {
       e.preventDefault();
-      if (activeTabId && api && api.navigateTab) api.navigateTab(activeTabId, 'mtc://settings#privacy');
+      openSettingsTab('privacy');
     }
     // Ctrl+Tab / Ctrl+Shift+Tab: Switch Tab
     else if (e.ctrlKey && e.key === 'Tab') {
@@ -1301,7 +1301,7 @@ function setupKeyboardShortcuts() {
     // Ctrl+H: Open History
     else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'h') {
       e.preventDefault();
-      if (api && api.navigateTab) api.navigateTab(activeTabId, 'mtc://history');
+      openHistoryTab();
     }
     // Ctrl+J: Open Downloads Tab
     else if (e.ctrlKey && !e.shiftKey && e.key.toLowerCase() === 'j') {
@@ -1430,6 +1430,28 @@ function openDownloadsTab() {
     api.switchTab(existingTab.id);
   } else if (api && api.createTab) {
     api.createTab('mtc://downloads');
+  }
+}
+
+function openSettingsTab(hash = '') {
+  const targetUrl = hash ? `mtc://settings#${hash.replace(/^#/, '')}` : 'mtc://settings';
+  const existingTab = currentTabs.find(t => t.url && t.url.startsWith('mtc://settings'));
+  if (existingTab && api && api.switchTab) {
+    api.switchTab(existingTab.id);
+    if (hash && api.navigateTab) {
+      api.navigateTab(existingTab.id, targetUrl);
+    }
+  } else if (api && api.createTab) {
+    api.createTab(targetUrl);
+  }
+}
+
+function openHistoryTab() {
+  const existingTab = currentTabs.find(t => t.url && (t.url === 'mtc://history' || t.url.startsWith('mtc://history')));
+  if (existingTab && api && api.switchTab) {
+    api.switchTab(existingTab.id);
+  } else if (api && api.createTab) {
+    api.createTab('mtc://history');
   }
 }
 
@@ -1823,32 +1845,27 @@ function setupUpdateToolbarListeners() {
       return;
     }
 
-    // 2. If already downloading, navigate to About settings to view progress
-    if (currentUpdateStatus && (currentUpdateStatus.status === 'downloading' || currentUpdateStatus.status === 'available')) {
-      if (api && api.navigateTab) {
-        api.navigateTab(activeTabId, 'mtc://settings#about');
-      }
-      return;
-    }
+    // 2. Open About Settings in a NEW TAB (or switch to existing) so active user work is NEVER lost!
+    openSettingsTab('about');
 
-    // 3. Trigger manual check
-    renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.2' });
-    if (api && api.checkForUpdates) {
-      try {
-        const res = await api.checkForUpdates();
-        renderToolbarUpdateStatus(res);
-      } catch (err) {
-        renderToolbarUpdateStatus({ status: 'error', error: err.message });
+    // 3. Trigger manual check if idle, not-available, or error
+    if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
+      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.7' });
+      if (api && api.checkForUpdates) {
+        try {
+          const res = await api.checkForUpdates();
+          renderToolbarUpdateStatus(res);
+        } catch (err) {
+          renderToolbarUpdateStatus({ status: 'error', error: err.message });
+        }
       }
     }
   });
 
-  // Secondary / contextmenu: open settings about directly
+  // Secondary / contextmenu: open settings about in a new tab without overwriting active work
   btnCheckUpdateToolbar.addEventListener('contextmenu', (e) => {
     e.preventDefault();
-    if (api && api.navigateTab) {
-      api.navigateTab(activeTabId, 'mtc://settings#about');
-    }
+    openSettingsTab('about');
   });
 }
 
