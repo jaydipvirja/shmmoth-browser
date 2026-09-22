@@ -25,8 +25,12 @@ const adCounter          = document.getElementById('ad-counter');
 const btnDownloads       = document.getElementById('btn-downloads');
 const btnToggleNotes     = document.getElementById('btn-toggle-notes');
 const btnDevtools        = document.getElementById('btn-devtools');
+const btnCheckUpdateToolbar = document.getElementById('btn-check-update-toolbar');
+const updateToolbarBadge    = document.getElementById('update-toolbar-badge');
 const btnSettings        = document.getElementById('btn-settings');
 const bookmarksBar       = document.getElementById('bookmarks-bar');
+
+let currentUpdateStatus  = null;
 
 // Window Controls
 const btnWinMin   = document.getElementById('btn-win-min');
@@ -147,6 +151,7 @@ async function init() {
   await loadExtensions();
   await loadDownloads();
   setupDownloadListeners();
+  setupUpdateToolbarListeners();
 
   // Fallback: ensure at least one tab exists if main process hasn't created one
   setTimeout(() => {
@@ -1726,6 +1731,123 @@ function setupDownloadListeners() {
       if (!downloadTray.contains(e.target) && !btnDownloads.contains(e.target)) {
         closeDownloadTray();
       }
+    }
+  });
+}
+
+// ─── Auto-Update Toolbar Controller ─────────────────────────────────────────
+function setupUpdateToolbarListeners() {
+  if (!btnCheckUpdateToolbar) return;
+
+  function renderToolbarUpdateStatus(status) {
+    if (!status) return;
+    currentUpdateStatus = status;
+
+    switch (status.status) {
+      case 'checking':
+        btnCheckUpdateToolbar.classList.add('spinning');
+        btnCheckUpdateToolbar.classList.remove('update-ready');
+        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
+        btnCheckUpdateToolbar.title = 'Checking for updates...';
+        break;
+
+      case 'available':
+      case 'downloading':
+        btnCheckUpdateToolbar.classList.remove('spinning');
+        btnCheckUpdateToolbar.classList.remove('update-ready');
+        if (updateToolbarBadge) {
+          updateToolbarBadge.classList.remove('hidden');
+          const pct = Math.round(status.percent || 0);
+          updateToolbarBadge.textContent = pct > 0 ? `${pct}%` : '↓';
+        }
+        btnCheckUpdateToolbar.title = `Downloading update: ${Math.round(status.percent || 0)}% (Click to view)`;
+        break;
+
+      case 'downloaded':
+        btnCheckUpdateToolbar.classList.remove('spinning');
+        btnCheckUpdateToolbar.classList.add('update-ready');
+        if (updateToolbarBadge) {
+          updateToolbarBadge.classList.remove('hidden');
+          updateToolbarBadge.textContent = '!';
+        }
+        btnCheckUpdateToolbar.title = `Update ready (v${status.availableVersion || ''})! Click to restart and install.`;
+        break;
+
+      case 'not-available':
+        btnCheckUpdateToolbar.classList.remove('spinning');
+        btnCheckUpdateToolbar.classList.remove('update-ready');
+        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
+        btnCheckUpdateToolbar.title = `SHMMOTH Browser is up to date (v${status.currentVersion || ''})`;
+        break;
+
+      case 'error':
+        btnCheckUpdateToolbar.classList.remove('spinning');
+        btnCheckUpdateToolbar.classList.remove('update-ready');
+        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
+        btnCheckUpdateToolbar.title = 'Update check: ' + (status.error || status.message || 'Error occurred');
+        break;
+
+      default:
+        btnCheckUpdateToolbar.classList.remove('spinning');
+        btnCheckUpdateToolbar.classList.remove('update-ready');
+        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
+        btnCheckUpdateToolbar.title = 'Check for updates';
+        break;
+    }
+  }
+
+  // Subscribe to live status pushes from UpdateManager
+  if (api && api.onUpdateStatus) {
+    api.onUpdateStatus((status) => {
+      renderToolbarUpdateStatus(status);
+    });
+  }
+
+  // Fetch initial status on startup
+  if (api && api.getUpdateStatus) {
+    api.getUpdateStatus().then(status => {
+      renderToolbarUpdateStatus(status);
+    }).catch(() => {});
+  }
+
+  // Click handler
+  btnCheckUpdateToolbar.addEventListener('click', async () => {
+    // 1. If an update has already finished downloading, offer instant restart & install
+    if (currentUpdateStatus && currentUpdateStatus.status === 'downloaded') {
+      const confirmRelaunch = window.confirm(
+        `SHMMOTH Browser Update Ready!\n\nVersion ${currentUpdateStatus.availableVersion || ''} is downloaded and ready to install.\n\nRestart now to finish updating?`
+      );
+      if (confirmRelaunch && api && api.installUpdate) {
+        api.installUpdate();
+      }
+      return;
+    }
+
+    // 2. If already downloading, navigate to About settings to view progress
+    if (currentUpdateStatus && (currentUpdateStatus.status === 'downloading' || currentUpdateStatus.status === 'available')) {
+      if (api && api.navigateTab) {
+        api.navigateTab(activeTabId, 'mtc://settings#about');
+      }
+      return;
+    }
+
+    // 3. Trigger manual check
+    renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.2' });
+    if (api && api.checkForUpdates) {
+      try {
+        const res = await api.checkForUpdates();
+        renderToolbarUpdateStatus(res);
+      } catch (err) {
+        renderToolbarUpdateStatus({ status: 'error', error: err.message });
+      }
+    }
+  });
+
+  // Secondary / contextmenu: open settings about directly
+  btnCheckUpdateToolbar.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    if (api && api.navigateTab) {
+      api.navigateTab(activeTabId, 'mtc://settings#about');
     }
   });
 }

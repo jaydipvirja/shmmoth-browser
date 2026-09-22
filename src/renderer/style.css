@@ -427,6 +427,61 @@ body {
   background: rgba(16, 185, 129, 0.2);
 }
 
+/* Update Toolbar Button & Notification Badge */
+.btn-update-toolbar {
+  position: relative;
+}
+
+.btn-update-toolbar .update-icon {
+  transition: transform 0.3s ease;
+}
+
+.btn-update-toolbar.spinning .update-icon {
+  animation: update-spin 1s linear infinite;
+  color: #38bdf8;
+}
+
+@keyframes update-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.update-toolbar-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background-color: #3b82f6;
+  color: #ffffff;
+  font-size: 9px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--bg-toolbar);
+  pointer-events: none;
+  animation: popIn 0.2s ease-out;
+}
+
+.btn-update-toolbar.update-ready .update-toolbar-badge {
+  background-color: #10b981;
+  box-shadow: 0 0 8px rgba(16, 185, 129, 0.6);
+  animation: pulse-badge 1.8s infinite;
+}
+
+.btn-update-toolbar.update-ready {
+  color: #34d399;
+}
+
+@keyframes pulse-badge {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7); }
+  70% { transform: scale(1.1); box-shadow: 0 0 0 6px rgba(16, 185, 129, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+}
+
 /* Bookmarks Bar */
 .bookmarks-bar {
   display: flex;
