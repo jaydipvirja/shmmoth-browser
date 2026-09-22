@@ -27,6 +27,8 @@ const btnToggleNotes     = document.getElementById('btn-toggle-notes');
 const btnDevtools        = document.getElementById('btn-devtools');
 const btnCheckUpdateToolbar = document.getElementById('btn-check-update-toolbar');
 const updateToolbarBadge    = document.getElementById('update-toolbar-badge');
+const btnToggleTheme        = document.getElementById('btn-toggle-theme');
+const themeToggleIcon       = document.getElementById('theme-toggle-icon');
 const btnSettings        = document.getElementById('btn-settings');
 const bookmarksBar       = document.getElementById('bookmarks-bar');
 
@@ -175,6 +177,17 @@ async function init() {
 }
 
 // ─── Settings & Theme ───────────────────────────────────────────────────────
+function updateThemeToggleButton(themeName) {
+  if (!btnToggleTheme || !themeToggleIcon) return;
+  if (themeName === 'light') {
+    themeToggleIcon.textContent = '☀️';
+    btnToggleTheme.title = 'Switch to Dark Mode';
+  } else {
+    themeToggleIcon.textContent = '🌙';
+    btnToggleTheme.title = 'Switch to Light Mode';
+  }
+}
+
 function applyTheme(themeName) {
   if (document.body.classList.contains('theme-incognito')) return;
   document.body.classList.remove('theme-dark', 'theme-light');
@@ -186,6 +199,7 @@ function applyTheme(themeName) {
   } else {
     document.body.classList.add('theme-dark');
   }
+  updateThemeToggleButton(themeName);
 }
 
 async function loadSettings() {
@@ -951,6 +965,21 @@ function setupEventListeners() {
       api.toggleDevTools(activeTabId);
     }
   });
+
+  // Quick Light / Dark Mode Toggle Button
+  if (btnToggleTheme) {
+    btnToggleTheme.addEventListener('click', async () => {
+      const current = settings.theme || 'dark';
+      const next = (current === 'light') ? 'dark' : 'light';
+      settings.theme = next;
+      applyTheme(next);
+      if (api && api.updateSettings) {
+        try {
+          await api.updateSettings({ theme: next });
+        } catch (_) {}
+      }
+    });
+  }
 
   // Settings Button
   btnSettings.addEventListener('click', () => {

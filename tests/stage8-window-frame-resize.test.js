@@ -33,7 +33,8 @@ console.log('══════════════════════�
 // 1. Package version check
 runTest('1. package.json version is at least 1.0.8', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  assert(pkg.version >= '1.0.8');
+  const [maj, min, patch] = pkg.version.split('.').map(Number);
+  assert(maj > 1 || (maj === 1 && min > 0) || (maj === 1 && min === 0 && patch >= 8));
 });
 
 // 2. index.html contains draggable region
