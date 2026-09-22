@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('mtcAPI', {
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
   closeWindow: () => ipcRenderer.send('window:close'),
+  isWindowMaximized: () => ipcRenderer.invoke('window:isMaximized'),
+  onWindowState: (callback) => ipcRenderer.on('window:state', (event, state) => callback(state)),
 
   // Tab controls
   createTab: (url) => ipcRenderer.invoke('tab:create', url),

@@ -945,10 +945,41 @@ function setupEventListeners() {
     });
   }
 
-  // Window Controls
+  // Window Controls & Double-Click Maximize/Restore
   btnWinMin.addEventListener('click', () => api && api.minimizeWindow && api.minimizeWindow());
   btnWinMax.addEventListener('click', () => api && api.maximizeWindow && api.maximizeWindow());
   btnWinClose.addEventListener('click', () => api && api.closeWindow && api.closeWindow());
+
+  const dragRegion = document.getElementById('drag-region');
+  if (dragRegion) {
+    dragRegion.addEventListener('dblclick', () => {
+      if (api && api.maximizeWindow) api.maximizeWindow();
+    });
+  }
+
+  // Update Maximize / Restore icon based on live window state
+  function updateMaximizeButton(isMaximized) {
+    if (!btnWinMax) return;
+    if (isMaximized) {
+      btnWinMax.textContent = '❐';
+      btnWinMax.title = 'Restore';
+    } else {
+      btnWinMax.textContent = '□';
+      btnWinMax.title = 'Maximize';
+    }
+  }
+
+  if (api && api.onWindowState) {
+    api.onWindowState((state) => {
+      if (state && typeof state.isMaximized === 'boolean') {
+        updateMaximizeButton(state.isMaximized);
+      }
+    });
+  }
+
+  if (api && api.isWindowMaximized) {
+    api.isWindowMaximized().then(isMax => updateMaximizeButton(isMax)).catch(() => {});
+  }
 
   // IPC Event Listeners from Main Process
   if (api && api.onTabsUpdated) {
@@ -1850,7 +1881,7 @@ function setupUpdateToolbarListeners() {
 
     // 3. Trigger manual check if idle, not-available, or error
     if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
-      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.7' });
+      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.8' });
       if (api && api.checkForUpdates) {
         try {
           const res = await api.checkForUpdates();

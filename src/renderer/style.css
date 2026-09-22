@@ -43,10 +43,22 @@ body {
   display: flex;
   align-items: flex-end;
   height: 42px;
-  padding: 4px 8px 0 8px;
+  padding: 0 4px 0 8px;
   background-color: var(--bg-chrome);
   position: relative;
   -webkit-app-region: drag; /* Makes the top titlebar draggable */
+}
+
+/* 4px top edge margin to allow Windows native top-border resizing (↕) */
+.tabs-header-row::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  -webkit-app-region: no-drag;
+  z-index: 99;
 }
 
 .brand-chip {
@@ -78,12 +90,12 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 2px;
-  flex: 1;
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
   height: 100%;
-  -webkit-app-region: no-drag;
+  max-width: calc(100% - 200px);
+  -webkit-app-region: drag; /* Empty gaps between tabs drag the window */
 }
 
 .tabs-strip::-webkit-scrollbar {
@@ -108,6 +120,7 @@ body {
   user-select: none;
   border-left: 1px solid transparent;
   border-right: 1px solid transparent;
+  -webkit-app-region: no-drag; /* Individual tabs are clickable & reorderable */
 }
 
 .browser-tab:hover {
@@ -273,6 +286,9 @@ body {
 .drag-region {
   flex: 1;
   height: 100%;
+  min-width: 30px;
+  -webkit-app-region: drag;
+  cursor: default;
 }
 
 /* Windows Controls */

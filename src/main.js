@@ -503,9 +503,11 @@ class ShmmothBrowserApp {
     this.mainWindow = new BrowserWindow({
       width:           1366,
       height:          850,
-      minWidth:        850,
-      minHeight:       500,
+      minWidth:        400,
+      minHeight:       300,
       frame:           false,
+      resizable:       true,
+      thickFrame:      true,
       backgroundColor: '#0f172a',
       title:           'SHMMOTH Browser',
       webPreferences: {
@@ -527,9 +529,21 @@ class ShmmothBrowserApp {
       }
     });
 
+    const broadcastWindowState = (isMax) => {
+      if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents) {
+        this.mainWindow.webContents.send('window:state', { isMaximized: isMax });
+      }
+    };
+
     this.mainWindow.on('resize',     () => this.updateViewBounds());
-    this.mainWindow.on('maximize',   () => setTimeout(() => this.updateViewBounds(), 50));
-    this.mainWindow.on('unmaximize', () => setTimeout(() => this.updateViewBounds(), 50));
+    this.mainWindow.on('maximize',   () => {
+      broadcastWindowState(true);
+      setTimeout(() => this.updateViewBounds(), 50);
+    });
+    this.mainWindow.on('unmaximize', () => {
+      broadcastWindowState(false);
+      setTimeout(() => this.updateViewBounds(), 50);
+    });
     this.mainWindow.on('closed',     () => { this.mainWindow = null; });
 
     log.info('Main window created');
@@ -546,9 +560,11 @@ class ShmmothBrowserApp {
     this.incognitoWindow = new BrowserWindow({
       width:           1366,
       height:          850,
-      minWidth:        850,
-      minHeight:       500,
+      minWidth:        400,
+      minHeight:       300,
       frame:           false,
+      resizable:       true,
+      thickFrame:      true,
       backgroundColor: '#130d1e',
       title:           'SHMMOTH Browser (Incognito)',
       webPreferences: {
@@ -578,9 +594,21 @@ class ShmmothBrowserApp {
       }
     });
 
+    const broadcastIncognitoWindowState = (isMax) => {
+      if (this.incognitoWindow && !this.incognitoWindow.isDestroyed() && this.incognitoWindow.webContents) {
+        this.incognitoWindow.webContents.send('window:state', { isMaximized: isMax });
+      }
+    };
+
     this.incognitoWindow.on('resize',     () => this.updateViewBounds(this.incognitoWindow));
-    this.incognitoWindow.on('maximize',   () => setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50));
-    this.incognitoWindow.on('unmaximize', () => setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50));
+    this.incognitoWindow.on('maximize',   () => {
+      broadcastIncognitoWindowState(true);
+      setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
+    });
+    this.incognitoWindow.on('unmaximize', () => {
+      broadcastIncognitoWindowState(false);
+      setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
+    });
     this.incognitoWindow.on('closed',     () => {
       // Close all incognito tabs and views
       for (const tabId of [...this.incognitoTabOrder]) {
@@ -838,19 +866,26 @@ class ShmmothBrowserApp {
       const isIncognito = (win === this.incognitoWindow);
       const activeId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
 
+      const isMax = win.isMaximized();
       const bounds        = win.getContentBounds();
       const contentWidth  = bounds.width;
-      const contentHeight = Math.max(bounds.height - this.headerHeight, 200);
 
-      let webWidth = contentWidth;
+      // When windowed (not maximized), leave a 4px edge margin on left, right, and bottom
+      // so native Windows resize hit-testing (WM_NCHITTEST) is not eaten by child WebContentsView!
+      const edgeMargin = isMax ? 0 : 4;
+      const leftOffset = edgeMargin;
+      const effectiveWidth = Math.max(contentWidth - (edgeMargin * 2), 200);
+      const contentHeight = Math.max(bounds.height - this.headerHeight - edgeMargin, 150);
+
+      let webWidth = effectiveWidth;
       if (this.sidePanelOpen && !isIncognito) {
-        const panelW = Math.min(this.sidePanelWidth, Math.floor(contentWidth * 0.45));
-        webWidth = Math.max(contentWidth - panelW, 400);
+        const panelW = Math.min(this.sidePanelWidth, Math.floor(effectiveWidth * 0.45));
+        webWidth = Math.max(effectiveWidth - panelW, 300);
 
         if (this.sidePanelView) {
           this.sidePanelView.setBounds({
-            x: webWidth, y: this.headerHeight,
-            width: contentWidth - webWidth, height: contentHeight
+            x: leftOffset + webWidth, y: this.headerHeight,
+            width: effectiveWidth - webWidth, height: contentHeight
           });
         }
       }
@@ -858,7 +893,7 @@ class ShmmothBrowserApp {
       const activeTab = this.tabs[activeId];
       if (activeTab && activeTab.view) {
         activeTab.view.setBounds({
-          x: 0, y: this.headerHeight,
+          x: leftOffset, y: this.headerHeight,
           width: webWidth, height: contentHeight
         });
       }
@@ -2062,6 +2097,11 @@ class ShmmothBrowserApp {
     ipcMain.handle('window:isIncognito', secureHandlerRaw((event) => {
       const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : null;
       return Boolean(win && win === this.incognitoWindow);
+    }));
+
+    ipcMain.handle('window:isMaximized', secureHandlerRaw((event) => {
+      const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;
+      return win ? win.isMaximized() : false;
     }));
 
     // ── Tab operations ──
