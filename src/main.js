@@ -508,6 +508,7 @@ class ShmmothBrowserApp {
       frame:           false,
       resizable:       true,
       thickFrame:      true,
+      fullscreenable:  true,
       backgroundColor: '#0f172a',
       title:           'SHMMOTH Browser',
       webPreferences: {
@@ -544,6 +545,14 @@ class ShmmothBrowserApp {
       broadcastWindowState(false);
       setTimeout(() => this.updateViewBounds(), 50);
     });
+    this.mainWindow.on('enter-full-screen', () => {
+      broadcastWindowState(false);
+      setTimeout(() => this.updateViewBounds(this.mainWindow), 50);
+    });
+    this.mainWindow.on('leave-full-screen', () => {
+      broadcastWindowState(this.mainWindow.isMaximized());
+      setTimeout(() => this.updateViewBounds(this.mainWindow), 50);
+    });
     this.mainWindow.on('closed',     () => { this.mainWindow = null; });
 
     log.info('Main window created');
@@ -565,6 +574,7 @@ class ShmmothBrowserApp {
       frame:           false,
       resizable:       true,
       thickFrame:      true,
+      fullscreenable:  true,
       backgroundColor: '#130d1e',
       title:           'SHMMOTH Browser (Incognito)',
       webPreferences: {
@@ -607,6 +617,14 @@ class ShmmothBrowserApp {
     });
     this.incognitoWindow.on('unmaximize', () => {
       broadcastIncognitoWindowState(false);
+      setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
+    });
+    this.incognitoWindow.on('enter-full-screen', () => {
+      broadcastIncognitoWindowState(false);
+      setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
+    });
+    this.incognitoWindow.on('leave-full-screen', () => {
+      broadcastIncognitoWindowState(this.incognitoWindow.isMaximized());
       setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
     });
     this.incognitoWindow.on('closed',     () => {
@@ -865,9 +883,28 @@ class ShmmothBrowserApp {
     for (const win of wins) {
       const isIncognito = (win === this.incognitoWindow);
       const activeId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
+      const activeTab = this.tabs[activeId];
+
+      const isFullScreen = win.isFullScreen() || Boolean(activeTab && activeTab.isHtmlFullScreen);
+      const bounds = win.getContentBounds();
+
+      // In Fullscreen mode (e.g. YouTube video or F11), fill 100% of the display borderless
+      if (isFullScreen) {
+        if (activeTab && activeTab.view) {
+          activeTab.view.setBounds({
+            x: 0,
+            y: 0,
+            width: bounds.width,
+            height: bounds.height
+          });
+        }
+        if (this.sidePanelView && !isIncognito) {
+          this.sidePanelView.setBounds({ x: 0, y: 0, width: 0, height: 0 });
+        }
+        continue;
+      }
 
       const isMax = win.isMaximized();
-      const bounds        = win.getContentBounds();
       const contentWidth  = bounds.width;
 
       // When windowed (not maximized), leave a 4px edge margin on left, right, and bottom
@@ -890,7 +927,6 @@ class ShmmothBrowserApp {
         }
       }
 
-      const activeTab = this.tabs[activeId];
       if (activeTab && activeTab.view) {
         activeTab.view.setBounds({
           x: leftOffset, y: this.headerHeight,
@@ -941,6 +977,7 @@ class ShmmothBrowserApp {
       isCrashed:      false,
       crashReason:    null,
       isUnresponsive: false,
+      isHtmlFullScreen: false,
       lastValidUrl:   initialUrl
     };
 
@@ -1278,6 +1315,86 @@ class ShmmothBrowserApp {
       this.broadcastTabsUpdate(tabData.isIncognito);
     });
 
+    // ── HTML5 Fullscreen (YouTube, HTML5 Video, Canvas) ──
+    wc.on('enter-html-full-screen', () => {
+      const targetWin = tabData.isIncognito ? this.incognitoWindow : this.mainWindow;
+      if (!targetWin || targetWin.isDestroyed()) return;
+
+      tabData.isHtmlFullScreen = true;
+      targetWin._wasMaximizedBeforeFullscreen = targetWin.isMaximized();
+
+      targetWin.setFullScreen(true);
+      this.updateViewBounds(targetWin);
+
+      if (targetWin.webContents && !targetWin.webContents.isDestroyed()) {
+        targetWin.webContents.send('window:fullscreen-change', {
+          isFullScreen: true,
+          isHtmlFullScreen: true,
+          tabId: tabData.id
+        });
+      }
+      log.info(`Tab ${tabId} entered HTML full screen`);
+    });
+
+    wc.on('leave-html-full-screen', () => {
+      const targetWin = tabData.isIncognito ? this.incognitoWindow : this.mainWindow;
+      if (!targetWin || targetWin.isDestroyed()) return;
+
+      tabData.isHtmlFullScreen = false;
+
+      targetWin.setFullScreen(false);
+      if (targetWin._wasMaximizedBeforeFullscreen) {
+        targetWin.maximize();
+      }
+      this.updateViewBounds(targetWin);
+      setTimeout(() => {
+        if (targetWin && !targetWin.isDestroyed()) {
+          this.updateViewBounds(targetWin);
+        }
+      }, 100);
+
+      if (targetWin.webContents && !targetWin.webContents.isDestroyed()) {
+        targetWin.webContents.send('window:fullscreen-change', {
+          isFullScreen: false,
+          isHtmlFullScreen: false,
+          tabId: tabData.id
+        });
+      }
+      log.info(`Tab ${tabId} left HTML full screen`);
+    });
+
+    // ── Keyboard Shortcuts inside WebContents (e.g. F11 Fullscreen) ──
+    wc.on('before-input-event', (event, input) => {
+      if (input.type === 'keyDown' && input.key === 'F11') {
+        event.preventDefault();
+        const targetWin = tabData.isIncognito ? this.incognitoWindow : this.mainWindow;
+        if (targetWin && !targetWin.isDestroyed()) {
+          const nextState = !targetWin.isFullScreen();
+          tabData.isHtmlFullScreen = nextState;
+          if (nextState) {
+            targetWin._wasMaximizedBeforeFullscreen = targetWin.isMaximized();
+            targetWin.setFullScreen(true);
+          } else {
+            targetWin.setFullScreen(false);
+            if (targetWin._wasMaximizedBeforeFullscreen) {
+              targetWin.maximize();
+            }
+          }
+          this.updateViewBounds(targetWin);
+          setTimeout(() => {
+            if (targetWin && !targetWin.isDestroyed()) this.updateViewBounds(targetWin);
+          }, 100);
+          if (targetWin.webContents && !targetWin.webContents.isDestroyed()) {
+            targetWin.webContents.send('window:fullscreen-change', {
+              isFullScreen: nextState,
+              isHtmlFullScreen: nextState,
+              tabId: tabData.id
+            });
+          }
+        }
+      }
+    });
+
     // Load initial URL
     wc.loadURL(initialUrl);
 
@@ -1325,6 +1442,13 @@ class ShmmothBrowserApp {
       try { targetWin.contentView.removeChildView(prevActiveTab.view); } catch (_) {}
     }
 
+    if (prevActiveTab && prevActiveTab.isHtmlFullScreen) {
+      prevActiveTab.isHtmlFullScreen = false;
+      if (targetWin && !targetWin.isDestroyed() && targetWin.isFullScreen()) {
+        targetWin.setFullScreen(false);
+      }
+    }
+
     if (isIncognito) {
       this.activeIncognitoTabId = tabId;
     } else {
@@ -1360,6 +1484,13 @@ class ShmmothBrowserApp {
     const isIncognito = Boolean(tabData.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     const targetOrder = isIncognito ? this.incognitoTabOrder : this.tabOrder;
+
+    if (tabData.isHtmlFullScreen) {
+      tabData.isHtmlFullScreen = false;
+      if (targetWin && !targetWin.isDestroyed() && targetWin.isFullScreen()) {
+        targetWin.setFullScreen(false);
+      }
+    }
 
     // Track closed tab for Reopen Closed Tab (Ctrl+Shift+T) ONLY for standard tabs
     if (!isIncognito && tabData.url && !tabData.url.startsWith('mtc://newtab') && !tabData.url.startsWith('about:blank')) {
@@ -2102,6 +2233,20 @@ class ShmmothBrowserApp {
     ipcMain.handle('window:isMaximized', secureHandlerRaw((event) => {
       const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;
       return win ? win.isMaximized() : false;
+    }));
+
+    ipcMain.handle('window:isFullScreen', secureHandlerRaw((event) => {
+      const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;
+      return win ? win.isFullScreen() : false;
+    }));
+
+    ipcMain.handle('window:setFullScreen', secureHandlerRaw((event, flag) => {
+      const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;
+      if (!win) return false;
+      const target = (typeof flag === 'boolean') ? flag : !win.isFullScreen();
+      win.setFullScreen(target);
+      this.updateViewBounds(win);
+      return target;
     }));
 
     // ── Tab operations ──

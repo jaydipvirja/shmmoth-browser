@@ -31,9 +31,9 @@ console.log('  SHMMOTH Browser — Window Frame, Drag & Resize Suite    ');
 console.log('══════════════════════════════════════════════════════════\n');
 
 // 1. Package version check
-runTest('1. package.json version bumped to 1.0.8', () => {
+runTest('1. package.json version is at least 1.0.8', () => {
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
-  assert.strictEqual(pkg.version, '1.0.8');
+  assert(pkg.version >= '1.0.8');
 });
 
 // 2. index.html contains draggable region

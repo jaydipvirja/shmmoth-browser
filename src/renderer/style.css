@@ -38,6 +38,10 @@ body {
   z-index: 100;
 }
 
+body.is-fullscreen .browser-chrome {
+  display: none !important;
+}
+
 /* Tabs Header Row */
 .tabs-header-row {
   display: flex;

@@ -981,6 +981,13 @@ function setupEventListeners() {
     api.isWindowMaximized().then(isMax => updateMaximizeButton(isMax)).catch(() => {});
   }
 
+  if (api && api.onFullScreenChange) {
+    api.onFullScreenChange((state) => {
+      const isFull = Boolean(state && state.isFullScreen);
+      document.body.classList.toggle('is-fullscreen', isFull);
+    });
+  }
+
   // IPC Event Listeners from Main Process
   if (api && api.onTabsUpdated) {
     api.onTabsUpdated((tabs, activeId) => {
@@ -1304,6 +1311,11 @@ function setupKeyboardShortcuts() {
         e.preventDefault();
         api.switchTab(currentTabs[currentTabs.length - 1].id);
       }
+    }
+    // F11: Toggle Fullscreen
+    else if (e.key === 'F11') {
+      e.preventDefault();
+      if (api && api.toggleFullScreen) api.toggleFullScreen();
     }
     // Ctrl+R or F5: Reload (Ctrl+Shift+R = Hard Reload)
     else if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'r') {
@@ -1881,7 +1893,7 @@ function setupUpdateToolbarListeners() {
 
     // 3. Trigger manual check if idle, not-available, or error
     if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
-      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.8' });
+      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.9' });
       if (api && api.checkForUpdates) {
         try {
           const res = await api.checkForUpdates();
