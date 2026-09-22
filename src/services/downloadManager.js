@@ -402,8 +402,12 @@ class DownloadManager {
     return 8;
   }
 
-  getNetworkInterfaces() {
-    return TurboDownloadEngine.getAvailableNetworkInterfaces();
+  async getNetworkInterfaces() {
+    try {
+      return await TurboDownloadEngine.getAvailableNetworkInterfacesAsync(1200);
+    } catch (_) {
+      return TurboDownloadEngine.getAvailableNetworkInterfaces();
+    }
   }
 
   /**
@@ -429,15 +433,17 @@ class DownloadManager {
     const id = generateId();
     this._resolveSaveDir();
 
-    let probe = { acceptsRanges: false, totalBytes: 0, finalUrl: url, filename: 'download' };
-    try {
-      probe = await this.turboEngine.probe(url, headers);
-    } catch (_) {}
+    let probe = { acceptsRanges: false, totalBytes: opts.totalBytes || 0, finalUrl: url, filename: 'download' };
+    if (!opts.totalBytes) {
+      try {
+        probe = await this.turboEngine.probe(url, headers);
+      } catch (_) {}
+    }
 
     const filename = sanitizeFilename(customFilename || probe.filename || 'download');
-    let savePath = getUniqueSavePath(this._saveDir, filename);
+    let savePath = opts.savePath || getUniqueSavePath(this._saveDir, filename);
 
-    if (this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
+    if (!opts.savePath && this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
       try {
         const dialogResult = await this._promptSaveDialog({
           filename,
@@ -454,7 +460,17 @@ class DownloadManager {
       }
     }
 
-    const multiSource = this.isMultiSourceEnabled();
+    // Ensure target folder exists on disk
+    try {
+      const targetDir = path.dirname(savePath);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+    } catch (err) {
+      log.error('Could not ensure target folder exists', { savePath, error: err.message });
+    }
+
+    const multiSource = opts.multiSource !== undefined ? opts.multiSource : this.isMultiSourceEnabled();
     const threadCount = threads || this.getTurboThreads();
 
     const record = {
@@ -469,7 +485,7 @@ class DownloadManager {
       isMultiSource: multiSource,
       threadsCount: threadCount,
       received: 0,
-      total: probe.totalBytes || 0,
+      total: opts.totalBytes || probe.totalBytes || 0,
       speed: 0,
       eta: null,
       startedAt: Date.now(),
@@ -490,7 +506,7 @@ class DownloadManager {
       savePath,
       headers,
       threads: threadCount,
-      totalBytes: probe.totalBytes,
+      totalBytes: opts.totalBytes || probe.totalBytes,
       multiSource
     }).catch(err => {
       log.error(`Turbo download failed to start: ${record.filename}`, { error: err.message });
@@ -562,6 +578,54 @@ class DownloadManager {
       }
     } catch (err) {
       log.error('Could not ensure target folder exists', { savePath, error: err.message });
+    }
+
+    // Check if eligible for Turbo multi-threaded IDM downloading
+    const isHttp = /^https?:\/\//i.test(url);
+    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative) {
+      const headers = {
+        'Accept': '*/*'
+      };
+      try {
+        const referer = webContents.getURL ? webContents.getURL() : '';
+        if (referer && !referer.startsWith('devtools://')) {
+          headers['Referer'] = referer;
+        }
+        const s = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
+        if (s) {
+          if (s.getUserAgent) {
+            const ua = s.getUserAgent();
+            if (ua) headers['User-Agent'] = ua;
+          }
+          if (s.cookies && s.cookies.get) {
+            const cookies = await s.cookies.get({ url });
+            if (cookies && cookies.length > 0) {
+              headers['Cookie'] = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+            }
+          }
+        }
+      } catch (hErr) {
+        log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
+      }
+
+      // Cancel native single-stream Electron download
+      try { item.cancel(); } catch (_) {}
+
+      // Launch Turbo multi-threaded download!
+      const threads = this.getTurboThreads();
+      const multiSource = this.isMultiSourceEnabled();
+
+      return this.startTurboDownload({
+        url,
+        filename,
+        savePath,
+        headers,
+        isIncognito,
+        threads,
+        multiSource,
+        totalBytes: total,
+        webContents
+      });
     }
 
     try {

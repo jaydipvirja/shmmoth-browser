@@ -125,19 +125,30 @@ async function refreshNetworkInterfaces() {
       return;
     }
 
-    activeAdaptersList.innerHTML = ifaces.map((i, idx) => `
-      <span class="net-badge dot-green" title="Interface: ${escapeHtml(i.name)} (${escapeHtml(i.address)})">
-        ${escapeHtml(i.name)}: <strong>${escapeHtml(i.address)}</strong>
-      </span>
-    `).join('');
+    const onlineIfaces = ifaces.filter(i => i.isOnline !== false);
+
+    activeAdaptersList.innerHTML = ifaces.map((i) => {
+      const isOnline = i.isOnline !== false;
+      const dotClass = isOnline ? 'dot-green' : 'dot-amber';
+      const statusText = isOnline ? 'Online' : 'No Internet';
+      return `
+        <span class="net-badge ${dotClass}" title="Interface: ${escapeHtml(i.name)} (${escapeHtml(i.address)}) - ${statusText}">
+          ${escapeHtml(i.name)}: <strong>${escapeHtml(i.address)}</strong> <small style="opacity:0.85">(${statusText})</small>
+        </span>
+      `;
+    }).join('');
 
     if (bondingStatusBadge) {
-      if (ifaces.length > 1) {
-        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-WAN Bonding Active (${ifaces.length} Sources)</strong>`;
+      if (onlineIfaces.length > 1) {
+        const names = onlineIfaces.map(i => i.name).join(' + ');
+        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-WAN Bonding Active (${onlineIfaces.length} Sources: ${escapeHtml(names)})</strong>`;
         bondingStatusBadge.style.color = '#34d399';
-      } else {
-        bondingStatusBadge.innerHTML = '⚡ Turbo Mode Ready (Single Source)';
+      } else if (onlineIfaces.length === 1) {
+        bondingStatusBadge.innerHTML = `⚡ <strong>Turbo Active (${escapeHtml(onlineIfaces[0].name)} Online)</strong> • Connect 2nd source for Multi-WAN`;
         bondingStatusBadge.style.color = '#60a5fa';
+      } else {
+        bondingStatusBadge.innerHTML = '⚠️ Offline (No Internet Available)';
+        bondingStatusBadge.style.color = '#f87171';
       }
     }
   } catch (_) {}

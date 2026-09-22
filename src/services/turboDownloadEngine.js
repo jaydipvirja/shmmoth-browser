@@ -21,6 +21,7 @@
 const EventEmitter = require('events');
 const http = require('http');
 const https = require('https');
+const net = require('net');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -63,6 +64,10 @@ function requestWithRedirects(targetUrl, options = {}, maxRedirects = 5) {
           .catch(reject);
       }
       resolve({ res, finalUrl: targetUrl, req });
+    });
+
+    req.setTimeout(options.timeout || 20000, () => {
+      req.destroy(new Error('ETIMEDOUT: Socket connection timed out'));
     });
 
     req.on('error', reject);
@@ -117,6 +122,51 @@ class TurboDownloadEngine extends EventEmitter {
     // Sort so physical adapters (Wi-Fi, Ethernet, Mobile USB) come before virtual adapters
     interfaces.sort((a, b) => (a.isVirtual === b.isVirtual ? 0 : a.isVirtual ? 1 : -1));
     return interfaces;
+  }
+
+  /**
+   * Tests whether an interface with the specified localAddress has live internet connectivity.
+   * Uses a fast TCP handshake to 1.1.1.1:53 with a 1500ms timeout.
+   * @param {string} ip
+   * @param {number} [timeoutMs=1500]
+   * @returns {Promise<boolean>}
+   */
+  static checkInterfaceOnline(ip, timeoutMs = 1500) {
+    return new Promise((resolve) => {
+      const s = net.createConnection({
+        host: '1.1.1.1',
+        port: 53,
+        localAddress: ip
+      }, () => {
+        s.destroy();
+        resolve(true);
+      });
+      s.setTimeout(timeoutMs, () => {
+        s.destroy();
+        resolve(false);
+      });
+      s.on('error', () => {
+        s.destroy();
+        resolve(false);
+      });
+    });
+  }
+
+  /**
+   * Discovers all network interfaces and checks live internet connectivity for each.
+   * @param {number} [timeoutMs=1500]
+   * @returns {Promise<Array<{ name: string, address: string, netmask: string, isVirtual: boolean, isOnline: boolean }>>}
+   */
+  static async getAvailableNetworkInterfacesAsync(timeoutMs = 1500) {
+    const raw = TurboDownloadEngine.getAvailableNetworkInterfaces();
+    await Promise.all(raw.map(async (iface) => {
+      try {
+        iface.isOnline = await TurboDownloadEngine.checkInterfaceOnline(iface.address, timeoutMs);
+      } catch (_) {
+        iface.isOnline = false;
+      }
+    }));
+    return raw;
   }
 
   /**
@@ -210,14 +260,26 @@ class TurboDownloadEngine extends EventEmitter {
     const threadsCount = taskOpts.threads || this.defaultThreads;
     const multiSourceRequested = taskOpts.multiSource !== undefined ? taskOpts.multiSource : this.multiSourceEnabled;
 
-    const probeInfo = await this.probe(url, headers);
+    let probeInfo = { acceptsRanges: true, totalBytes: taskOpts.totalBytes || 0, finalUrl: url, filename: '' };
+    if (!taskOpts.totalBytes) {
+      try {
+        probeInfo = await this.probe(url, headers);
+      } catch (_) {}
+    }
     const totalBytes = taskOpts.totalBytes || probeInfo.totalBytes || 0;
     const finalUrl = probeInfo.finalUrl || url;
-    const isTurboEligible = probeInfo.acceptsRanges && totalBytes >= this.minTurboSize;
+    const isTurboEligible = (probeInfo.acceptsRanges !== false) && totalBytes >= this.minTurboSize;
 
-    // Detect available network interfaces for Multi-WAN bonding
-    const availableInterfaces = TurboDownloadEngine.getAvailableNetworkInterfaces();
-    const canUseMultiSource = multiSourceRequested && availableInterfaces.length > 1;
+    // Detect available network interfaces with live internet connectivity for Multi-WAN bonding
+    let availableInterfaces = [];
+    try {
+      availableInterfaces = await TurboDownloadEngine.getAvailableNetworkInterfacesAsync(1200);
+    } catch (_) {
+      availableInterfaces = TurboDownloadEngine.getAvailableNetworkInterfaces();
+    }
+    const onlineInterfaces = availableInterfaces.filter(i => i.isOnline !== false);
+    const usableInterfaces = onlineInterfaces.length > 0 ? onlineInterfaces : availableInterfaces;
+    const canUseMultiSource = multiSourceRequested && usableInterfaces.length > 1;
 
     const task = {
       id,
@@ -231,7 +293,7 @@ class TurboDownloadEngine extends EventEmitter {
       isMultiSource: canUseMultiSource,
       threadsCount: isTurboEligible ? threadsCount : 1,
       segments: [],
-      interfaces: availableInterfaces.map(iface => ({
+      interfaces: usableInterfaces.map(iface => ({
         name: iface.name,
         address: iface.address,
         receivedBytes: 0,
@@ -334,6 +396,19 @@ class TurboDownloadEngine extends EventEmitter {
 
       const { res, req } = await requestWithRedirects(task.url, reqOpts);
       seg.req = req;
+
+      // If server does not support ranges and sends full file (200 OK) on segment 0
+      if (res.statusCode === 200 && seg.index === 0) {
+        task.isTurbo = false;
+        task.isMultiSource = false;
+        task.threadsCount = 1;
+        task.segments.slice(1).forEach(s => {
+          if (s.req) { try { s.req.destroy(); } catch (_) {} }
+          s.isCompleted = true;
+        });
+        seg.end = task.totalBytes ? task.totalBytes - 1 : 0;
+        seg.total = task.totalBytes;
+      }
 
       res.on('data', (chunk) => {
         if (task.isPaused || task.state !== 'progressing') {
