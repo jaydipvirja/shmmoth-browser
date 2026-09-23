@@ -59,6 +59,19 @@ class AdBlockerService {
         return;
       }
       const url = details.url.toLowerCase();
+
+      // Whitelist Google authentication, captcha challenges, and security telemetry endpoints
+      if (
+        url.includes('accounts.google.com') ||
+        url.includes('accounts.youtube.com') ||
+        url.includes('play.google.com/log') ||
+        url.includes('gstatic.com') ||
+        url.includes('recaptcha')
+      ) {
+        callback({ cancel: false });
+        return;
+      }
+
       let cancel = false;
       for (const d of blockedDomains) {
         if (url.includes(d)) {

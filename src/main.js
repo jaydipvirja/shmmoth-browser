@@ -33,6 +33,9 @@ const { secureHandlerRaw, validateUrl, sanitizeString } = require('./security/ip
 const { checkNavigation, isPopupBlocked, isSafeToLoad }  = require('./security/urlPolicy');
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
 
+// Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
+app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+
 // ─── Register custom privileged scheme for internal mtc:// pages ─────────────
 protocol.registerSchemesAsPrivileged([
   {
@@ -139,6 +142,7 @@ class ShmmothBrowserApp {
     // Windows 10 Lag & Compositor Caching
     this._cachedHeaderHeight = 114;
     this._resizeTimeout = null;
+    this.cleanUa = '';
   }
 
   // ─── Initialisation ─────────────────────────────────────────────────────────
@@ -149,6 +153,22 @@ class ShmmothBrowserApp {
 
     // 1. Storage
     this.storage = new StorageService();
+
+    // Standardise User-Agent to match official Google Chrome early (before any windows or tabs are created)
+    const rawUa = session.defaultSession.getUserAgent();
+    this.cleanUa = rawUa
+      .replace(/Electron\/\S+\s?/, '')
+      .replace(/mtc-browser\/\S+\s?/, '')
+      .replace(/shmmoth-browser\/\S+\s?/, '')
+      .trim() || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+
+    app.userAgentFallback = this.cleanUa;
+    session.defaultSession.setUserAgent(this.cleanUa);
+    session.fromPartition('incognito').setUserAgent(this.cleanUa);
+
+    // Synchronize Client Hints and headers for Google accounts and services
+    this.setupGoogleAuthHeaders(session.defaultSession);
+    this.setupGoogleAuthHeaders(session.fromPartition('incognito'));
 
     // 2. Extension Manager & Chrome extensions (Stage 7)
     this.extensionManager = new ExtensionManager();
@@ -175,16 +195,6 @@ class ShmmothBrowserApp {
         return { cancelled: res.canceled, filePath: res.filePath };
       }
     });
-
-    // Standardise User-Agent to match official Google Chrome (strips Electron identifier so sites/APIs don't treat browser as a bot/scraper)
-    const cleanUa = session.defaultSession.getUserAgent()
-      .replace(/Electron\/\S+\s?/, '')
-      .replace(/mtc-browser\/\S+\s?/, '')
-      .replace(/shmmoth-browser\/\S+\s?/, '')
-      .trim();
-    app.userAgentFallback = cleanUa;
-    session.defaultSession.setUserAgent(cleanUa);
-    session.fromPartition('incognito').setUserAgent(cleanUa);
 
     this.downloads.attach(session.defaultSession, (record) => {
       this.broadcastDownloadUpdate(record);
@@ -1009,6 +1019,37 @@ class ShmmothBrowserApp {
     }
   }
 
+  /**
+   * Synchronizes Client Hints (sec-ch-ua) and User-Agent headers with genuine Google Chrome
+   * for all Google Authentication and Google service requests.
+   *
+   * @param {Electron.Session} targetSession
+   */
+  setupGoogleAuthHeaders(targetSession) {
+    if (!targetSession || !targetSession.webRequest) return;
+    const filter = {
+      urls: [
+        '*://*.google.com/*',
+        '*://*.gstatic.com/*',
+        '*://*.googleusercontent.com/*',
+        '*://*.youtube.com/*',
+        '*://*.recaptcha.net/*'
+      ]
+    };
+    targetSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
+      const headers = details.requestHeaders;
+      const ua = this.cleanUa || app.userAgentFallback || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || '130';
+
+      headers['User-Agent'] = ua;
+      headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
+      headers['sec-ch-ua-mobile'] = '?0';
+      headers['sec-ch-ua-platform'] = '"Windows"';
+
+      callback({ requestHeaders: headers });
+    });
+  }
+
   // ─── Content Permissions & Security (Stage 5) ───────────────────────────
 
   setupPermissions(targetSession) {
@@ -1206,6 +1247,10 @@ class ShmmothBrowserApp {
     }
 
     const view = new WebContentsView({ webPreferences });
+
+    if (this.cleanUa && view.webContents) {
+      view.webContents.setUserAgent(this.cleanUa);
+    }
 
     const tabData = {
       id:             tabId,
@@ -1521,6 +1566,29 @@ class ShmmothBrowserApp {
         const sess = tabData.isIncognito ? session.fromPartition('incognito') : session.defaultSession;
         sess.downloadURL(url);
         return { action: 'deny' };
+      }
+
+      // Google OAuth and Single Sign-On popups require window.opener preservation for token exchange
+      const isGoogleOAuth = url.includes('accounts.google.com') &&
+        (url.includes('/oauth') || url.includes('/signin') || url.includes('/ServiceLogin') || url.includes('gsi/select') || url.includes('embedded/setup'));
+
+      if (isGoogleOAuth) {
+        log.info(`Google OAuth popup permitted with window.opener preserved`, { url: url.slice(0, 120) });
+        return {
+          action: 'allow',
+          overrideBrowserWindowOptions: {
+            width: 520,
+            height: 680,
+            autoHideMenuBar: true,
+            title: 'Sign in - Google Accounts',
+            webPreferences: {
+              preload: PRELOAD_EXTERNAL,
+              contextIsolation: true,
+              nodeIntegration: false,
+              partition: tabData.isIncognito ? 'incognito' : undefined
+            }
+          }
+        };
       }
 
       this.createTab(url, tabId, false, tabData.isIncognito, true);

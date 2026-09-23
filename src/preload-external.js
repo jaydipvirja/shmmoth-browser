@@ -24,14 +24,40 @@
  *   can be used to interact with the browser application.
  */
 
-const { contextBridge } = require('electron');
+const { webFrame } = require('electron');
 
-const identity = {
-  name:    'SHMMOTH Browser',
-  version: '1.0.0',
-};
+// Align navigator.userAgentData with genuine Google Chrome in the webpage's main world
+// This ensures Google Account login (botguard / GlifWebSignIn) does not detect embedded Chromium.
+try {
+  webFrame.executeJavaScriptInIsolatedWorld(0, [{
+    code: `
+      try {
+        if (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)) {
+          const chromeVersion = (navigator.userAgent.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
+          const chromeBrands = [
+            { brand: 'Chromium', version: chromeVersion },
+            { brand: 'Google Chrome', version: chromeVersion },
+            { brand: 'Not?A_Brand', version: '99' }
+          ];
 
-contextBridge.exposeInMainWorld('shmmothBrowser', identity);
-contextBridge.exposeInMainWorld('mtcBrowser', identity);
+          Object.defineProperty(Object.getPrototypeOf(navigator.userAgentData), 'brands', {
+            get: () => chromeBrands,
+            configurable: true
+          });
 
+          if (navigator.userAgentData.getHighEntropyValues) {
+            const origGetHighEntropyValues = navigator.userAgentData.getHighEntropyValues;
+            navigator.userAgentData.getHighEntropyValues = async function(hints) {
+              const res = await origGetHighEntropyValues.call(this, hints);
+              if (res && res.brands) res.brands = chromeBrands;
+              return res;
+            };
+          }
+        }
+      } catch (_) {}
+    `
+  }]);
+} catch (_) {}
+
+// External web pages have zero access to privileged browser APIs.
 // window.mtcAPI and window.shmmothAPI are intentionally NOT defined for external pages.
