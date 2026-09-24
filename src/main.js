@@ -35,6 +35,7 @@ const { mainLogger: log, securityLogger }                 = require('./utils/log
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
+app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
 // ─── Register custom privileged scheme for internal mtc:// pages ─────────────
 protocol.registerSchemesAsPrivileged([

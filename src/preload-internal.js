@@ -216,5 +216,45 @@ const apiSurface = {
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };
 
-contextBridge.exposeInMainWorld('mtcAPI', apiSurface);
-contextBridge.exposeInMainWorld('shmmothAPI', apiSurface);
+// Only expose internal privileged APIs to trusted internal browser pages (mtc://, file://)
+const isInternalPage = typeof window !== 'undefined' &&
+  (window.location.protocol === 'mtc:' || window.location.protocol === 'file:');
+
+if (isInternalPage) {
+  contextBridge.exposeInMainWorld('mtcAPI', apiSurface);
+  contextBridge.exposeInMainWorld('shmmothAPI', apiSurface);
+} else {
+  // If an internal tab was navigated to an external web page, isolate the environment
+  // and align navigator.userAgentData with genuine Google Chrome
+  try {
+    const { webFrame } = require('electron');
+    webFrame.executeJavaScriptInIsolatedWorld(0, [{
+      code: `
+        try {
+          if (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)) {
+            const chromeVersion = (navigator.userAgent.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
+            const chromeBrands = [
+              { brand: 'Chromium', version: chromeVersion },
+              { brand: 'Google Chrome', version: chromeVersion },
+              { brand: 'Not?A_Brand', version: '99' }
+            ];
+
+            Object.defineProperty(Object.getPrototypeOf(navigator.userAgentData), 'brands', {
+              get: () => chromeBrands,
+              configurable: true
+            });
+
+            if (navigator.userAgentData.getHighEntropyValues) {
+              const origGetHighEntropyValues = navigator.userAgentData.getHighEntropyValues;
+              navigator.userAgentData.getHighEntropyValues = async function(hints) {
+                const res = await origGetHighEntropyValues.call(this, hints);
+                if (res && res.brands) res.brands = chromeBrands;
+                return res;
+              };
+            }
+          }
+        } catch (_) {}
+      `
+    }]);
+  } catch (_) {}
+}
