@@ -60,6 +60,16 @@ const cookiesList = document.getElementById('cookies-list');
 
 let allCookies = [];
 
+// Google / Session Importer Elements
+const btnOpenSessionImport   = document.getElementById('btn-open-session-import');
+const modalSessionImport     = document.getElementById('modal-session-import');
+const btnCloseSessionImport  = document.getElementById('btn-close-session-import');
+const btnCancelSessionImport = document.getElementById('btn-cancel-session-import');
+const inputSessionJson       = document.getElementById('input-session-json');
+const sessionImportStatus    = document.getElementById('session-import-status');
+const btnDoImportYoutube     = document.getElementById('btn-do-import-youtube');
+const btnDoImportGoogle      = document.getElementById('btn-do-import-google');
+
 // Stage 5: Permissions Manager Elements
 const btnOpenPermissionsModal  = document.getElementById('btn-open-permissions-modal');
 const modalPermissionsData     = document.getElementById('modal-permissions-data');
@@ -431,6 +441,86 @@ if (btnClearAllCookies) {
       }
     }
   });
+}
+
+// ─── 1-Click Google / Site Session Importer Handlers ────────────────────────
+function openSessionImportModal() {
+  if (modalSessionImport) modalSessionImport.classList.remove('hidden');
+  if (sessionImportStatus) {
+    sessionImportStatus.style.display = 'none';
+    sessionImportStatus.textContent = '';
+  }
+  if (inputSessionJson) inputSessionJson.focus();
+}
+
+function closeSessionImportModal() {
+  if (modalSessionImport) modalSessionImport.classList.add('hidden');
+}
+
+if (btnOpenSessionImport)   btnOpenSessionImport.addEventListener('click', openSessionImportModal);
+if (btnCloseSessionImport)  btnCloseSessionImport.addEventListener('click', closeSessionImportModal);
+if (btnCancelSessionImport) btnCancelSessionImport.addEventListener('click', closeSessionImportModal);
+
+async function handleSessionImport(targetService = null) {
+  if (!inputSessionJson || !sessionImportStatus) return;
+  const rawText = inputSessionJson.value.trim();
+  if (!rawText) {
+    sessionImportStatus.style.display = 'block';
+    sessionImportStatus.style.color = '#dc2626';
+    sessionImportStatus.textContent = '⚠️ Please paste the exported Cookie-Editor JSON data first.';
+    return;
+  }
+
+  let cookieData;
+  try {
+    cookieData = JSON.parse(rawText);
+  } catch (err) {
+    sessionImportStatus.style.display = 'block';
+    sessionImportStatus.style.color = '#dc2626';
+    sessionImportStatus.textContent = '❌ Invalid JSON format: ' + err.message;
+    return;
+  }
+
+  if (!Array.isArray(cookieData) || cookieData.length === 0) {
+    sessionImportStatus.style.display = 'block';
+    sessionImportStatus.style.color = '#dc2626';
+    sessionImportStatus.textContent = '⚠️ JSON must be an array of cookies from Cookie-Editor.';
+    return;
+  }
+
+  sessionImportStatus.style.display = 'block';
+  sessionImportStatus.style.color = '#2563eb';
+  sessionImportStatus.textContent = '⏳ Importing cookies into session...';
+
+  try {
+    if (window.mtcAPI && window.mtcAPI.importCookies) {
+      const result = await window.mtcAPI.importCookies(cookieData);
+      sessionImportStatus.style.color = '#16a34a';
+      sessionImportStatus.textContent = `✅ Successfully imported ${result.count} cookies!`;
+      showToast(`Imported ${result.count} cookies!`);
+
+      setTimeout(() => {
+        closeSessionImportModal();
+        if (targetService === 'youtube') {
+          window.location.href = 'https://www.youtube.com';
+        } else if (targetService === 'google') {
+          window.location.href = 'https://www.google.com';
+        }
+      }, 900);
+    } else {
+      throw new Error('API not available');
+    }
+  } catch (err) {
+    sessionImportStatus.style.color = '#dc2626';
+    sessionImportStatus.textContent = '❌ Import failed: ' + err.message;
+  }
+}
+
+if (btnDoImportYoutube) {
+  btnDoImportYoutube.addEventListener('click', () => handleSessionImport('youtube'));
+}
+if (btnDoImportGoogle) {
+  btnDoImportGoogle.addEventListener('click', () => handleSessionImport('google'));
 }
 
 // ─── Stage 5: Site Permissions Manager Handlers ─────────────────────────────

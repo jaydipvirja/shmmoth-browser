@@ -30,6 +30,7 @@ const updateToolbarBadge    = document.getElementById('update-toolbar-badge');
 const btnToggleTheme        = document.getElementById('btn-toggle-theme');
 const themeToggleIcon       = document.getElementById('theme-toggle-icon');
 const btnSettings        = document.getElementById('btn-settings');
+const btnImportSessionToolbar = document.getElementById('btn-import-session-toolbar');
 const bookmarksBar       = document.getElementById('bookmarks-bar');
 
 let currentUpdateStatus  = null;
@@ -985,6 +986,13 @@ function setupEventListeners() {
   btnSettings.addEventListener('click', () => {
     openSettingsTab();
   });
+
+  // Google & Site Session Import Button
+  if (btnImportSessionToolbar) {
+    btnImportSessionToolbar.addEventListener('click', () => {
+      openSettingsTab('privacy');
+    });
+  }
 
   // New Incognito Window Button (Stage 4)
   if (btnIncognito) {

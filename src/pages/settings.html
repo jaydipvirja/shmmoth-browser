@@ -143,6 +143,18 @@
 
           <div class="setting-row">
             <div class="setting-info">
+              <label class="setting-label">🔑 1-Click Google & YouTube Session Importer</label>
+              <span class="setting-desc">Instantly log into Google, YouTube, and Gmail without typing passwords or triggering Google's security block.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-session-import" class="btn-primary" style="background: #2563eb; color: #fff;">Import Google Session...</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
               <label class="setting-label">Site Permissions & Exceptions</label>
               <span class="setting-desc">Control camera, microphone, geolocation, and notification access for sites.</span>
             </div>
@@ -643,6 +655,40 @@
 
       <div class="modal-actions">
         <button id="btn-done-cookies-modal" class="btn-secondary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Google & Site Session Importer Modal -->
+  <div id="modal-session-import" class="modal-backdrop hidden">
+    <div class="modal-card session-import-card" style="max-width: 600px; width: 90%;">
+      <div class="modal-header">
+        <div>
+          <h3>Import Google / Site Session</h3>
+          <span class="modal-subtitle">Log in to Google, YouTube, and Gmail with 1-click using Cookie-Editor JSON</span>
+        </div>
+        <button id="btn-close-session-import" class="modal-close-btn" title="Close">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 18px 24px;">
+        <div style="background: rgba(37, 99, 235, 0.08); border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-color, #1e293b);">
+          <strong>💡 How to export cookies from Chrome or Edge (in 10 seconds):</strong><br>
+          1. In Chrome, install the <strong><a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank" style="color: #2563eb; text-decoration: underline;">Cookie-Editor extension</a></strong>.<br>
+          2. Open <a href="https://youtube.com" target="_blank" style="color: #2563eb; text-decoration: underline;">youtube.com</a> or <a href="https://google.com" target="_blank" style="color: #2563eb; text-decoration: underline;">google.com</a> in Chrome where you are logged in.<br>
+          3. Click the <strong>Cookie-Editor</strong> icon → click <strong>Export</strong> → click <strong>Export as JSON</strong>.<br>
+          4. Paste the copied text below and click <strong>Import & Open</strong>!
+        </div>
+
+        <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Cookie-Editor JSON Data:</label>
+        <textarea id="input-session-json" class="text-input" style="width: 100%; height: 160px; font-family: monospace; font-size: 12px; resize: vertical; box-sizing: border-box; padding: 10px; border-radius: 6px;" placeholder='[{"name": "SID", "value": "..."}, {"name": "LOGIN_INFO", "value": "..."}]'></textarea>
+
+        <div id="session-import-status" style="margin-top: 12px; font-size: 13px; font-weight: 500; display: none;"></div>
+      </div>
+
+      <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border-color, #e2e8f0);">
+        <button id="btn-cancel-session-import" class="btn-secondary">Cancel</button>
+        <button id="btn-do-import-youtube" class="btn-primary" style="background: #dc2626; border-color: #dc2626; color: #fff;">▶ Import & Open YouTube</button>
+        <button id="btn-do-import-google" class="btn-primary" style="background: #2563eb; border-color: #2563eb; color: #fff;">🔍 Import & Open Google</button>
       </div>
     </div>
   </div>

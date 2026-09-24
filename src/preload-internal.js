@@ -138,6 +138,7 @@ const apiSurface = {
   getCookies:   (partition)         => ipcRenderer.invoke('cookies:getAll', partition),
   removeCookie: (cookie, partition) => ipcRenderer.invoke('cookies:remove', cookie, partition),
   clearCookies: (partition)         => ipcRenderer.invoke('cookies:clear', partition),
+  importCookies:(cookieData, partition) => ipcRenderer.invoke('cookies:import', cookieData, partition),
 
   // ─── Clear Browsing Data (Stage 4) ───────────────────────────────────────────
   clearBrowsingData: (options) => ipcRenderer.invoke('browsingData:clear', options),

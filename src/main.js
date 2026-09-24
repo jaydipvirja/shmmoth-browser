@@ -3112,6 +3112,71 @@ class ShmmothBrowserApp {
       }
     }));
 
+    ipcMain.handle('cookies:import', secureHandlerRaw(async (event, cookieData, partition) => {
+      const sess = (partition === 'incognito') ? session.fromPartition('incognito') : session.defaultSession;
+      let cookieList = cookieData;
+      if (typeof cookieData === 'string') {
+        try {
+          cookieList = JSON.parse(cookieData.trim());
+        } catch (e) {
+          throw new Error('Invalid JSON format: ' + e.message);
+        }
+      }
+      if (!Array.isArray(cookieList)) {
+        throw new Error('Cookie data must be a JSON array of cookies');
+      }
+
+      let imported = 0;
+      const affectedDomains = new Set();
+
+      for (const c of cookieList) {
+        if (!c || !c.name || (!c.domain && !c.host_key)) continue;
+        const rawDomain = c.domain || c.host_key;
+        const cleanDomain = rawDomain.replace(/^\./, '');
+        const isSecure = (c.secure === true || c.secure === 'true' || c.is_secure === 1);
+        const protocol = isSecure ? 'https://' : 'http://';
+        const cookiePath = c.path || '/';
+        const url = `${protocol}${cleanDomain}${cookiePath}`;
+
+        try {
+          const cookieObj = {
+            url,
+            name: String(c.name),
+            value: String(c.value !== undefined ? c.value : ''),
+            path: cookiePath,
+            secure: isSecure,
+            httpOnly: Boolean(c.httpOnly || c.http_only || c.is_httponly)
+          };
+
+          if (rawDomain.startsWith('.')) {
+            cookieObj.domain = rawDomain;
+          }
+
+          if (c.sameSite) {
+            const ss = String(c.sameSite).toLowerCase();
+            if (ss === 'lax' || ss === 'strict' || ss === 'no_restriction') {
+              cookieObj.sameSite = ss;
+            }
+          }
+
+          if (c.expirationDate && typeof c.expirationDate === 'number') {
+            if (c.expirationDate > Math.floor(Date.now() / 1000)) {
+              cookieObj.expirationDate = Math.floor(c.expirationDate);
+            }
+          }
+
+          await sess.cookies.set(cookieObj);
+          imported++;
+          affectedDomains.add(cleanDomain);
+        } catch (err) {
+          log.warn('Failed to set imported cookie', { name: c.name, domain: rawDomain, error: err.message });
+        }
+      }
+
+      log.info('Session cookies imported successfully', { count: imported, domains: Array.from(affectedDomains) });
+      return { success: true, count: imported, domains: Array.from(affectedDomains) };
+    }));
+
     // ── Clear Browsing Data (Stage 4) ──
     ipcMain.handle('browsingData:clear', secureHandlerRaw(async (event, options) => {
       const safeOptions = options || {};

@@ -77,5 +77,8 @@ contextBridge.exposeInMainWorld('mtcAPI', {
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   installUpdate:   () => ipcRenderer.invoke('updater:install'),
   getUpdateStatus: () => ipcRenderer.invoke('updater:getStatus'),
-  onUpdateStatus:  (cb) => ipcRenderer.on('updater:status', (_, d) => cb(d))
+  onUpdateStatus:  (cb) => ipcRenderer.on('updater:status', (_, d) => cb(d)),
+
+  // Cookies & Session
+  importCookies:   (cookieData, partition) => ipcRenderer.invoke('cookies:import', cookieData, partition)
 });
