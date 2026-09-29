@@ -37,6 +37,14 @@ const { mainLogger: log, securityLogger }                 = require('./utils/log
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
 
+// Dedicated Google Authentication User-Agent to pass BotGuard web attestation on accounts.google.com
+const GOOGLE_AUTH_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+
+function isGoogleAuthUrl(url) {
+  if (typeof url !== 'string') return false;
+  return url.includes('accounts.google.com') || url.includes('accounts.youtube.com');
+}
+
 // ─── Register custom privileged scheme for internal mtc:// pages ─────────────
 protocol.registerSchemesAsPrivileged([
   {
@@ -1039,13 +1047,22 @@ class ShmmothBrowserApp {
     };
     targetSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
       const headers = details.requestHeaders;
-      const ua = this.cleanUa || app.userAgentFallback || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-      const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || '130';
+      const isAuthUrl = isGoogleAuthUrl(details.url);
 
-      headers['User-Agent'] = ua;
-      headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
-      headers['sec-ch-ua-mobile'] = '?0';
-      headers['sec-ch-ua-platform'] = '"Windows"';
+      if (isAuthUrl) {
+        headers['User-Agent'] = GOOGLE_AUTH_UA;
+        headers['sec-ch-ua'] = '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"';
+        headers['sec-ch-ua-mobile'] = '?1';
+        headers['sec-ch-ua-platform'] = '"Android"';
+      } else {
+        const ua = this.cleanUa || app.userAgentFallback || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || '130';
+
+        headers['User-Agent'] = ua;
+        headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
+        headers['sec-ch-ua-mobile'] = '?0';
+        headers['sec-ch-ua-platform'] = '"Windows"';
+      }
 
       callback({ requestHeaders: headers });
     });
@@ -1249,8 +1266,8 @@ class ShmmothBrowserApp {
 
     const view = new WebContentsView({ webPreferences });
 
-    if (this.cleanUa && view.webContents) {
-      view.webContents.setUserAgent(this.cleanUa);
+    if (view.webContents) {
+      view.webContents.setUserAgent(isGoogleAuthUrl(initialUrl) ? GOOGLE_AUTH_UA : (this.cleanUa || app.userAgentFallback));
     }
 
     const tabData = {
@@ -1354,7 +1371,27 @@ class ShmmothBrowserApp {
     });
 
     // ── Navigation events ──
+    const updateTabUa = (targetUrl) => {
+      if (!wc || wc.isDestroyed()) return;
+      if (isGoogleAuthUrl(targetUrl)) {
+        wc.setUserAgent(GOOGLE_AUTH_UA);
+      } else if (this.cleanUa) {
+        wc.setUserAgent(this.cleanUa);
+      }
+    };
+
+    wc.on('will-navigate', (_, navUrl) => {
+      updateTabUa(navUrl);
+    });
+
+    wc.on('did-start-navigation', (_, navUrl, isInPlace, isMainFrame) => {
+      if (isMainFrame) {
+        updateTabUa(navUrl);
+      }
+    });
+
     wc.on('did-navigate', (_, navUrl) => {
+      updateTabUa(navUrl);
       tabData.url = navUrl;
       if (navUrl && !navUrl.startsWith('mtc://crash')) {
         tabData.lastValidUrl = navUrl;
@@ -1570,8 +1607,7 @@ class ShmmothBrowserApp {
       }
 
       // Google OAuth and Single Sign-On popups require window.opener preservation for token exchange
-      const isGoogleOAuth = url.includes('accounts.google.com') &&
-        (url.includes('/oauth') || url.includes('/signin') || url.includes('/ServiceLogin') || url.includes('gsi/select') || url.includes('embedded/setup'));
+      const isGoogleOAuth = isGoogleAuthUrl(url);
 
       if (isGoogleOAuth) {
         log.info(`Google OAuth popup permitted with window.opener preserved`, { url: url.slice(0, 120) });
@@ -1594,6 +1630,30 @@ class ShmmothBrowserApp {
 
       this.createTab(url, tabId, false, tabData.isIncognito, true);
       return { action: 'deny' };
+    });
+
+    // When an allowed popup window is created (such as Google OAuth login window)
+    wc.on('did-create-window', (childWin, { url: childUrl }) => {
+      if (!childWin || !childWin.webContents) return;
+      if (isGoogleAuthUrl(childUrl)) {
+        childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
+      }
+      childWin.webContents.on('will-navigate', (_, navUrl) => {
+        if (isGoogleAuthUrl(navUrl)) {
+          childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
+        } else if (this.cleanUa) {
+          childWin.webContents.setUserAgent(this.cleanUa);
+        }
+      });
+      childWin.webContents.on('did-start-navigation', (_, navUrl, isInPlace, isMainFrame) => {
+        if (isMainFrame) {
+          if (isGoogleAuthUrl(navUrl)) {
+            childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
+          } else if (this.cleanUa) {
+            childWin.webContents.setUserAgent(this.cleanUa);
+          }
+        }
+      });
     });
 
     // ── Audio & Mute State ──

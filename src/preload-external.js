@@ -32,25 +32,47 @@ try {
   webFrame.executeJavaScriptInIsolatedWorld(0, [{
     code: `
       try {
-        if (navigator.userAgentData && Array.isArray(navigator.userAgentData.brands)) {
-          const chromeVersion = (navigator.userAgent.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
+        if (navigator.userAgentData) {
+          const ua = navigator.userAgent || '';
+          const isAndroid = ua.includes('Android');
+          const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
           const chromeBrands = [
             { brand: 'Chromium', version: chromeVersion },
             { brand: 'Google Chrome', version: chromeVersion },
             { brand: 'Not?A_Brand', version: '99' }
           ];
 
-          Object.defineProperty(Object.getPrototypeOf(navigator.userAgentData), 'brands', {
-            get: () => chromeBrands,
-            configurable: true
-          });
+          const proto = Object.getPrototypeOf(navigator.userAgentData);
+          if (proto) {
+            Object.defineProperty(proto, 'brands', {
+              get: () => chromeBrands,
+              configurable: true
+            });
+            if (isAndroid) {
+              Object.defineProperty(proto, 'mobile', {
+                get: () => true,
+                configurable: true
+              });
+              Object.defineProperty(proto, 'platform', {
+                get: () => 'Android',
+                configurable: true
+              });
+            }
+          }
 
           if (navigator.userAgentData.getHighEntropyValues) {
             const origGetHighEntropyValues = navigator.userAgentData.getHighEntropyValues;
             navigator.userAgentData.getHighEntropyValues = async function(hints) {
               const res = await origGetHighEntropyValues.call(this, hints);
-              if (res && res.brands) res.brands = chromeBrands;
-              return res;
+              const copy = Object.assign({}, res);
+              if (chromeBrands) copy.brands = chromeBrands;
+              if (isAndroid) {
+                if ('mobile' in copy) copy.mobile = true;
+                if ('platform' in copy) copy.platform = 'Android';
+                if ('platformVersion' in copy) copy.platformVersion = '14.0.0';
+                if ('model' in copy) copy.model = 'Pixel 8';
+              }
+              return copy;
             };
           }
         }
