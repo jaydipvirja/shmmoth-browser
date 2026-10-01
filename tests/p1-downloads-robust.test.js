@@ -303,6 +303,8 @@ async function main() {
     const srv = await listen((req, res) => { res.writeHead(req.headers.range ? 403 : 200); res.end('hello'); });
     const sess = fakeSession();
     const m = newManager(makeStorage(), sess);
+    const host = { session: sess, calls: [], isDestroyed: () => false, downloadURL(url, options) { this.calls.push({ url, options }); sess.downloadURL(url); } };
+    m._getDownloadHost = () => host;              // a live tab: the only way to make Chromium send the Referer
     const updates = [];
     m._onUpdate = (r) => updates.push(r);
     const rec = await m.startTurboDownload({
@@ -313,8 +315,9 @@ async function main() {
     await srv.close();
     eq(sess.calls.length, 1, 'standard downloader started once');
     eq(sess.calls[0].url, `${srv.url}/movie.bin`);
-    eq(sess.calls[0].options && sess.calls[0].options.headers.Referer, 'https://page.test/watch', 'the page address is passed on');
-    eq(JSON.stringify(sess.calls[0].options).includes('secret'), false, 'cookies are not passed (the session has them)');
+    eq(host.calls.length, 1, 'started from the tab');
+    eq(host.calls[0].options.headers.Referer, 'https://page.test/watch', 'the page address is passed on');
+    eq(JSON.stringify(host.calls[0].options).includes('secret'), false, 'cookies are not passed (the session has them)');
     eq(sess.items[0].cancelled, false, 'not mistaken for a duplicate');
     eq(done.id, rec.id, 'same card');
     eq(Boolean(done.isTurbo), false);
@@ -361,6 +364,87 @@ async function main() {
     await srv.close();
     eq(sess.calls.length, 0, 'no hand-over');
     assert(d.error, 'reason shown');
+  });
+
+  /** A WebContents-like object that records downloadURL() calls (and belongs to `sess`). */
+  const fakeHost = (sess) => ({ session: sess, calls: [], isDestroyed: () => false, downloadURL(url, options) { this.calls.push({ url, options }); } });
+  const mockItem = (url, total, extra = {}) => ({
+    cancelled: false, savePath: null, handlers: {},
+    getURL: () => url, getURLChain: () => [url], getFilename: () => 'big.zip', getTotalBytes: () => total,
+    cancel() { this.cancelled = true; }, setSavePath(p) { this.savePath = p; },
+    on(ev, fn) { this.handlers[ev] = fn; }, once(ev, fn) { this.handlers[ev] = fn; },
+    getReceivedBytes: () => 0, isPaused: () => false, ...extra
+  });
+  const pageContents = (sess, page = 'https://files.test/get-page') => ({ getURL: () => page, session: { ...sess, getUserAgent: () => 'UA', cookies: { get: async () => [{ name: 's', value: 'v' }] } } });
+
+  await test('the browser\'s own download is kept when the fast engine cannot be proven to work (single-use links, servers without ranges)', async () => {
+    const m = newManager(makeStorage(), null);
+    let probed = 0; let started = 0;
+    m.turboEngine.probe = async () => { probed++; return { acceptsRanges: false, totalBytes: 0, finalUrl: 'x', filename: 'x', status: 403 }; };
+    m.startTurboDownload = async () => { started++; };
+    const item = mockItem('https://files.test/big.zip', 80 * 1024 * 1024);
+    await m._handleDownload(item, pageContents({}));
+    eq(probed, 1, 'one proving request');
+    eq(started, 0, 'the fast engine must not start');
+    eq(item.cancelled, false, 'the browser\'s download must NOT be cancelled');
+    assert(item.savePath, 'the normal download goes on (save path set)');
+    const rec = Object.values(m.downloads)[0];
+    eq(Boolean(rec.isTurbo), false);
+    eq(rec.referrer, 'https://files.test/get-page', 'the page is remembered for a later retry');
+  });
+
+  await test('…and given up only when the engine is proven: then the engine starts with the proof (no second probe)', async () => {
+    const m = newManager(makeStorage(), null);
+    const proof = { acceptsRanges: true, totalBytes: 80 * 1024 * 1024, finalUrl: 'https://cdn.test/big.zip', filename: 'big.zip', status: 206 };
+    m.turboEngine.probe = async () => proof;
+    let got = null;
+    m.startTurboDownload = async (opts) => { got = opts; return { id: 'x' }; };
+    const item = mockItem('https://files.test/big.zip', 80 * 1024 * 1024);
+    await m._handleDownload(item, pageContents({}));
+    eq(item.cancelled, true, 'cancelled once the engine is proven');
+    assert(got && got.probe === proof, 'the proof is handed over');
+    eq(got.headers.Referer, 'https://files.test/get-page');
+    eq(got.headers.Cookie, 's=v');
+  });
+
+  await test('…a size that differs from the announced one, or a small file, is not worth a second request', async () => {
+    const m = newManager(makeStorage(), null);
+    m.turboEngine.minTurboSize = 2 * 1024 * 1024;
+    let probed = 0;
+    m.turboEngine.probe = async () => { probed++; return { acceptsRanges: true, totalBytes: 99, finalUrl: 'x', filename: 'x', status: 206 }; };
+    m.startTurboDownload = async () => { throw new Error('must not start'); };
+    const small = mockItem('https://files.test/small.zip', 100 * 1024);
+    await m._handleDownload(small, pageContents({}));
+    eq(probed, 0, 'no probe for a small file'); eq(small.cancelled, false);
+    const differs = mockItem('https://files.test/odd.zip', 80 * 1024 * 1024);
+    await m._handleDownload(differs, pageContents({}));
+    eq(differs.cancelled, false, 'not cancelled when the sizes disagree');
+  });
+
+  await test('Retry names the page of the failed download (Referer) by starting from a live tab; without one it still retries', async () => {
+    const sess = fakeSession();
+    const host = fakeHost(sess);
+    const m = newManager(makeStorage(), sess);
+    m._getDownloadHost = () => host;
+    const url = 'https://files.test/big/movie.mkv';
+    m.downloads.dl_old = { id: 'dl_old', filename: 'movie.mkv', url, state: 'interrupted', startedAt: Date.now() - 5000, referrer: 'https://files.test/get-page', item: null };
+    eq(m.retryDownload(url, false), true);
+    eq(host.calls.length, 1, 'started from the tab');
+    eq(host.calls[0].options.headers.Referer, 'https://files.test/get-page', 'Referer');
+    eq(sess.calls.length, 0, 'session.downloadURL cannot send a Referer, so it is not used');
+    // no live tab: the session is used
+    m._getDownloadHost = () => null;
+    eq(m.retryDownload(url, false), true);
+    eq(sess.calls.length, 1, 'fallback');
+    // a host of another session (e.g. incognito) is never used for this session
+    m._getDownloadHost = () => fakeHost({});
+    eq(m.retryDownload(url, false), true);
+    eq(sess.calls.length, 2, 'wrong session ignored');
+  });
+
+  await test('the Turbo state IPC waits for the network list (a Promise inside the answer made the whole call fail)', async () => {
+    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+    assert(/interfaces:\s*await this\.downloads\.getNetworkInterfaces\(\)/.test(src), 'getTurboState must await getNetworkInterfaces()');
   });
 
   await test('Retry uses the standard downloader even when the same link is still listed as running (no duplicate cancel)', async () => {

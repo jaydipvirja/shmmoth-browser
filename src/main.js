@@ -214,6 +214,17 @@ class ShmmothBrowserApp {
     // 6. Wire DownloadManager to sessions (with multi-target broadcasting and dialog support)
     this.downloads = new DownloadManager(this.storage, {
       isProxyActive: () => this.isProxyActive(),
+      // a live tab of the normal / incognito session: downloads started from a WebContents carry the Referer
+      getDownloadHost: (isIncognito) => {
+        const live = (t) => (t && t.view && t.view.webContents && !t.view.webContents.isDestroyed() ? t.view.webContents : null);
+        let wc = live(this.tabs[isIncognito ? this.activeIncognitoTabId : this.activeTabId]);
+        if (!wc) {
+          for (const t of Object.values(this.tabs)) {
+            if (Boolean(t.isIncognito) === Boolean(isIncognito) && (wc = live(t))) break;
+          }
+        }
+        return wc;
+      },
       confirmOpenDangerous: async ({ filename }) => {
         const win = this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null;
         const res = await dialog.showMessageBox(...(win ? [win] : []), {
@@ -228,14 +239,16 @@ class ShmmothBrowserApp {
         });
         return res.response === 1;
       },
-      promptSaveDialog: async ({ filename, defaultPath, webContents }) => {
+      // Synchronous on purpose: Electron needs the save path before the "will-download" handler returns (a path chosen
+      // later is ignored and Electron opens its own dialog instead), and the dialog is modal anyway.
+      promptSaveDialog: ({ filename, defaultPath, webContents }) => {
         const win = (webContents && BrowserWindow.fromWebContents(webContents)) || this.mainWindow;
         if (!win || win.isDestroyed()) return { cancelled: true };
-        const res = await dialog.showSaveDialog(win, {
+        const filePath = dialog.showSaveDialogSync(win, {
           title: 'Save File',
           defaultPath: defaultPath || filename
         });
-        return { cancelled: res.canceled, filePath: res.filePath };
+        return { cancelled: !filePath, filePath };
       }
     });
 
@@ -3444,13 +3457,14 @@ class ShmmothBrowserApp {
       }
     }));
 
-    ipcMain.handle('download:getTurboState', secureHandlerRaw(() => {
+    ipcMain.handle('download:getTurboState', secureHandlerRaw(async () => {
       if (!this.downloads) return { isTurboEnabled: false, interfaces: [] };
       return {
         isTurboEnabled: this.downloads.isTurboEnabled(),
         isMultiSourceEnabled: this.downloads.isMultiSourceEnabled(),
         turboThreads: this.downloads.getTurboThreads(),
-        interfaces: this.downloads.getNetworkInterfaces()
+        // getNetworkInterfaces() is asynchronous: handing the Promise itself to IPC made the whole call fail
+        interfaces: await this.downloads.getNetworkInterfaces()
       };
     }));
 

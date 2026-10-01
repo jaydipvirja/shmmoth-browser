@@ -30,11 +30,30 @@ const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
 runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
   const seen = [];                     // what the server was asked: { url, range }
+  let onceUsed = false;
   const server = await startServer((req, res) => {
     const range = req.headers.range || null;
     seen.push({ url: req.url, range });
     const send = (status, extra, body) => { res.writeHead(status, { 'Content-Type': 'application/octet-stream', 'Content-Disposition': 'attachment; filename="locked.bin"', ...extra }); res.end(body); };
 
+    if (req.url.startsWith('/page')) {
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      return res.end('<!doctype html><title>files</title><a id="dl" href="/needsref">download</a>');
+    }
+    if (req.url.startsWith('/needsref')) {
+      // like a file host that drops every request that does not come from its own page
+      if (req.headers.referer !== `http://${req.headers.host}/page`) return req.socket.destroy();
+      const m = /bytes=(\d+)-(\d*)/.exec(range || '');
+      const start = m ? Number(m[1]) : 0;
+      const end = m && m[2] ? Number(m[2]) : SIZE - 1;
+      return send(m ? 206 : 200, { 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Disposition': 'attachment; filename="needsref.bin"', ...(m ? { 'Content-Range': `bytes ${start}-${end}/${SIZE}` } : {}) }, PAYLOAD.subarray(start, end + 1));
+    }
+    if (req.url.startsWith('/once')) {
+      // a link that works once (a download token): the browser's own request uses it up, any later request is refused
+      if (range || onceUsed) return send(403, {}, 'Forbidden');
+      onceUsed = true;
+      return send(200, { 'Content-Length': SIZE, 'Content-Disposition': 'attachment; filename="once.bin"' }, PAYLOAD);
+    }
     if (req.url.startsWith('/locked')) {
       // like a file host that only serves the browser's own plain request
       if (range) return send(403, {}, 'Forbidden');
@@ -72,9 +91,54 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       assertEqual((await list()).filter((r) => r.url.includes('/locked')).length, 1, 'one card for this download, not one per attempt');
     });
 
+    await t.test('a link that can be used only once: the browser\'s own download is not given up for the fast engine\'s sake', async () => {
+      await api(chrome, 'createTab', `${server.url}/once`);
+      const d = await waitFor(async () => { const x = await find((r) => r.url.includes('/once')); return x && (x.state === 'completed' || x.state === 'interrupted') ? x : null; },
+        { timeout: 60000, message: 'the one-time download to finish' });
+      assertEqual(d.state, 'completed', d.error || 'state');
+      assertEqual(Boolean(d.isTurbo), false, 'the fast engine must not have taken it over');
+      assertEqual(sha(fs.readFileSync(path.join(downloadsDir, d.filename))), sha(PAYLOAD), 'content of the file');
+    });
+
     await t.test('no cookies or request headers are exposed in the download records', async () => {
       const d = await find((r) => r.url.includes('/locked'));
       assert(d && !('headers' in d), 'records must not carry request headers');
+    });
+
+    t.section('Fast engine');
+
+    await t.test('a big file is fetched over several connections: each connection is limited to 1 MiB/s, the 24 MiB file still arrives in a few seconds', async () => {
+      const big = crypto.randomBytes(24 * 1024 * 1024);
+      const throttled = await startServer((req, res) => {
+        const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
+        const start = m ? Number(m[1]) : 0;
+        const end = m && m[2] ? Number(m[2]) : big.length - 1;
+        res.writeHead(m ? 206 : 200, { 'Content-Type': 'application/octet-stream', 'Accept-Ranges': 'bytes', 'Content-Disposition': 'attachment; filename="big.bin"', 'Content-Length': end - start + 1, ...(m ? { 'Content-Range': `bytes ${start}-${end}/${big.length}` } : {}) });
+        if (end - start < 16) return res.end(big.subarray(start, end + 1));          // the proving request
+        let sent = start;
+        const timer = setInterval(() => {                                              // 1 MiB/s per connection
+          if (res.destroyed) return clearInterval(timer);
+          const part = big.subarray(sent, Math.min(end + 1, sent + 51200));
+          sent += part.length;
+          if (sent > end) { clearInterval(timer); res.end(part); } else res.write(part);
+        }, 50);
+        res.on('close', () => clearInterval(timer));
+      });
+      try {
+        const t0 = Date.now();
+        await api(chrome, 'createTab', `${throttled.url}/big`);
+        const d = await waitFor(async () => { const x = await find((r) => r.url.includes('/big')); return x && (x.state === 'completed' || x.state === 'interrupted') ? x : null; },
+          { timeout: 90000, message: 'the big download to finish' });
+        const elapsed = Date.now() - t0;
+        assertEqual(d.state, 'completed', d.error || 'state');
+        assertEqual(Boolean(d.isTurbo), true, 'taken over by the fast engine');
+        assert(d.threadsCount >= 2, 'several connections: ' + d.threadsCount);
+        assertEqual(sha(fs.readFileSync(path.join(downloadsDir, d.filename))), sha(big), 'content of the file');
+        // one connection would need 24 s
+        assert(elapsed < 16000, `took ${elapsed} ms, a single connection needs 24 s`);
+      } finally {
+        await throttled.close();
+      }
     });
 
     t.section('Retry and cancel');
@@ -92,6 +156,20 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       const retried = all.find((r) => !r.isTurbo);
       assert(retried, 'the retry should have been done by the standard downloader');
       assertEqual(sha(fs.readFileSync(path.join(downloadsDir, retried.filename))), sha(PAYLOAD), 'content');
+    });
+
+    await t.test('Retry asks for the file the way the original request did (the page is named as Referer)', async () => {
+      await api(chrome, 'createTab', `${server.url}/page`);
+      await waitForWebContents(app, `${server.url}/page`);
+      await evalIn(app, `${server.url}/page`, 'document.getElementById("dl").click()', { gesture: true });
+      const first = await waitFor(async () => find((r) => r.url.includes('/needsref') && r.state === 'completed'), { timeout: 60000, message: 'the first download' });
+      assertEqual(first.referrer, `${server.url}/page`, 'the record remembers the page it came from');
+      // the Retry button of the list: only the address is handed over, the rest comes from the record
+      seen.length = 0;
+      const res = await api(chrome, 'retryDownload', first.url);
+      assertEqual(res.success, true, JSON.stringify(res));
+      await waitFor(async () => (await list()).filter((r) => r.url.includes('/needsref') && r.state === 'completed').length >= 2, { timeout: 60000, message: 'the retried download to complete' });
+      assert(seen.some((s) => s.url.startsWith('/needsref')), 'the retry should have reached the server');
     });
 
     await t.test('Cancel on a running card stops it and leaves no file behind', async () => {

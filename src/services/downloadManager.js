@@ -170,6 +170,9 @@ class DownloadManager {
     this._confirmOpenDangerous = typeof options.confirmOpenDangerous === 'function' ? options.confirmOpenDangerous : null;
     this._isProxyActive = typeof options.isProxyActive === 'function' ? options.isProxyActive : null;
     this._sessions = { default: null, incognito: null };
+    // (isIncognito) => a live WebContents of that session, or null. Chromium sends a Referer for a download only when
+    // it is started from a WebContents (session.downloadURL drops it), and many file servers refuse requests without it.
+    this._getDownloadHost = typeof options.getDownloadHost === 'function' ? options.getDownloadHost : null;
     // url -> { id, savePath }: downloads that must go through Chromium's own downloader (see _handOverToNative)
     this._nativeOnly = new Map();
 
@@ -386,7 +389,7 @@ class DownloadManager {
       try {
         // Incognito downloads are strictly ephemeral and NEVER persisted
         const serialized = Object.values(this.downloads)
-          .filter(r => !r.isIncognito)
+          .filter(r => !r.isIncognito && !r.held)
           .map(r => this._serialize(r));
         this.storage.set('downloads', serialized);
       } catch (err) {
@@ -501,8 +504,8 @@ class DownloadManager {
     const id = generateId();
     this._resolveSaveDir();
 
-    let probe = { acceptsRanges: false, totalBytes: opts.totalBytes || 0, finalUrl: url, filename: 'download' };
-    if (!opts.totalBytes) {
+    let probe = opts.probe || { acceptsRanges: false, totalBytes: opts.totalBytes || 0, finalUrl: url, filename: 'download' };
+    if (!opts.probe && !opts.totalBytes) {
       try {
         probe = await this.turboEngine.probe(url, headers);
       } catch (_) {}
@@ -552,6 +555,7 @@ class DownloadManager {
       isTurbo: true,
       isMultiSource: multiSource,
       threadsCount: threadCount,
+      referrer: (headers && typeof headers.Referer === 'string' && /^https?:\/\//i.test(headers.Referer)) ? headers.Referer.slice(0, 2048) : '',
       received: 0,
       total: opts.totalBytes || probe.totalBytes || 0,
       headers: headers,
@@ -576,6 +580,7 @@ class DownloadManager {
       headers,
       threads: threadCount,
       totalBytes: opts.totalBytes || probe.totalBytes,
+      probe: opts.probe || undefined,
       multiSource
     }).catch(err => {
       log.error(`Turbo download failed to start: ${record.filename}`, { error: err.message });
@@ -601,6 +606,14 @@ class DownloadManager {
     // keeps its card (same id) and is never mistaken for a duplicate of itself
     const handedOver = this._takeHandover(item, url);
     const id = (handedOver && handedOver.id) || generateId();
+
+    // The page the download was started from. A retry must ask for the file the way the original request did: many
+    // file servers only answer a request that names the page (Referer) and drop the connection otherwise.
+    let referrer = (handedOver && handedOver.referrer) || '';
+    try {
+      const pageUrl = webContents && typeof webContents.getURL === 'function' ? webContents.getURL() : '';
+      if (!referrer && /^https?:\/\//i.test(pageUrl)) referrer = pageUrl.slice(0, 2048);
+    } catch (_) {}
 
     // ── Smart Anti-Duplicate / Anti-Spam Protection ──
     // Prevents parallel duplicate downloads when websites (like HDHub4u / HubCloud / Mediator)
@@ -633,19 +646,21 @@ class DownloadManager {
         : handedOver.savePath;
     }
 
-    // Ask where to save if enabled and callback is provided
+    // Ask where to save if enabled and callback is provided. The callback should answer synchronously (see below);
+    // an asynchronous one still works for hosts that have no synchronous dialog.
     if (!keepPath && this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
       try {
-        const dialogResult = await this._promptSaveDialog({
+        let answer = this._promptSaveDialog({
           filename,
           defaultPath: savePath,
           webContents
         });
-        if (dialogResult && dialogResult.cancelled) {
+        if (answer && typeof answer.then === 'function') answer = await answer;
+        if (answer && answer.cancelled) {
           item.cancel();
           return;
-        } else if (dialogResult && dialogResult.filePath) {
-          savePath = dialogResult.filePath;
+        } else if (answer && answer.filePath) {
+          savePath = answer.filePath;
         }
       } catch (err) {
         log.warn('Error prompting save dialog, falling back to default path', { error: err.message });
@@ -662,63 +677,24 @@ class DownloadManager {
       log.error('Could not ensure target folder exists', { savePath, error: err.message });
     }
 
-    // Check if eligible for Turbo multi-threaded IDM downloading
-    const isHttp = /^https?:\/\//i.test(url);
-    const proxied = this.isProxyActive(isIncognito);
-    if (proxied && webContents && this.isTurboEnabled() && isHttp) {
-      log.info('Proxy active: using the native downloader instead of Turbo so the proxy is honoured', { url: url.slice(0, 100) });
-    }
-    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative && !proxied && !handedOver) {
-      const headers = {
-        'Accept': '*/*'
-      };
-      try {
-        const referer = webContents.getURL ? webContents.getURL() : '';
-        if (referer && !referer.startsWith('devtools://')) {
-          headers['Referer'] = referer;
-        }
-        const s = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
-        if (s) {
-          if (s.getUserAgent) {
-            const ua = s.getUserAgent();
-            if (ua) headers['User-Agent'] = ua;
-          }
-          if (s.cookies && s.cookies.get) {
-            const cookies = await s.cookies.get({ url });
-            if (cookies && cookies.length > 0) {
-              headers['Cookie'] = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-            }
-          }
-        }
-      } catch (hErr) {
-        log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
-      }
-
-      // Cancel native single-stream Electron download
-      try { item.cancel(); } catch (_) {}
-
-      // Launch Turbo multi-threaded download!
-      const threads = this.getTurboThreads();
-      const multiSource = this.isMultiSourceEnabled();
-
-      return this.startTurboDownload({
-        url,
-        filename,
-        savePath,
-        headers,
-        isIncognito,
-        threads,
-        multiSource,
-        totalBytes: total,
-        webContents
-      });
-    }
-
+    // ── Electron decides the save path the moment this function returns ──
+    // A path that is set after an `await` is ignored and Electron opens its own "Save as" dialog instead (measured), so
+    // the path is set here, before the first await. A download that the fast engine may still take over is HELD
+    // (paused) while the engine is being proven, and the browser's own download goes on if it is not.
     try {
       item.setSavePath(savePath);
     } catch (err) {
       log.error('Failed to set save path on download item', { savePath, error: err.message });
     }
+
+    // Check if eligible for Turbo multi-connection downloading
+    const isHttp = /^https?:\/\//i.test(url);
+    const proxied = this.isProxyActive(isIncognito);
+    if (proxied && webContents && this.isTurboEnabled() && isHttp) {
+      log.info('Proxy active: using the native downloader instead of Turbo so the proxy is honoured', { url: url.slice(0, 100) });
+    }
+    const turboCandidate = Boolean(webContents) && this.isTurboEnabled() && isHttp && !options.useNative && !proxied && !handedOver
+      && !(total > 0 && total < this.turboEngine.minTurboSize);          // a small file is not worth a second request
 
     const record = {
       id,
@@ -735,17 +711,17 @@ class DownloadManager {
       startedAt: Date.now(),
       endedAt: null,
       nativeTried: Boolean(handedOver),
+      referrer,
+      held: turboCandidate,       // not announced yet: the fast engine may still take this download over
       item,
       _lastTimestamp: Date.now(),
       _lastReceived: 0
     };
 
     this.downloads[id] = record;
-    log.info(`Download started: ${record.filename}`, { id, url: url.slice(0, 120), isIncognito });
-    this._notify(record);
-    this._persist();
 
     item.on('updated', (_, state) => {
+      if (record.held || record.abandoned) return;
       const now = Date.now();
       const currentReceived = item.getReceivedBytes();
       const elapsed = (now - record._lastTimestamp) / 1000;
@@ -775,6 +751,9 @@ class DownloadManager {
     });
 
     item.once('done', (_, state) => {
+      if (record.abandoned) return;            // given up on purpose, the fast engine has it
+      record.settled = true;
+      record.held = false;
       record.state = state; // 'completed' | 'cancelled' | 'interrupted'
       record.isPaused = false;
       record.endedAt = Date.now();
@@ -796,6 +775,103 @@ class DownloadManager {
       this._notify(record);
       this._persist();
     });
+
+    if (!turboCandidate) {
+      log.info(`Download started: ${record.filename}`, { id, url: url.slice(0, 120), isIncognito });
+      this._notify(record);
+      this._persist();
+      return;
+    }
+
+    // ── Held: prove that the fast engine works for this link before the browser's own download is given up ──
+    // One small ranged request, made the way the engine will make all of them (same cookies, page, user agent). Before,
+    // the browser's download was cancelled first — for a link that works once, or a server that refuses the engine's
+    // requests, nothing was left: the download sat at "0 B" or failed.
+    let paused = false;
+    try { item.pause(); paused = true; } catch (_) { /* nothing to hold */ }
+
+    const headers = {
+      'Accept': '*/*'
+    };
+    try {
+      const referer = webContents.getURL ? webContents.getURL() : '';
+      if (referer && !referer.startsWith('devtools://')) {
+        headers['Referer'] = referer;
+      }
+      const sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
+      if (sess) {
+        if (sess.getUserAgent) {
+          const ua = sess.getUserAgent();
+          if (ua) headers['User-Agent'] = ua;
+        }
+        if (sess.cookies && sess.cookies.get) {
+          const cookies = await sess.cookies.get({ url });
+          if (cookies && cookies.length > 0) {
+            headers['Cookie'] = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+          }
+        }
+      }
+    } catch (hErr) {
+      log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
+    }
+
+    let probe = null;
+    let reason = '';
+    try { probe = await this.turboEngine.probe(url, headers, { timeout: 6000 }); } catch (_) { probe = null; }
+    if (record.settled) return;                 // the item ended meanwhile (and was reported by its 'done' handler)
+    if (!probe || !probe.acceptsRanges) reason = 'the server does not answer ranged requests' + (probe && probe.status ? ` (HTTP ${probe.status})` : '');
+    else if (probe.totalBytes < this.turboEngine.minTurboSize) reason = 'the file is small';
+    else if (total > 0 && probe.totalBytes !== total) reason = 'the size differs from the one announced';
+
+    if (!reason) {
+      // Cancel the held native download (Chromium removes its placeholder file) and let the fast engine have it
+      record.abandoned = true;
+      delete this.downloads[id];
+      try { item.cancel(); } catch (_) {}
+      // Chromium removes its placeholder file shortly after the cancel: the fast engine must not open the same file
+      // before that (the late removal would delete the file it is writing to)
+      savePath = await this._afterPlaceholderGone(savePath);
+
+      try {
+        return await this.startTurboDownload({
+          url,
+          filename,
+          savePath,
+          headers,
+          isIncognito,
+          threads: this.getTurboThreads(),
+          multiSource: this.isMultiSourceEnabled(),
+          totalBytes: total || probe.totalBytes,
+          probe,
+          webContents
+        });
+      } catch (err) {
+        log.error('Could not start the Turbo download', { error: err.message });
+        return null;
+      }
+    }
+
+    // Not proven: the browser's own download carries on (nothing was lost, it was only held)
+    log.info(`Turbo engine not used for "${filename}": ${reason}; the normal download continues`, { url: url.slice(0, 100) });
+    record.held = false;
+    if (paused) {
+      try { item.resume(); } catch (err) { log.warn('Could not resume the held download', { error: err.message }); }
+    }
+    record.isPaused = false;
+    record.state = 'progressing';
+    record._lastTimestamp = Date.now();
+    log.info(`Download started: ${record.filename}`, { id, url: url.slice(0, 120), isIncognito });
+    this._notify(record);
+    this._persist();
+  }
+
+  /** Waits (at most `timeoutMs`) until `savePath` is free; returns a path that is safe to open. */
+  async _afterPlaceholderGone(savePath, timeoutMs = 2000) {
+    const end = Date.now() + timeoutMs;
+    while (fs.existsSync(savePath) && Date.now() < end) {
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    return fs.existsSync(savePath) ? getUniqueSavePath(path.dirname(savePath), path.basename(savePath)) : savePath;
   }
 
   _notify(record) {
@@ -807,7 +883,7 @@ class DownloadManager {
   _serialize(record) {
     // `headers` holds the Cookie header of the page the download came from: it stays in memory (needed to resume),
     // it is neither written to downloads.json nor sent to any page
-    const { item, _lastTimestamp, _lastReceived, headers, ...safe } = record;
+    const { item, _lastTimestamp, _lastReceived, headers, held, settled, abandoned, ...safe } = record;
     return safe;
   }
 
@@ -837,10 +913,14 @@ class DownloadManager {
   retryDownload(url, isIncognito = false) {
     const sess = this._sessions[isIncognito ? 'incognito' : 'default'];
     if (!sess || typeof sess.downloadURL !== 'function' || typeof url !== 'string' || !url) return false;
-    this._nativeOnly.set(url, {});
+    const previous = Object.values(this.downloads)
+      .filter((d) => d && d.url === url && Boolean(d.isIncognito) === Boolean(isIncognito))
+      .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
+    const referrer = (previous && (previous.referrer || (previous.headers && previous.headers.Referer))) || '';
+    this._nativeOnly.set(url, { referrer });
     this._expireHandover(url, null);
     try {
-      sess.downloadURL(url);
+      this._startNativeDownload(url, isIncognito, referrer);
     } catch (err) {
       this._nativeOnly.delete(url);
       throw err;
@@ -873,7 +953,7 @@ class DownloadManager {
     const sess = this._sessions[record.isIncognito ? 'incognito' : 'default'];
     if (!sess || typeof sess.downloadURL !== 'function') return false;
 
-    const referer = record.headers && record.headers.Referer;
+    const referer = record.referrer || (record.headers && record.headers.Referer) || '';
     record.nativeTried = true;
     record.isTurbo = false;
     record.isMultiSource = false;
@@ -885,18 +965,37 @@ class DownloadManager {
     record.segments = [];
     record.interfaces = [];
     record.error = '';
-    this._nativeOnly.set(record.url, { id: record.id, savePath: record.savePath });
+    this._nativeOnly.set(record.url, { id: record.id, savePath: record.savePath, referrer: referer });
     this._expireHandover(record.url, record);
     log.info(`Turbo engine could not start "${record.filename}" (${reason}); using the standard downloader`, { id: record.id });
     this._notify(record);
     try {
-      sess.downloadURL(record.url, referer ? { headers: { Referer: referer } } : undefined);
+      this._startNativeDownload(record.url, record.isIncognito, referer);
     } catch (err) {
       this._nativeOnly.delete(record.url);
       log.warn('Hand-over to the standard downloader failed', { error: err.message });
       return false;
     }
     return true;
+  }
+
+  /**
+   * Starts a download with Chromium's own downloader, naming `referrer` as the page it came from when possible.
+   * (Measured: session.downloadURL() accepts custom headers but silently drops "Referer"; webContents.downloadURL() sends it.)
+   */
+  _startNativeDownload(url, isIncognito, referrer = '') {
+    const sess = this._sessions[isIncognito ? 'incognito' : 'default'];
+    if (referrer && this._getDownloadHost) {
+      let host = null;
+      try { host = this._getDownloadHost(Boolean(isIncognito)); } catch (_) { host = null; }
+      let alive = false;
+      try { alive = Boolean(host) && !host.isDestroyed() && typeof host.downloadURL === 'function' && host.session === sess; } catch (_) { alive = false; }
+      if (alive) {
+        host.downloadURL(url, { headers: { Referer: referrer } });
+        return;
+      }
+    }
+    sess.downloadURL(url);
   }
 
   /**
@@ -909,7 +1008,8 @@ class DownloadManager {
    * @returns {Array<object>}
    */
   getDownloads(filter = {}) {
-    const records = Object.values(this.downloads);
+    // a download that is still being proven for the fast engine (held) has not been announced yet
+    const records = Object.values(this.downloads).filter(r => !r.held);
     if (filter.incognitoOnly) {
       return records.filter(r => r.isIncognito).map(r => this._serialize(r));
     }
