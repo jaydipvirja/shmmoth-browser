@@ -37,7 +37,8 @@ runSuite('SHMMOTH Browser — E2E 14: logins survive the app being ended', async
     assertEqual(await setCookie(first.app, COOKIE('rotating')), 'ok');
     await sleep(6000);                                           // far less than Chromium's own 30 s batch
     first.app.process().kill('SIGKILL');
-    await sleep(1500);
+    await sleep(500);
+    await first.close();                                         // ends what the killed process left behind (on Windows its helper processes still hold the profile)
     const again = await launchApp({ userData: ud });
     try {
       assertEqual(JSON.stringify(await getCookies(again.app, 'rotating')), JSON.stringify(['v-rotating']));
@@ -52,7 +53,8 @@ runSuite('SHMMOTH Browser — E2E 14: logins survive the app being ended', async
     await setCookie(first.app, { ...COOKIE('rotating'), value: 'second' });
     await sleep(6000);
     first.app.process().kill('SIGKILL');
-    await sleep(1500);
+    await sleep(500);
+    await first.close();                                         // ends what the killed process left behind (on Windows its helper processes still hold the profile)
     const again = await launchApp({ userData: ud });
     try {
       assertEqual(JSON.stringify(await getCookies(again.app, 'rotating')), JSON.stringify(['second']), 'the newest value must have been stored');
