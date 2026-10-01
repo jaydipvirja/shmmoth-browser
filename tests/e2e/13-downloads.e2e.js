@@ -84,6 +84,7 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       const d = await waitFor(async () => { const x = await find((r) => r.url.includes('/locked')); return x && x.state === 'completed' ? x : null; },
         { timeout: 60000, message: 'the download to complete after the hand-over' });
       assertEqual(Boolean(d.isTurbo), false, 'finished by the standard downloader');
+      assert(/Normal download: .*refuses extra connections.*403/.test(d.turboNote || ''), 'the card says why the fast engine was not used: ' + d.turboNote);
       assertEqual(d.received, SIZE, 'bytes');
       const file = path.join(downloadsDir, d.filename);
       assertEqual(sha(fs.readFileSync(file)), sha(PAYLOAD), 'content of the file');

@@ -5,6 +5,10 @@
 ### Fixes
 - **Logins are kept more reliably (Google and other sites).** Chromium writes cookies to disk in batches, about every 30 seconds. If the browser was ended the hard way — the update installer closing it, Task Manager, a crash, a power cut — the last batch was lost. Google renews its session cookies every few minutes and refuses the old ones, so the next start came back "signed out". The browser now writes cookie changes to disk by itself a moment after they happen, once more before it quits, and before the update installer is started. Private (incognito) windows still keep nothing.
 
+### Downloads
+- **The download list now says why a download is not split into parts.** When the fast multi-connection mode is not used (the server refuses extra connections, cannot send a file in parts, the link works only once, the file is small, a proxy is in use …) the card shows "Normal download: …" with the reason, instead of silently using one connection.
+- The fast engine's requests now carry the same headers the browser's own download request carries (language, client hints, the page it came from), which some servers check before they allow extra connections.
+
 ## 1.1.3
 
 ### Fixes — fast downloads and multi-network downloading

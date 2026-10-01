@@ -465,7 +465,7 @@
         card.innerHTML = `
           <div class="card-icon">${icon}</div>
           <div class="card-content">
-            <div class="card-filename" title="${escapeHtml(d.filename)}">${escapeHtml(d.filename)}</div>
+            <div class="card-filename" title="${escapeHtml(d.turboNote ? d.filename + ' — ' + d.turboNote : d.filename)}">${escapeHtml(d.filename)}</div>
             <div class="card-progress-bg">
               <div class="card-progress-bar ${progressClass}" style="width: ${pct}%;"></div>
             </div>

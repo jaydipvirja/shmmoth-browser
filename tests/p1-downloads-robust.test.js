@@ -391,6 +391,28 @@ async function main() {
     const rec = Object.values(m.downloads)[0];
     eq(Boolean(rec.isTurbo), false);
     eq(rec.referrer, 'https://files.test/get-page', 'the page is remembered for a later retry');
+    assert(/refuses extra connections.*403/.test(rec.turboNote || ''), 'the card says why the fast engine was not used: ' + rec.turboNote);
+    assert(/^Normal download:/.test(rec.turboNote), 'wording');
+  });
+
+  await test('the reasons for a normal download are in plain words for every kind of answer', async () => {
+    const d = DownloadManager.describeNoTurbo;
+    assert(/ignored the range request/.test(d({ status: 200 })), '200');
+    assert(/refuses extra connections.*401/.test(d({ status: 401 })), '401');
+    assert(/works only once or has expired.*404/.test(d({ status: 404 })), '404');
+    assert(/limits how many connections.*429/.test(d({ status: 429 })), '429');
+    assert(/did not answer.*ETIMEDOUT/.test(d({ status: 0, error: 'ETIMEDOUT' })), 'no answer');
+    assert(/HTTP 502/.test(d({ status: 502 })), 'other');
+  });
+
+  await test('the fast engine\'s requests carry the headers the browser itself sends for a download (language, client hints, page)', async () => {
+    const h = DownloadManager.browserLikeHeaders({ url: 'https://cdn.example.com/f.zip', referer: 'https://example.com/page', userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36', locale: 'gu-IN' });
+    eq(h['Accept-Language'], 'gu-IN,gu;q=0.9'); eq(h['Accept-Encoding'], 'identity');
+    eq(h['sec-ch-ua'], '"Chromium";v="152", "Google Chrome";v="152", "Not?A_Brand";v="99"'); eq(h['sec-ch-ua-platform'], '"Windows"');
+    eq(h.Referer, 'https://example.com/page'); eq(h['Sec-Fetch-Site'], 'cross-site'); eq(h['Sec-Fetch-Mode'], 'navigate');
+    eq(DownloadManager.browserLikeHeaders({ url: 'https://example.com/f.zip', referer: 'https://example.com/p' })['Sec-Fetch-Site'], 'same-origin');
+    eq(DownloadManager.browserLikeHeaders({ url: 'https://example.com/f.zip' })['Sec-Fetch-Site'], 'none');
+    assert(!('Cookie' in h), 'cookies are added separately, from the session');
   });
 
   await test('…and given up only when the engine is proven: then the engine starts with the proof (no second probe)', async () => {
@@ -405,6 +427,7 @@ async function main() {
     assert(got && got.probe === proof, 'the proof is handed over');
     eq(got.headers.Referer, 'https://files.test/get-page');
     eq(got.headers.Cookie, 's=v');
+    eq(got.headers['Sec-Fetch-Mode'], 'navigate'); assert(got.headers['Accept-Language'], 'language');
   });
 
   await test('…a size that differs from the announced one, or a small file, is not worth a second request', async () => {

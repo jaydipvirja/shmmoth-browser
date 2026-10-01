@@ -123,7 +123,8 @@ test('the default start-up behaviour is the new-tab page (no change for existing
 test('the session is written on tab changes (normal tabs only) and frozen when the window closes / the app quits', () => {
   assert(/broadcastTabsUpdate\(isIncognito = false\) \{\s*if \(!isIncognito\) this\._scheduleSessionSave\(\);/.test(mainJs));
   assert(/this\.mainWindow\.on\('close',\s+\(\) => this\._finalizeSession\(\)\)/.test(mainJs));
-  assert(/app\.on\('before-quit', \(\) => this\._finalizeSession\(\)\)/.test(mainJs));
+  // the quit handler freezes the session first and then writes cookies to disk before really quitting (see p1-login-durability)
+  assert(/app\.on\('before-quit', \(event\) => \{\s*this\._finalizeSession\(\);/.test(mainJs));
   assert(/_finalizeSession\(\) \{\s*this\._saveSessionNow\(\);\s*this\._sessionReady = false;/.test(mainJs));
 });
 test('nothing is saved before the start-up tabs exist (the half-built tab list must not overwrite the saved session)', () => {
