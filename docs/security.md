@@ -54,6 +54,17 @@ Internal pages render data that originates from untrusted websites (page titles,
 
 `tests/p0-xss-and-trusted-pages.test.js` guards both layers.
 
+## Renderer sandbox
+
+Every `BrowserWindow` / `WebContentsView` (tabs, side panel, browser chrome, bubbles, extension popup, OAuth popups) is created with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. A renderer exploit therefore starts inside Chromium's OS sandbox instead of with the user's full privileges.
+
+Consequences for contributors — preloads (`preload-internal.js`, `preload-external.js`) run in a *sandboxed preload* environment:
+
+- only `require('electron')` (limited to `contextBridge`, `crashReporter`, `ipcRenderer`, `nativeImage`, `webFrame`, `webUtils`), `events`, `timers`, `url`;
+- no `fs`, `path`, `child_process`, `__dirname`, no requiring other local files.
+
+Do privileged work in the main process behind an IPC handler. `tests/p0-sandbox.test.js` fails if a window is created without `sandbox: true` or a preload starts using Node-only APIs.
+
 ## Session & Authentication Model
 
 - Users authenticate to websites normally through their browser session.

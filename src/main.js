@@ -413,7 +413,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_EXTERNAL
       }
     });
@@ -495,7 +495,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -588,7 +588,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -670,7 +670,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -736,7 +736,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -835,7 +835,7 @@ class ShmmothBrowserApp {
         preload:          PRELOAD_INTERNAL,
         contextIsolation: true,
         nodeIntegration:  false,
-        sandbox:          false
+        sandbox:          true
       }
     });
 
@@ -901,7 +901,7 @@ class ShmmothBrowserApp {
         preload:          PRELOAD_INTERNAL,
         contextIsolation: true,
         nodeIntegration:  false,
-        sandbox:          false
+        sandbox:          true
       }
     });
 
@@ -1312,13 +1312,16 @@ class ShmmothBrowserApp {
     const tabId = 'tab_' + this.tabCounter++;
     const preloadPath = selectPreload(initialUrl);
 
+    // Every renderer runs inside the Chromium OS sandbox: a compromised tab (e.g. a Blink/V8 exploit)
+    // cannot touch the filesystem or spawn processes directly. This is why the preloads may only use
+    // the small Electron subset available to sandboxed preloads (see tests/p0-sandbox.test.js).
     const webPreferences = {
       preload:          preloadPath,
       contextIsolation: true,
       nodeIntegration:  false,
       plugins:          true,
       webSecurity:      true,
-      sandbox:          false
+      sandbox:          true
     };
 
     if (isIncognito) {
@@ -1685,6 +1688,7 @@ class ShmmothBrowserApp {
               preload: PRELOAD_EXTERNAL,
               contextIsolation: true,
               nodeIntegration: false,
+              sandbox: true,
               partition: tabData.isIncognito ? 'incognito' : undefined
             }
           }
@@ -2252,7 +2256,7 @@ class ShmmothBrowserApp {
           preload:          sidePanelPreload,
           contextIsolation: true,
           nodeIntegration:  false,
-          sandbox:          false
+          sandbox:          true
         }
       });
       this.sidePanelView._currentPreload = sidePanelPreload;
@@ -2606,7 +2610,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
