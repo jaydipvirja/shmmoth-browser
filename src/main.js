@@ -3385,9 +3385,11 @@ class ShmmothBrowserApp {
       }
       try {
         const isIncognito = this.isIncognitoSender(event.sender);
-        const sess = isIncognito ? session.fromPartition('incognito') : session.defaultSession;
-        sess.downloadURL(url);
-        log.info('Download retried via background session.downloadURL', { url: url.slice(0, 100), isIncognito });
+        // Always Chromium's own downloader: it is the most compatible one, and a retry follows a failure
+        if (!this.downloads.retryDownload(url, isIncognito)) {
+          return { success: false, error: 'Downloads are not available right now' };
+        }
+        log.info('Download retried with the standard downloader', { url: url.slice(0, 100), isIncognito });
         return { success: true };
       } catch (err) {
         log.error('Failed to retry download', { url, error: err.message });

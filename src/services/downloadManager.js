@@ -170,6 +170,8 @@ class DownloadManager {
     this._confirmOpenDangerous = typeof options.confirmOpenDangerous === 'function' ? options.confirmOpenDangerous : null;
     this._isProxyActive = typeof options.isProxyActive === 'function' ? options.isProxyActive : null;
     this._sessions = { default: null, incognito: null };
+    // url -> { id, savePath }: downloads that must go through Chromium's own downloader (see _handOverToNative)
+    this._nativeOnly = new Map();
 
     // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
     this.turboEngine = new TurboDownloadEngine({
@@ -218,12 +220,18 @@ class DownloadManager {
     this.turboEngine.on('error', (data) => {
       const record = this.downloads[data.id];
       if (!record) return;
+      log.warn(`Turbo download error: ${record.filename}`, { id: data.id, error: data.error, received: data.received });
+
+      // Nothing arrived at all: the server does not like the Turbo engine's requests (it refuses them, or hangs on them).
+      // Chromium's own downloader sends exactly what the page would, so hand the download over to it once.
+      if (!data.received && !record.nativeTried && this._handOverToNative(record, data.error)) return;
+
       record.state = 'interrupted';
       record.isPaused = false;
       record.endedAt = Date.now();
       record.speed = 0;
       record.eta = null;
-      log.warn(`Turbo download error: ${record.filename}`, { id: data.id, error: data.error });
+      record.error = String(data.error || 'The download failed').slice(0, 300);
       this._notify(record);
       this._persist();
     });
@@ -351,8 +359,14 @@ class DownloadManager {
         if (Array.isArray(list)) {
           list.forEach(r => {
             if (r && r.id) {
+              const unfinished = r.state === 'progressing' || r.state === 'paused';
               this.downloads[r.id] = {
                 ...r,
+                // Nothing keeps running while the browser is closed: a record that was still "downloading" would
+                // otherwise sit at its old number for ever (pause/cancel buttons that do nothing). Show it as
+                // interrupted so it can be retried or removed.
+                ...(unfinished ? { state: 'interrupted', error: 'The browser was closed before this download finished.', endedAt: Date.now() } : {}),
+                isPaused: false,
                 speed: 0,
                 eta: null,
                 isIncognito: false, // Persisted records are strictly non-incognito
@@ -565,7 +579,9 @@ class DownloadManager {
       multiSource
     }).catch(err => {
       log.error(`Turbo download failed to start: ${record.filename}`, { error: err.message });
+      if (!record.nativeTried && this._handOverToNative(record, err.message)) return;
       record.state = 'interrupted';
+      record.error = String((err && err.message) || 'The download could not be started').slice(0, 300);
       this._notify(record);
       this._persist();
     });
@@ -574,7 +590,6 @@ class DownloadManager {
   }
 
   async _handleDownload(item, webContents = null, options = {}) {
-    const id = generateId();
     const rawFilename = item.getFilename();
     const filename = sanitizeFilename(rawFilename);
     const url = item.getURL();
@@ -582,11 +597,16 @@ class DownloadManager {
     const isIncognito = Boolean(options.isIncognito);
     const now = Date.now();
 
+    // A download that was handed over to Chromium's own downloader (retry, or the Turbo engine could not get anything)
+    // keeps its card (same id) and is never mistaken for a duplicate of itself
+    const handedOver = this._takeHandover(item, url);
+    const id = (handedOver && handedOver.id) || generateId();
+
     // ── Smart Anti-Duplicate / Anti-Spam Protection ──
     // Prevents parallel duplicate downloads when websites (like HDHub4u / HubCloud / Mediator)
     // fire window.open + location.href concurrently (within milliseconds), or rapid double-clicks.
     // This prevents server-side bandwidth throttling (e.g. Google Drive 5 B/s cap) and duplicate files.
-    const isDuplicate = Object.values(this.downloads).some(d => {
+    const isDuplicate = !handedOver && Object.values(this.downloads).some(d => {
       if (!d || d.url !== url) return false;
       const rawBase = path.basename(filename, path.extname(filename));
       const dBase = path.basename(d.filename || '', path.extname(d.filename || '')).replace(/ \(\d+\)$/, '');
@@ -605,9 +625,16 @@ class DownloadManager {
 
     this._resolveSaveDir();
     let savePath = getUniqueSavePath(this._saveDir, filename);
+    const keepPath = Boolean(handedOver && handedOver.savePath);
+    if (keepPath) {
+      // same place the user already chose (or accepted) for this download
+      savePath = fs.existsSync(handedOver.savePath)
+        ? getUniqueSavePath(path.dirname(handedOver.savePath), path.basename(handedOver.savePath))
+        : handedOver.savePath;
+    }
 
     // Ask where to save if enabled and callback is provided
-    if (this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
+    if (!keepPath && this.shouldAskWhereToSave() && typeof this._promptSaveDialog === 'function') {
       try {
         const dialogResult = await this._promptSaveDialog({
           filename,
@@ -641,7 +668,7 @@ class DownloadManager {
     if (proxied && webContents && this.isTurboEnabled() && isHttp) {
       log.info('Proxy active: using the native downloader instead of Turbo so the proxy is honoured', { url: url.slice(0, 100) });
     }
-    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative && !proxied) {
+    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative && !proxied && !handedOver) {
       const headers = {
         'Accept': '*/*'
       };
@@ -707,6 +734,7 @@ class DownloadManager {
       eta: null,       // seconds remaining
       startedAt: Date.now(),
       endedAt: null,
+      nativeTried: Boolean(handedOver),
       item,
       _lastTimestamp: Date.now(),
       _lastReceived: 0
@@ -758,6 +786,7 @@ class DownloadManager {
         log.info(`Download completed: ${record.filename}`, { id, savePath });
       } else {
         log.warn(`Download ${state}: ${record.filename}`, { id });
+        if (state === 'interrupted') record.error = 'The connection was interrupted or the server stopped sending the file.';
         if (state === 'cancelled') {
           // Clean up partial files upon cancellation
           setTimeout(() => cleanupPartialFile(record.savePath), 100);
@@ -776,8 +805,98 @@ class DownloadManager {
   }
 
   _serialize(record) {
-    const { item, _lastTimestamp, _lastReceived, ...safe } = record;
+    // `headers` holds the Cookie header of the page the download came from: it stays in memory (needed to resume),
+    // it is neither written to downloads.json nor sent to any page
+    const { item, _lastTimestamp, _lastReceived, headers, ...safe } = record;
     return safe;
+  }
+
+  /**
+   * Finds (and removes) the hand-over entry that belongs to this native download item.
+   * The key is the URL the hand-over asked for; after redirects the item reports the final URL, so the chain counts too.
+   */
+  _takeHandover(item, url) {
+    if (!this._nativeOnly.size) return null;
+    let chain = [];
+    try { chain = (item && typeof item.getURLChain === 'function' && item.getURLChain()) || []; } catch (_) {}
+    for (const key of [url, ...chain]) {
+      if (this._nativeOnly.has(key)) {
+        const found = this._nativeOnly.get(key);
+        this._nativeOnly.delete(key);
+        return found;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Starts the download of `url` again with Chromium's own downloader (not the Turbo engine), in `isIncognito`'s
+   * session. This is what the "retry" button does: after a failure the safest choice is the most compatible one.
+   * @returns {boolean} false when the session cannot start downloads
+   */
+  retryDownload(url, isIncognito = false) {
+    const sess = this._sessions[isIncognito ? 'incognito' : 'default'];
+    if (!sess || typeof sess.downloadURL !== 'function' || typeof url !== 'string' || !url) return false;
+    this._nativeOnly.set(url, {});
+    this._expireHandover(url, null);
+    try {
+      sess.downloadURL(url);
+    } catch (err) {
+      this._nativeOnly.delete(url);
+      throw err;
+    }
+    return true;
+  }
+
+  /** A hand-over entry that Electron never answers must not live (or block the card) for ever. */
+  _expireHandover(url, record) {
+    const timer = setTimeout(() => {
+      const entry = this._nativeOnly.get(url);
+      if (!entry) return;
+      this._nativeOnly.delete(url);
+      if (record && this.downloads[record.id] === record) {
+        record.state = 'interrupted';
+        record.error = 'The browser could not start this download.';
+        this._notify(record);
+        this._persist();
+      }
+    }, 30000);
+    if (timer.unref) timer.unref();
+  }
+
+  /**
+   * The Turbo engine got nothing from the server (it refuses the engine's requests, hangs on them, or the link only
+   * works for the browser itself). Start the same download again with Chromium's downloader, on the same card.
+   * @returns {boolean} true when the hand-over was started
+   */
+  _handOverToNative(record, reason) {
+    const sess = this._sessions[record.isIncognito ? 'incognito' : 'default'];
+    if (!sess || typeof sess.downloadURL !== 'function') return false;
+
+    const referer = record.headers && record.headers.Referer;
+    record.nativeTried = true;
+    record.isTurbo = false;
+    record.isMultiSource = false;
+    record.state = 'progressing';
+    record.isPaused = false;
+    record.received = 0;
+    record.speed = 0;
+    record.eta = null;
+    record.segments = [];
+    record.interfaces = [];
+    record.error = '';
+    this._nativeOnly.set(record.url, { id: record.id, savePath: record.savePath });
+    this._expireHandover(record.url, record);
+    log.info(`Turbo engine could not start "${record.filename}" (${reason}); using the standard downloader`, { id: record.id });
+    this._notify(record);
+    try {
+      sess.downloadURL(record.url, referer ? { headers: { Referer: referer } } : undefined);
+    } catch (err) {
+      this._nativeOnly.delete(record.url);
+      log.warn('Hand-over to the standard downloader failed', { error: err.message });
+      return false;
+    }
+    return true;
   }
 
   /**
@@ -880,7 +999,20 @@ class DownloadManager {
     const record = this.downloads[id];
     if (!record) return false;
     if (record.isTurbo) {
-      return this.turboEngine.cancel(id);
+      if (this.turboEngine.cancel(id)) return true;
+      // no running task behind this card (it was lost, e.g. across a restart): just close the card's download
+      if (record.state === 'progressing' || record.state === 'paused' || record.state === 'interrupted') {
+        record.state = 'cancelled';
+        record.isPaused = false;
+        record.speed = 0;
+        record.eta = null;
+        record.endedAt = Date.now();
+        setTimeout(() => cleanupPartialFile(record.savePath), 100);
+        this._notify(record);
+        this._persist();
+        return true;
+      }
+      return false;
     }
     if (record.item && (record.state === 'progressing' || record.state === 'paused')) {
       try {
@@ -899,6 +1031,16 @@ class DownloadManager {
       } catch (err) {
         log.error(`Failed to cancel download ${id}`, { error: err.message });
       }
+    }
+    if (!record.item && !record.isTurbo && (record.state === 'progressing' || record.state === 'paused')) {
+      // waiting for a hand-over that has not arrived yet
+      this._nativeOnly.delete(record.url);
+      record.state = 'cancelled';
+      record.isPaused = false;
+      record.endedAt = Date.now();
+      this._notify(record);
+      this._persist();
+      return true;
     }
     return false;
   }
@@ -967,6 +1109,9 @@ class DownloadManager {
       if (this.downloads[id].item && (this.downloads[id].state === 'progressing' || this.downloads[id].state === 'paused')) {
         try { this.downloads[id].item.cancel(); } catch (_) {}
       }
+      if (this.downloads[id].isTurbo && (this.downloads[id].state === 'progressing' || this.downloads[id].state === 'paused')) {
+        try { this.turboEngine.cancel(id); } catch (_) {}
+      }
       delete this.downloads[id];
       this._persist();
       return true;
@@ -997,6 +1142,9 @@ class DownloadManager {
       if (record.isIncognito) {
         if (record.item && (record.state === 'progressing' || record.state === 'paused')) {
           try { record.item.cancel(); } catch (_) {}
+        }
+        if (record.isTurbo && (record.state === 'progressing' || record.state === 'paused')) {
+          try { this.turboEngine.cancel(id); } catch (_) {}
         }
         delete this.downloads[id];
         count++;

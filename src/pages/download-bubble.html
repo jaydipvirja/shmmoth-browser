@@ -423,7 +423,7 @@
           metaText = 'Cancelled';
         } else if (d.state === 'interrupted') {
           progressClass = 'interrupted';
-          metaText = 'Interrupted';
+          metaText = d.error ? `Failed • ${d.error}` : 'Interrupted';
         } else if (d.isPaused) {
           progressClass = 'paused';
           metaText = `${formatBytes(d.received)} / ${formatBytes(d.total)} • Paused`;
@@ -469,7 +469,7 @@
             <div class="card-progress-bg">
               <div class="card-progress-bar ${progressClass}" style="width: ${pct}%;"></div>
             </div>
-            <div class="card-meta">${escapeHtml(metaText)}</div>
+            <div class="card-meta" title="${escapeHtml(metaText)}">${escapeHtml(metaText)}</div>
           </div>
           <div class="card-actions">
             ${buttonsHtml}

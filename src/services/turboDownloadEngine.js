@@ -31,6 +31,37 @@ const { URL } = require('url');
 const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
 
 /**
+ * Limits. All can be overridden through the constructor (the tests use short ones).
+ *   startStallMs   nothing at all arrived (the server never answers, queues us, throttles extra connections …):
+ *                  give up quickly so the caller can hand the download to Chromium's own downloader
+ *   stallMs        data had been flowing and then stopped: keep retrying this long before giving up
+ */
+const DEFAULT_LIMITS = Object.freeze({
+  startStallMs: 30 * 1000,
+  stallMs: 10 * 60 * 1000,
+  socketTimeoutMs: 20 * 1000,
+  retryBaseMs: 1000,
+  retryMaxMs: 15 * 1000
+});
+
+/** An HTTP status that is not a usable answer to a ranged download request. */
+class HttpStatusError extends Error {
+  constructor(status) {
+    let text;
+    if (status === 401 || status === 403) text = 'The server refused the download (HTTP ' + status + '). The link may have expired or may only work inside the page that offered it.';
+    else if (status === 404 || status === 410) text = 'The file is no longer available on the server (HTTP ' + status + ').';
+    else if (status === 429) text = 'The server limits how many connections it accepts (HTTP 429).';
+    else if (status === 416) text = 'The server did not accept the requested part of the file (HTTP 416).';
+    else text = 'The server answered with an error (HTTP ' + status + ').';
+    super(text);
+    this.name = 'HttpStatusError';
+    this.status = status;
+    /** retrying the same request will not help */
+    this.permanent = status === 401 || status === 403 || status === 404 || status === 410;
+  }
+}
+
+/**
  * Follows HTTP redirects to get final headers or stream.
  * Supports socket binding to specific localAddress (network interface).
  */
@@ -62,8 +93,18 @@ function requestWithRedirects(targetUrl, options = {}, maxRedirects = 5) {
 
     const req = client.request(reqOptions, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        res.resume();
         const nextUrl = new URL(res.headers.location, targetUrl).toString();
-        return requestWithRedirects(nextUrl, options, maxRedirects - 1)
+        let nextOptions = options;
+        if (new URL(nextUrl).host !== parsed.host && options.headers) {
+          // the page's cookies belong to the site that was asked, not to wherever it redirects to (a CDN, a mirror …)
+          const headers = {};
+          for (const [k, v] of Object.entries(options.headers)) {
+            if (!/^(cookie|authorization)$/i.test(k)) headers[k] = v;
+          }
+          nextOptions = { ...options, headers };
+        }
+        return requestWithRedirects(nextUrl, nextOptions, maxRedirects - 1)
           .then(resolve)
           .catch(reject);
       }
@@ -98,13 +139,24 @@ class TurboDownloadEngine extends EventEmitter {
    * @param {number} [options.defaultThreads=8]
    * @param {number} [options.minTurboSize=2097152] (2 MB minimum)
    * @param {boolean} [options.multiSource=true]
+   * @param {number} [options.startStallMs]    see DEFAULT_LIMITS
+   * @param {number} [options.stallMs]
+   * @param {number} [options.socketTimeoutMs]
+   * @param {number} [options.retryBaseMs]
+   * @param {number} [options.retryMaxMs]
    */
   constructor(options = {}) {
     super();
     this.defaultThreads = options.defaultThreads || 8;
     this.minTurboSize = options.minTurboSize || (2 * 1024 * 1024); // 2 MB minimum for turbo
     this.multiSourceEnabled = options.multiSource !== false;
+    this.limits = { ...DEFAULT_LIMITS };
+    for (const key of Object.keys(DEFAULT_LIMITS)) {
+      if (Number.isFinite(options[key]) && options[key] > 0) this.limits[key] = options[key];
+    }
     this.activeTasks = new Map();
+    this._starting = new Set();      // ids whose start() is still probing / looking for network interfaces
+    this._precancelled = new Set();  // ... and that were cancelled meanwhile
   }
 
   /**
@@ -193,6 +245,7 @@ class TurboDownloadEngine extends EventEmitter {
       // First attempt a range test request for byte 0-0
       const { res, finalUrl, req } = await requestWithRedirects(url, {
         method: 'GET',
+        timeout: this.limits.socketTimeoutMs,
         headers: {
           ...headers,
           'Range': 'bytes=0-0'
@@ -273,6 +326,16 @@ class TurboDownloadEngine extends EventEmitter {
     const threadsCount = taskOpts.threads || this.defaultThreads;
     const multiSourceRequested = taskOpts.multiSource !== undefined ? taskOpts.multiSource : this.multiSourceEnabled;
 
+    this._starting.add(id);
+    try {
+      return await this._start(taskOpts, { id, url, savePath, headers, threadsCount, multiSourceRequested });
+    } finally {
+      this._starting.delete(id);
+      this._precancelled.delete(id);
+    }
+  }
+
+  async _start(taskOpts, { id, url, savePath, headers, threadsCount, multiSourceRequested }) {
     let probeInfo = { acceptsRanges: true, totalBytes: taskOpts.totalBytes || 0, finalUrl: url, filename: '' };
     if (!taskOpts.totalBytes) {
       try {
@@ -293,6 +356,9 @@ class TurboDownloadEngine extends EventEmitter {
     const onlineInterfaces = availableInterfaces.filter(i => i.isOnline !== false);
     const usableInterfaces = onlineInterfaces.length > 0 ? onlineInterfaces : availableInterfaces;
     const canUseMultiSource = multiSourceRequested && usableInterfaces.length > 1;
+
+    // Cancelled (or removed from the list) while the server was still being probed: do not start at all
+    if (this._precancelled.has(id)) return null;
 
     const task = {
       id,
@@ -319,6 +385,7 @@ class TurboDownloadEngine extends EventEmitter {
       fd: null,
       lastCalculatedTime: Date.now(),
       lastReceivedBytes: 0,
+      lastProgressAt: Date.now(),   // last time bytes arrived (or the download was started / resumed)
       timer: null
     };
     task.headers = headers;
@@ -387,9 +454,13 @@ class TurboDownloadEngine extends EventEmitter {
 
   /**
    * Downloads an individual segment stream bound to an interface localAddress.
+   *
+   * Every answer is checked before a single byte is written: a segment only accepts "206 Partial Content" for the
+   * range it asked for. (Before, an error page or a server that ignores Range was written into the file like data, and
+   * a server that never answered was retried for ever while the download looked "stuck at 0 B".)
    */
   async _downloadSegment(task, seg, headers) {
-    if (seg.received >= seg.total || task.isPaused || task.state !== 'progressing') {
+    if (seg.dead || seg.isCompleted || seg.received >= seg.total || task.isPaused || task.state !== 'progressing') {
       return;
     }
 
@@ -398,6 +469,7 @@ class TurboDownloadEngine extends EventEmitter {
     try {
       const reqOpts = {
         method: 'GET',
+        timeout: this.limits.socketTimeoutMs,
         headers: {
           ...headers,
           'Range': rangeHeader
@@ -410,22 +482,43 @@ class TurboDownloadEngine extends EventEmitter {
       }
 
       const { res, req } = await requestWithRedirects(task.url, reqOpts);
+      if (seg.dead || task.isPaused || task.state !== 'progressing') {
+        req.destroy();
+        return;
+      }
       seg.req = req;
 
-      // If server does not support ranges and sends full file (200 OK) on segment 0
-      if (res.statusCode === 200 && seg.index === 0) {
-        task.isTurbo = false;
-        task.isMultiSource = false;
-        task.threadsCount = 1;
-        task.segments.slice(1).forEach(s => {
-          if (s.req) { try { s.req.destroy(); } catch (_) {} }
-          s.isCompleted = true;
-        });
-        seg.end = task.totalBytes ? task.totalBytes - 1 : 0;
-        seg.total = task.totalBytes;
+      // The server ignored "Range" and sends the whole file: parallel segments cannot work here
+      if (res.statusCode === 200) {
+        const reusable = (seg.index === 0 && seg.currentOffset === 0) ? { res, req } : null;
+        if (reusable) seg.req = null;             // the answer is carried over, _killSegments must not close it
+        else { res.resume(); req.destroy(); }
+        this._degradeToSingleStream(task, headers, reusable);
+        return;
+      }
+      if (res.statusCode !== 206) {
+        res.resume();
+        req.destroy();
+        throw new HttpStatusError(res.statusCode);
+      }
+      const range = /^bytes (\d+)-(\d+)\/(?:\d+|\*)$/i.exec(res.headers['content-range'] || '');
+      if (range && Number(range[1]) !== seg.currentOffset) {
+        res.resume();
+        req.destroy();
+        throw new Error('The server sent a different part of the file than the one requested');
       }
 
+      let settled = false;
+      const fail = (err) => {
+        if (settled) return;
+        settled = true;
+        if (!seg.dead && !task.isPaused && task.state === 'progressing') {
+          this._handleSegmentError(task, seg, headers, err);
+        }
+      };
+
       res.on('data', (chunk) => {
+        if (seg.dead) { req.destroy(); return; }
         if (task.isPaused || task.state !== 'progressing') {
           req.destroy();
           return;
@@ -437,6 +530,7 @@ class TurboDownloadEngine extends EventEmitter {
           seg.currentOffset += chunk.length;
           seg.received += chunk.length;
           task.receivedBytes += chunk.length;
+          task.lastProgressAt = Date.now();
 
           // Track per-interface bytes
           if (seg.interfaceAddress) {
@@ -446,6 +540,7 @@ class TurboDownloadEngine extends EventEmitter {
             }
           }
         } catch (writeErr) {
+          settled = true;
           req.destroy();
           this._handleError(task, writeErr);
           return;
@@ -453,28 +548,40 @@ class TurboDownloadEngine extends EventEmitter {
       });
 
       res.on('end', () => {
+        if (settled || seg.dead) return;
+        // the connection closed before the whole range arrived: ask for the rest instead of calling it done
+        if (seg.total > 0 && seg.received < seg.total) {
+          fail(new Error('The connection closed before the file was complete'));
+          return;
+        }
+        settled = true;
         seg.isCompleted = true;
         this._checkTaskCompletion(task);
       });
 
-      res.on('error', (err) => {
-        if (!task.isPaused && task.state === 'progressing') {
-          this._handleSegmentError(task, seg, headers, err);
-        }
-      });
+      res.on('error', fail);
 
     } catch (err) {
-      if (!task.isPaused && task.state === 'progressing') {
+      if (!seg.dead && !task.isPaused && task.state === 'progressing') {
         this._handleSegmentError(task, seg, headers, err);
       }
     }
   }
 
   /**
-   * Handles segment network errors with interface failover protection.
+   * Handles segment errors: interface failover, then a retry of the rest of the range with a growing pause.
+   * Retrying never stops by itself — the stall watchdog (_startSpeedMonitoring) decides when to give up, so a
+   * connection that drops for a minute in the middle of a 10 GB download does not lose it.
    */
   _handleSegmentError(task, seg, headers, err) {
-    if (seg.received >= seg.total || task.isPaused || task.state !== 'progressing') {
+    if (seg.dead || seg.received >= seg.total || task.isPaused || task.state !== 'progressing') {
+      return;
+    }
+
+    // A refusal on the very first answers means nothing will ever work with these headers (expired or session-bound
+    // link): fail now instead of retrying until the watchdog gives up.
+    if (err && err.permanent && task.receivedBytes === 0) {
+      this._handleError(task, err);
       return;
     }
 
@@ -500,21 +607,59 @@ class TurboDownloadEngine extends EventEmitter {
       }
     }
 
-    // Retry downloading remainder of this chunk
-    setTimeout(() => {
-      if (!task.isPaused && task.state === 'progressing' && !seg.isCompleted) {
+    // Retry downloading remainder of this chunk (1 s, 2 s, 4 s … at most retryMaxMs)
+    seg.failures = (seg.failures || 0) + 1;
+    task.lastError = err;
+    const delay = Math.min(this.limits.retryMaxMs, this.limits.retryBaseMs * Math.pow(2, Math.min(seg.failures - 1, 10)));
+    if (seg.retryTimer) clearTimeout(seg.retryTimer);
+    seg.retryTimer = setTimeout(() => {
+      seg.retryTimer = null;
+      if (!seg.dead && !task.isPaused && task.state === 'progressing' && !seg.isCompleted) {
         this._downloadSegment(task, seg, headers);
       }
-    }, 1000);
+    }, delay);
+  }
+
+  /**
+   * The server does not do ranges: drop the parallel segments and fetch the whole file as one stream.
+   * @param {object} [existing] the response ({res, req}) that already revealed this, when it is the start of the file
+   */
+  _degradeToSingleStream(task, headers, existing = null) {
+    if (task.degraded || task.state !== 'progressing') {
+      if (existing) { try { existing.req.destroy(); } catch (_) {} }
+      return;
+    }
+    task.degraded = true;
+    this._killSegments(task);
+
+    task.isTurbo = false;
+    task.isMultiSource = false;
+    task.threadsCount = 1;
+    task.receivedBytes = 0;
+    task.lastReceivedBytes = 0;
+    task.interfaces.forEach((i) => { i.receivedBytes = 0; i.lastReceivedBytes = 0; });
+    try { if (task.fd) fs.ftruncateSync(task.fd, 0); } catch (_) {}
+
+    this._startSingleStream(task, headers, existing);
+  }
+
+  /** Stops every request of the task for good (the segments will not be restarted). */
+  _killSegments(task) {
+    for (const seg of task.segments) {
+      seg.dead = true;
+      if (seg.retryTimer) { clearTimeout(seg.retryTimer); seg.retryTimer = null; }
+      if (seg.req) { try { seg.req.destroy(); } catch (_) {} }
+    }
   }
 
   /**
    * Single-stream fallback for servers without range support.
+   * @param {object} [existing] an answer that is already open ({res, req})
    */
-  async _startSingleStream(task, headers) {
+  async _startSingleStream(task, headers, existing = null) {
     this._startSpeedMonitoring(task);
 
-    task.segments = [{
+    const seg = {
       index: 0,
       start: 0,
       end: task.totalBytes ? task.totalBytes - 1 : 0,
@@ -525,41 +670,56 @@ class TurboDownloadEngine extends EventEmitter {
       interfaceName: 'Default',
       interfaceAddress: null,
       req: null
-    }];
+    };
+    task.segments = [seg];
 
     try {
-      const { res, req } = await requestWithRedirects(task.url, {
+      const { res, req } = existing || await requestWithRedirects(task.url, {
         method: 'GET',
+        timeout: this.limits.socketTimeoutMs,
         headers
       });
+      if (seg.dead || task.state !== 'progressing') { req.destroy(); return; }
 
-      task.segments[0].req = req;
+      seg.req = req;
+      if (res.statusCode < 200 || res.statusCode >= 300) {
+        res.resume();
+        req.destroy();
+        throw new HttpStatusError(res.statusCode);
+      }
 
+      let settled = false;
       res.on('data', (chunk) => {
-        if (task.isPaused || task.state !== 'progressing') {
+        if (seg.dead || task.isPaused || task.state !== 'progressing') {
           req.destroy();
           return;
         }
         try {
           fs.writeSync(task.fd, chunk, 0, chunk.length, task.receivedBytes);
           task.receivedBytes += chunk.length;
-          task.segments[0].received = task.receivedBytes;
+          task.lastProgressAt = Date.now();
+          seg.received = task.receivedBytes;
         } catch (writeErr) {
+          settled = true;
           req.destroy();
           this._handleError(task, writeErr);
         }
       });
 
       res.on('end', () => {
-        task.segments[0].isCompleted = true;
+        if (settled || seg.dead || task.state !== 'progressing') return;
+        settled = true;
+        seg.isCompleted = true;
         this._checkTaskCompletion(task);
       });
 
       res.on('error', (err) => {
+        if (settled || seg.dead || task.state !== 'progressing') return;
+        settled = true;
         this._handleError(task, err);
       });
     } catch (err) {
-      this._handleError(task, err);
+      if (!seg.dead && task.state === 'progressing') this._handleError(task, err);
     }
   }
 
@@ -635,6 +795,20 @@ class TurboDownloadEngine extends EventEmitter {
         return;
       }
       emitProgressNow();
+
+      // Watchdog: a download must never sit at "0 B" or at a frozen number without ever reporting a problem
+      const idleMs = Date.now() - task.lastProgressAt;
+      const started = task.receivedBytes > 0;
+      const limit = started ? this.limits.stallMs : this.limits.startStallMs;
+      if (idleMs > limit) {
+        const seconds = Math.round(limit / 1000);
+        const detail = task.lastError && task.lastError.message ? ` (${task.lastError.message})` : '';
+        const err = new Error(started
+          ? `The download stalled: no data arrived for ${seconds} seconds${detail}`
+          : `The server did not send any data for ${seconds} seconds${detail}`);
+        err.stalled = true;
+        this._handleError(task, err);
+      }
     }, 400);
   }
 
@@ -664,17 +838,28 @@ class TurboDownloadEngine extends EventEmitter {
   }
 
   _handleError(task, err) {
+    if (task.state === 'interrupted' || task.state === 'cancelled' || task.state === 'completed') return;
     task.state = 'interrupted';
     if (task.timer) clearInterval(task.timer);
+    this._killSegments(task);
 
     try {
       if (task.fd) fs.closeSync(task.fd);
       task.fd = null;
     } catch (_) {}
 
+    // The engine cannot continue a failed transfer, and a half-written file of the full size looks finished: remove it
+    try {
+      if (fs.existsSync(task.savePath)) fs.unlinkSync(task.savePath);
+    } catch (_) {}
+
+    this.activeTasks.delete(task.id);
     this.emit('error', {
       id: task.id,
-      error: err.message || String(err)
+      error: (err && err.message) || String(err),
+      received: task.receivedBytes,
+      status: (err && err.status) || null,
+      stalled: Boolean(err && err.stalled)
     });
   }
 
@@ -690,6 +875,7 @@ class TurboDownloadEngine extends EventEmitter {
     if (task.timer) clearInterval(task.timer);
 
     task.segments.forEach(s => {
+      if (s.retryTimer) { clearTimeout(s.retryTimer); s.retryTimer = null; }
       if (s.req) {
         try { s.req.destroy(); } catch (_) {}
       }
@@ -708,6 +894,7 @@ class TurboDownloadEngine extends EventEmitter {
 
     task.isPaused = false;
     task.state = 'progressing';
+    task.lastProgressAt = Date.now();
 
     if (!task.fd) {
       task.fd = fs.openSync(task.savePath, 'r+');
@@ -735,16 +922,18 @@ class TurboDownloadEngine extends EventEmitter {
    */
   cancel(id) {
     const task = this.activeTasks.get(id);
-    if (!task) return false;
+    if (!task) {
+      if (this._starting.has(id)) {            // not running yet: make sure it never does
+        this._precancelled.add(id);
+        this.emit('cancelled', { id });
+        return true;
+      }
+      return false;
+    }
 
     task.state = 'cancelled';
     if (task.timer) clearInterval(task.timer);
-
-    task.segments.forEach(s => {
-      if (s.req) {
-        try { s.req.destroy(); } catch (_) {}
-      }
-    });
+    this._killSegments(task);
 
     try {
       if (task.fd) fs.closeSync(task.fd);

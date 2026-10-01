@@ -277,6 +277,7 @@ function renderDownloads() {
         <div class="dl-footer">
           <div class="dl-meta">
             <span class="dl-size">${sizeStr}</span>
+            ${record.error && (record.state === 'interrupted' || record.state === 'cancelled') ? `<span class="dl-error" title="${escapeHtml(record.error)}">${escapeHtml(record.error)}</span>` : ''}
             ${speedStr ? `<span class="dl-speed">${speedStr}</span>` : ''}
             ${etaStr ? `<span class="dl-eta">• ${etaStr}</span>` : ''}
             ${ifaceChipsHtml}

@@ -182,6 +182,13 @@ btnSaveModal.addEventListener('click', async () => {
   renderShortcuts();
 });
 
+// The engine version is the one this browser really runs (it was a fixed "130" in the page)
+(function showEngineVersion() {
+  const el = document.getElementById('stat-engine');
+  const major = (navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1];
+  if (el && major) el.textContent = `Engine: Chromium ${major}`;
+})();
+
 // Load stats
 async function loadStats() {
   if (window.mtcAPI && window.mtcAPI.getSettings) {
