@@ -22,6 +22,7 @@ const { _electron } = require('playwright-core');
 
 const ROOT = path.join(__dirname, '..', '..');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const TEST_TIMEOUT_MS = Number(process.env.E2E_TEST_TIMEOUT_MS) || 120000;
 
 // ─── Minimal test runner (same output format as the unit tests) ──────────────
 
@@ -37,8 +38,12 @@ async function runSuite(title, body) {
   let passed = 0; let failed = 0; let skipped = 0;
   const t = {
     async test(name, fn) {
-      try { await fn(); console.log(`  ✅ PASS: ${name}`); passed++; }
+      // a hung test must fail on its own instead of holding the whole file until the runner's 7-minute limit
+      let timer;
+      const limit = new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(`test did not finish within ${TEST_TIMEOUT_MS / 1000} s`)), TEST_TIMEOUT_MS); });
+      try { await Promise.race([fn(), limit]); console.log(`  ✅ PASS: ${name}`); passed++; }
       catch (err) { console.error(`  ❌ FAIL: ${name}\n         ${String(err && err.message || err).split('\n').join('\n         ')}`); failed++; }
+      finally { clearTimeout(timer); }
     },
     skip(name, why) { console.log(`  ⏭️  SKIP: ${name} (${why})`); skipped++; },
     section(name) { console.log(`\n📋 ${name}`); }
@@ -245,14 +250,15 @@ const hostsContacted = (app) => app.evaluate(() => Array.from(new Set(global.__h
 
 // ─── Local servers ───────────────────────────────────────────────────────────
 
-function startServer(handler) {
+function startServer(handler, { port: wanted = 0 } = {}) {
   return new Promise((resolve) => {
     const server = http.createServer(handler);
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(wanted, '127.0.0.1', () => {
       const port = server.address().port;
       resolve({
         server, port, url: `http://127.0.0.1:${port}`,
-        close: () => new Promise((r) => { server.closeAllConnections && server.closeAllConnections(); server.close(() => r()); })
+        // close() alone waits for the browser's keep-alive connections; drop them first
+        close: () => new Promise((r) => { server.close(() => r()); server.closeAllConnections && server.closeAllConnections(); })
       });
     });
   });

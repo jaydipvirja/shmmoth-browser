@@ -69,14 +69,9 @@ runSuite('SHMMOTH Browser — E2E 09: error pages', async (t) => {
 
     t.section('Trying again');
 
-    const live = await startServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><title>recovered</title>back online'); });
+    const okPage = (title) => (req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(`<!doctype html><title>${title}</title>ok`); };
     // the "site" comes back on the very port that was refusing connections
-    await live.close();
-    const revived = await new Promise((resolve) => {
-      const http = require('http');
-      const server = http.createServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><title>recovered</title>back online'); });
-      server.listen(deadPort, '127.0.0.1', () => resolve(server));
-    });
+    const revived = await startServer(okPage('recovered'), { port: deadPort });
 
     await t.test('"Try again" loads the page once the site is back, and the error state is gone', async () => {
       const wc = (await listWebContents(app)).find((w) => w.url.startsWith('mtc://error'));
@@ -89,20 +84,15 @@ runSuite('SHMMOTH Browser — E2E 09: error pages', async (t) => {
     });
 
     await t.test('Reload on an error tab retries the failed address', async () => {
-      await new Promise((r) => revived.close(r));
-      if (revived.closeAllConnections) revived.closeAllConnections();
+      await revived.close();
       await api(chrome, 'createTab', `${dead}/second`);
       await errorPage(`${dead}/second`);
-      const again = await new Promise((resolve) => {
-        const http = require('http');
-        const server = http.createServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end('<!doctype html><title>second ok</title>ok'); });
-        server.listen(deadPort, '127.0.0.1', () => resolve(server));
-      });
+      const again = await startServer(okPage('second ok'), { port: deadPort });
       try {
         await api(chrome, 'reloadTab');
         await waitForWebContents(app, `${dead}/second`);
         assert(!(await listWebContents(app)).some((w) => w.url.startsWith('mtc://error')), 'still on the error page after Reload');
-      } finally { await new Promise((r) => again.close(r)); }
+      } finally { await again.close(); }
     });
 
     t.section('Things that are not errors, and hostile input');
