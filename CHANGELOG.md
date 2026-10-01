@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.5
+
+### Downloads
+- **Fast (multi-part) downloads now ask the server the way Chrome does.** The engine first asks through the browser's own network stack — the same TLS handshake, certificate store, DNS settings and cookies as the browser's own download — and only then with a direct connection (which is needed for servers that insist on the page address, and for using several networks). Before, only the direct connection was tried, and a server that answered it with the whole file (or refused it) was written off, although Chrome and download managers get parts from it.
+- The card's note now says what each way of asking got, for example "browser network stack: HTTP 200; direct connection: HTTP 403".
+
 ## 1.1.4
 
 ### Fixes

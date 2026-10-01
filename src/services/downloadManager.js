@@ -157,6 +157,22 @@ function isDangerousFile(nameOrPath) {
 function describeNoTurbo(probe, fallback = '') {
   if (!probe) return fallback || 'the test request could not be made';
   const st = probe.status;
+  // the test is made the way Chrome would (browser network stack) and with a direct connection; say what each got
+  let tried = '';
+  if (Array.isArray(probe.attempts) && probe.attempts.length) {
+    const seen = new Set();
+    const parts = [];
+    for (const a of probe.attempts) {
+      const label = a.transport === 'chromium' ? 'browser network stack' : 'direct connection';
+      const result = a.status ? `HTTP ${a.status}` : 'no answer';
+      if (!seen.has(label + result)) { seen.add(label + result); parts.push(`${label}: ${result}`); }
+    }
+    tried = ` (tried — ${parts.join('; ')})`;
+  }
+  return describeNoTurboStatus(probe, st, fallback) + tried;
+}
+
+function describeNoTurboStatus(probe, st, fallback) {
   if (st === 206) return fallback || 'the file is too small to be worth splitting';
   if (!st) return `the server did not answer the test request${probe.error ? ` (${probe.error})` : ''}`;
   if (st === 200) return 'this server cannot send a file in parts (it ignored the range request), so it can only be downloaded over one connection';
@@ -633,6 +649,7 @@ class DownloadManager {
       threads: threadCount,
       totalBytes: opts.totalBytes || probe.totalBytes,
       probe: opts.probe || undefined,
+      session: opts.session || (opts.webContents && opts.webContents.session) || undefined,
       multiSource
     }).catch(err => {
       log.error(`Turbo download failed to start: ${record.filename}`, { error: err.message });
@@ -847,9 +864,10 @@ class DownloadManager {
     try { item.pause(); paused = true; } catch (_) { /* nothing to hold */ }
 
     let headers = { 'Accept': '*/*' };
+    let sess = null;
     try {
       const referer = webContents.getURL ? webContents.getURL() : '';
-      const sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
+      sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
       let userAgent = '';
       let cookieHeader = '';
       if (sess) {
@@ -869,7 +887,7 @@ class DownloadManager {
 
     let probe = null;
     let reason = '';
-    try { probe = await this.turboEngine.probe(url, headers, { timeout: 6000 }); } catch (_) { probe = null; }
+    try { probe = await this.turboEngine.probe(url, headers, { timeout: 6000, session: sess || undefined }); } catch (_) { probe = null; }
     if (record.settled) return;                 // the item ended meanwhile (and was reported by its 'done' handler)
     if (!probe || !probe.acceptsRanges) reason = describeNoTurbo(probe);
     else if (probe.totalBytes < this.turboEngine.minTurboSize) reason = 'the file is under ' + Math.round(this.turboEngine.minTurboSize / 1048576) + ' MB, splitting it would not be faster';
@@ -896,6 +914,7 @@ class DownloadManager {
           multiSource: this.isMultiSourceEnabled(),
           totalBytes: total || probe.totalBytes,
           probe,
+          session: sess || undefined,
           webContents
         });
       } catch (err) {

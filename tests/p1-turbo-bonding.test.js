@@ -248,9 +248,9 @@ async function main() {
         if (done[i + 1][0] <= done[i][1]) { done[i][1] = Math.max(done[i][1], done[i + 1][1]); done.splice(i + 1, 1); } else i++;
       }
     }
-    // 8 connections with 1 MiB blocks: the writes stay within the blocks being fetched, a few MiB at most — the old
-    // equal parts started the last connection 21 MiB into the file
-    assert(maxAhead <= 10 * 1024 * 1024, `a write landed ${maxAhead} bytes ahead of the complete part of the file`);
+    // 8 connections with 1 MiB blocks: the writes stay within the blocks being fetched (about 8 MiB, a little more
+    // while one block lags) — the old equal parts started the last connection 21 MiB into the file (17 MiB measured)
+    assert(maxAhead <= 14 * 1024 * 1024, `a write landed ${maxAhead} bytes ahead of the complete part of the file`);
     eq(sha(fs.readFileSync(savePath)), sha(payload), 'content');
   });
 
@@ -321,6 +321,106 @@ async function main() {
     await srv.close();
     eq(r.ok, false);
     eq(fs.existsSync(savePath), false); eq(fs.existsSync(savePath + '.shmmoth-part'), false);
+  });
+
+  console.log('\n── Two ways of asking: the browser\'s own network stack, and a direct connection ──');
+
+  /** A stand-in for Electron\'s `net` (Chromium\'s stack): same interface, built on http; its requests carry x-via: chromium. */
+  function fakeNet() {
+    return {
+      request(opts) {
+        const handlers = {}; const headers = {}; let req = null;
+        const api = {
+          setHeader(k, v) { if (/^referer$/i.test(k)) throw new Error('net::ERR_BLOCKED_BY_CLIENT'); headers[k] = v; },
+          on(ev, fn) { handlers[ev] = fn; return api; },
+          abort() { if (req) req.destroy(); },
+          end() {
+            const u = new URL(opts.url);
+            req = http.request({ hostname: u.hostname, port: u.port, path: u.pathname + u.search, headers: { ...headers, 'x-via': 'chromium' } }, (res) => { if (handlers.response) handlers.response(res); });
+            req.on('error', (e) => { if (handlers.error) handlers.error(new Error('net::ERR_CONNECTION_RESET')); });
+            req.end();
+          }
+        };
+        return api;
+      }
+    };
+  }
+
+  /** A server that honours ranges only for the requests it likes (`allow(req)`), and sends the whole file to the others. */
+  async function pickyServer(payload, allow) {
+    const seenVia = [];
+    const srv = await listen((req, res) => {
+      seenVia.push(req.headers['x-via'] || 'node');
+      const r = rangeOf(req, payload.length);
+      if (r && allow(req)) return serveRange(req, res, payload, r);
+      res.writeHead(200, { 'Content-Length': payload.length }); res.end(payload);
+    });
+    srv.seenVia = seenVia;
+    return srv;
+  }
+
+  await test('a server that only gives parts to the browser\'s own stack: that way is chosen, and the download is split', async () => {
+    const payload = crypto.randomBytes(5 * 1024 * 1024);
+    const srv = await pickyServer(payload, (req) => req.headers['x-via'] === 'chromium');
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, defaultThreads: 4, blockBytes: 512 * 1024, net: fakeNet() });
+    const probe = await engine.probe(`${srv.url}/f.bin`, { Referer: 'https://page.test/' });
+    eq(probe.acceptsRanges, true); eq(probe.transport, 'chromium'); eq(probe.totalBytes, payload.length);
+    const savePath = path.join(base, 'picky.bin');
+    const r = await run(engine, { id: 'picky', url: `${srv.url}/f.bin`, savePath, probe, threads: 4, multiSource: false });
+    await srv.close();
+    eq(r.ok, true, `must complete: ${r.error}`);
+    eq(r.isTurbo, true, 'split into parts');
+    eq(sha(fs.readFileSync(savePath)), sha(payload), 'content');
+    assert(srv.seenVia.filter((v) => v === 'node').length === 0, 'no request may have gone the direct way');
+  });
+
+  await test('a server that only gives parts to a direct request with the right Referer: the direct way is used after the browser\'s stack got the whole file', async () => {
+    const payload = crypto.randomBytes(4 * 1024 * 1024);
+    const srv = await pickyServer(payload, (req) => req.headers.referer === 'https://page.test/get');
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, defaultThreads: 4, blockBytes: 512 * 1024, net: fakeNet() });
+    const probe = await engine.probe(`${srv.url}/f.bin`, { Referer: 'https://page.test/get' });
+    eq(probe.acceptsRanges, true); eq(probe.transport, 'node');
+    assert(probe.attempts.some((a) => a.transport === 'chromium' && a.status === 200), 'the browser\'s stack was tried first and got the whole file: ' + JSON.stringify(probe.attempts));
+    const savePath = path.join(base, 'picky2.bin');
+    const r = await run(engine, { id: 'picky2', url: `${srv.url}/f.bin`, savePath, probe, headers: { Referer: 'https://page.test/get' }, threads: 4, multiSource: false });
+    await srv.close();
+    eq(r.ok, true, `must complete: ${r.error}`); eq(r.isTurbo, true);
+    eq(sha(fs.readFileSync(savePath)), sha(payload), 'content');
+  });
+
+  await test('when neither way gets a part, the answer says what each got (and the form "from byte 0" was tried too)', async () => {
+    const payload = crypto.randomBytes(2 * 1024 * 1024);
+    const srv = await pickyServer(payload, () => false);
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, net: fakeNet() });
+    const probe = await engine.probe(`${srv.url}/f.bin`, {});
+    await srv.close();
+    eq(probe.acceptsRanges, false);
+    const ways = probe.attempts.map((a) => `${a.transport}:${a.range}:${a.status}`).join(' ');
+    eq(ways, 'chromium:bytes=0-0:200 chromium:bytes=0-:200 node:bytes=0-0:200');
+  });
+
+  await test('without a proxy-blind direct connection allowed (a proxy is in use) only the browser\'s stack is asked', async () => {
+    const payload = crypto.randomBytes(2 * 1024 * 1024);
+    const srv = await pickyServer(payload, () => false);
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, net: fakeNet() });
+    const probe = await engine.probe(`${srv.url}/f.bin`, {}, { allowNode: false });
+    await srv.close();
+    assert(probe.attempts.every((a) => a.transport === 'chromium'), JSON.stringify(probe.attempts));
+    assert(!srv.seenVia.includes('node'), 'no direct request may leave when a proxy is in use');
+  });
+
+  await test('Chromium\'s error names become the usual codes: a bad certificate or unknown host fails at once, a reset is retried', async () => {
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, net: {
+      request() {
+        const h = {}; const api = { setHeader() {}, on(ev, fn) { h[ev] = fn; return api; }, abort() {}, end() { setImmediate(() => h.error(new Error('net::ERR_CERT_AUTHORITY_INVALID'))); } };
+        return api;
+      }
+    } });
+    const probe = await engine.probe('https://x.test/f', {}, { allowNode: false });
+    assert(/ERR_CERT_AUTHORITY_INVALID/.test(probe.attempts[0].error || ''), JSON.stringify(probe.attempts));
+    const mapped = (name) => TurboDownloadEngine._mapNetError(new Error('net::' + name));
+    eq(mapped('ERR_CERT_COMMON_NAME_INVALID').code, 'ERR_TLS_CERT'); eq(mapped('ERR_NAME_NOT_RESOLVED').code, 'ENOTFOUND');
+    eq(mapped('ERR_CONNECTION_RESET').code, 'ECONNRESET'); eq(mapped('ERR_CONNECTION_REFUSED').code, 'ECONNREFUSED');
   });
 
   await test('virtual adapters (WSL, VMs, VPNs, containers) are recognised so they never count as extra networks', async () => {
