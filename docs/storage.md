@@ -1,4 +1,4 @@
-# MTC Browser — Storage
+# SHMMOTH Browser — Storage
 
 ## Current Implementation
 

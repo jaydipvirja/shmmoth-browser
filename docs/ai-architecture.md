@@ -1,4 +1,4 @@
-# MTC Browser — AI Architecture
+# SHMMOTH Browser — AI Architecture
 
 > **Status: not wired into the app.** `src/ai/` is scaffolding for the SHMMOTH agent (see `agent-architecture.md`).
 > Nothing in `main.js` requires it, and the browser currently has **no AI side panel or AI settings** — an earlier

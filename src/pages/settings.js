@@ -1,4 +1,4 @@
-// MTC BROWSER - Settings Controller
+// SHMMOTH BROWSER - Settings Controller
 
 let currentSettings = {};
 

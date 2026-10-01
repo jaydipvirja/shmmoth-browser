@@ -1,4 +1,4 @@
-# MTC Browser — Agent Architecture (SHMMOTH Preparation)
+# SHMMOTH Browser — Agent Architecture (SHMMOTH Preparation)
 
 > **Status:** Interface defined, **not wired into the app** (nothing in `main.js` requires `src/agent/` or `src/ai/`). Implementation is Phase 2.
 

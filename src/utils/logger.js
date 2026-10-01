@@ -1,7 +1,7 @@
 /**
  * STRUCTURED LOGGER — logger.js
  *
- * Centralised application logger for MTC Browser.
+ * Centralised application logger for SHMMOTH Browser.
  *
  * LOG LEVELS:
  *   INFO     — Normal operational events

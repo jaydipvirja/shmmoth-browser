@@ -52,3 +52,7 @@ Release a build whose `UPDATE_PUBLIC_KEYS` lists **both** the old and the new ke
 ## Also recommended (separate from update signing)
 
 Authenticode-sign the installer with a code-signing certificate (electron-builder `win.certificateFile` / `certificateSubjectName`). It removes the Windows SmartScreen warning for new installs; update signing above is what protects *updates*.
+
+## App icon
+
+Put the logo at `build/icon.png` (square, at least 512×512 px — 1024×1024 recommended). electron-builder finds that folder by itself and generates the `.ico` for the exe, the installer and the shortcuts; no configuration is needed. Until the file exists the default Electron icon is used. After adding it, build once (`npm run pack`) and check the taskbar, the Start-menu entry and the installer.

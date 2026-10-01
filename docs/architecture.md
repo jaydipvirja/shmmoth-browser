@@ -1,8 +1,8 @@
-# MTC Browser — Architecture
+# SHMMOTH Browser — Architecture
 
 ## Overview
 
-SHMMOTH (MTC) Browser is an Electron desktop browser built on Chromium (Blink/V8) — currently Electron 44 / Chromium 152 / Node 24 (see `docs/upgrading-electron.md`). It uses a multi-process architecture where each browser tab runs in a sandboxed `WebContentsView`, and the browser chrome (tabs, omnibox, toolbar) runs in a dedicated `BrowserWindow`.
+SHMMOTH Browser is an Electron desktop browser built on Chromium (Blink/V8) — currently Electron 44 / Chromium 152 / Node 24 (see `docs/upgrading-electron.md`). It uses a multi-process architecture where each browser tab runs in a sandboxed `WebContentsView`, and the browser chrome (tabs, omnibox, toolbar) runs in a dedicated `BrowserWindow`.
 
 ## Process Model
 
@@ -91,3 +91,17 @@ Internal pages are served from `src/pages/` by a privileged custom protocol hand
 | `mtc://history` | `pages/history.html` |
 | `mtc://notes` | `pages/notes.html` |
 | `mtc://downloads` | `pages/downloads.html` |
+
+## Naming: SHMMOTH vs "mtc"
+
+The product is **SHMMOTH Browser**. The project started as "MTC Browser", and a few internal identifiers still say `mtc`. They are deliberately **not** renamed, because changing them would break existing installs or links:
+
+| Identifier | Why it stays |
+|---|---|
+| `package.json → name: "mtc-browser"` | Electron derives the profile folder (`%APPDATA%\mtc-browser`) from it; renaming would orphan every user's bookmarks, history, passwords and session |
+| `build.appId: com.mtc.shmmothbrowser` | Identity of the installer / update channel on Windows |
+| `mtc://` internal pages, `window.mtcAPI` | Stable internal API surface used by every page and test |
+| `mtc-data.json`, `[MTC:…]` log prefix | Existing profile file name / log format |
+| `run-mtc-browser.bat` | Referenced from the README and from users' shortcuts |
+
+Everything a user can see (window titles, page titles, greeting, installer name, README) says SHMMOTH. A real rename would need a one-time profile migration (copy the old folder, keep a fallback `mtc://` alias); do that deliberately, in its own change.

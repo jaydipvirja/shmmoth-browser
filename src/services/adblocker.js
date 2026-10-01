@@ -1,4 +1,4 @@
-// Ad & Tracker Blocker Engine for MTC BROWSER
+// Ad & Tracker Blocker Engine for SHMMOTH BROWSER
 // Powered by Ghostery / Brave ElectronBlocker (EasyList + EasyPrivacy + Cosmetic Filtering)
 const fs   = require('fs');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');

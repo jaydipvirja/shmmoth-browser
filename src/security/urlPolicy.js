@@ -1,7 +1,7 @@
 /**
  * URL SECURITY POLICY — urlPolicy.js
  *
- * Centralised URL classification and navigation policy enforcement for MTC Browser.
+ * Centralised URL classification and navigation policy enforcement for SHMMOTH Browser.
  * All navigation requests (user input, redirects, popups, new windows) should
  * be run through this module before being acted upon.
  *

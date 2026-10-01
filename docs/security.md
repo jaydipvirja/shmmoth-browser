@@ -1,4 +1,4 @@
-# MTC Browser — Security Model
+# SHMMOTH Browser — Security Model
 
 ## Core Security Principles
 
@@ -80,7 +80,7 @@ Do privileged work in the main process behind an IPC handler. `tests/p0-sandbox.
 ## Session & Authentication Model
 
 - Users authenticate to websites normally through their browser session.
-- MTC Browser does not store, intercept, or proxy passwords.
+- SHMMOTH Browser does not intercept or proxy passwords. Only when the user chooses "Save password" is one stored, in the password vault, encrypted with the operating system's key store (`safeStorage`; refused if that is unavailable — see `storage.md`).
 - The future SHMMOTH agent operates using the **existing authenticated browser session** — it never receives the user's password.
 - Session cookies are managed by Chromium's session layer. The browser does not expose raw cookie access via IPC.
 

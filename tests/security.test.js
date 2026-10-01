@@ -1,5 +1,5 @@
 /**
- * MTC BROWSER — SECURITY TEST SUITE
+ * SHMMOTH BROWSER — SECURITY TEST SUITE
  * Phase 1 verification tests
  *
  * Run with: node tests/security.test.js
@@ -66,7 +66,7 @@ const BrowserAction = require('../src/agent/BrowserAction');
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
 console.log('\n══════════════════════════════════════════');
-console.log('  MTC Browser — Phase 1 Security Tests   ');
+console.log('  SHMMOTH Browser — Phase 1 Security Tests   ');
 console.log('══════════════════════════════════════════\n');
 
 // ────────────────────────────────────────────────────────────────────────────

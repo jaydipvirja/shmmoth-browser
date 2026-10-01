@@ -1,4 +1,4 @@
-# MTC Browser — IPC Reference
+# SHMMOTH Browser — IPC Reference
 
 ## Architecture
 

@@ -1,4 +1,4 @@
-# 🚀 MTC BROWSER
+# 🚀 SHMMOTH BROWSER
 
 A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
 
@@ -26,7 +26,7 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
    - Background tabs je 15 min thi inactive hoy tene automatic sleep mode ma muki de che jethi computer slow na thay.
    - Tab par click karta j te instant wake up thai jaay che.
 
-5. **MTC Smart Dashboard (New Tab Page)**:
+5. **SHMMOTH Smart Dashboard (New Tab Page)**:
    - Live Digital Clock, Date & Greeting.
    - Google Omnisearch box.
    - Quick Speed-Dial Shortcuts (YouTube, Google, GitHub, ChatGPT, Gemini, etc.) + Add Custom Shortcut.
@@ -79,3 +79,9 @@ npm run test:e2e:packaged   # same, against a packaged build
 ```
 
 Details: `docs/testing.md`. Releasing signed updates: `docs/releasing.md`. Upgrading Electron: `docs/upgrading-electron.md`.
+
+---
+
+## 📄 License
+
+MIT — see [`LICENSE`](LICENSE). Third-party: the Inter font is bundled under the SIL Open Font License (`src/pages/inter-OFL.txt`); Electron/Chromium licences ship inside every build; the ad-block filter lists (EasyList, EasyPrivacy, …) are downloaded at run time, not redistributed.

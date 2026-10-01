@@ -1,4 +1,4 @@
-// RAM Saver / Tab Sleep Service for MTC BROWSER
+// RAM Saver / Tab Sleep Service for SHMMOTH BROWSER
 class RamSaverService {
   constructor(storageService, tabManager) {
     this.storage = storageService;
