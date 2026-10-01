@@ -1091,3 +1091,7 @@ body.theme-light .modal-footer {
   border-top: 1px solid #e2e8f0;
 }
 
+
+/* Elements toggled with the .hidden class (update status, "Relaunch" button, manual proxy form, …).
+   Toasts are excluded: they fade out via opacity (.toast.hidden above). */
+.hidden:not(.toast) { display: none !important; }
