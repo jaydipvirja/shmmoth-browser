@@ -79,6 +79,30 @@ runSuite('SHMMOTH Browser — E2E 04: persistence & crash recovery', async (t) =
     assertEqual(leftovers.join(), '', 'temp files');
   });
 
+  t.section('Retired bundled extension');
+
+  await t.test('the stale registry entry of the old bundled uBlock Origin is dropped on start-up; other entries are left alone', async () => {
+    const userData = tmpDir('shmmoth-e2e-ud-');
+    const record = (id, name, p) => ({ id, name, version: '1.0.0', path: p, enabled: true, manifestVersion: 2, permissions: [], errors: [], installedAt: 1 });
+    fs.writeFileSync(path.join(userData, 'shmmoth-extensions.json'), JSON.stringify({
+      developerMode: false,
+      extensions: {
+        stale_ubo: record('stale_ubo', 'uBlock Origin', 'C:\\Users\\x\\AppData\\Local\\Programs\\SHMMOTH\\resources\\app.asar\\extensions\\uBlock0.chromium'),
+        other: record('other', 'My own extension', '/nowhere/extensions/my-own-extension')
+      }
+    }));
+    const ctx = await launchApp({ userData });
+    try {
+      const names = ((await api(ctx.chrome, 'getAllExtensions')).extensions || []).map((e) => e.name);
+      assertEqual(names.join(), 'My own extension');
+      const onDisk = await waitFor(() => {
+        const j = JSON.parse(fs.readFileSync(path.join(userData, 'shmmoth-extensions.json'), 'utf8'));
+        return Object.keys(j.extensions).join() === 'other' ? j : null;
+      }, { message: 'the registry on disk to lose the stale entry' });
+      assert(onDisk.extensions.other, 'the unrelated entry must be kept');
+    } finally { await ctx.close(); }
+  });
+
   t.section('Password vault');
 
   await t.test('saving a password either encrypts it with the OS or is refused with a clear error — never a weak fallback', async () => {

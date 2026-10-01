@@ -10,8 +10,10 @@
 
 'use strict';
 
+const path = require('path');
+
 const {
-  runSuite, assert, assertEqual, waitFor, sleep,
+  ROOT, runSuite, assert, assertEqual, waitFor, sleep,
   launchApp, chromeWindow, api, listWebContents, waitForWebContents, evalIn, openTab,
   installMonitors, cspViolations, hostsContacted
 } = require('./helpers');
@@ -164,18 +166,38 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
 
     t.section('Extensions');
 
-    const ext = (await api(chrome, 'getAllExtensions')).extensions || [];
-    const active = ext.find((e) => e.status === 'active' && e.action && e.action.default_popup);
-    if (!active) {
-      t.skip('an active extension popup opens in a sandboxed window', 'no active extension with a popup (e.g. packaged build)');
-    } else {
-      await t.test(`the popup of "${active.name}" opens in a sandboxed window`, async () => {
-        assertEqual(await api(chrome, 'openExtensionPopup', active.id, bounds), true);
-        const wc = await waitFor(async () => (await listWebContents(app)).find((w) => w.url.startsWith('chrome-extension://') && /popup/.test(w.url) && !w.loading), { message: 'popup' });
-        const prefs = await app.evaluate(({ webContents }, id) => (webContents.fromId(id).getLastWebPreferences() || {}).sandbox, wc.id);
-        assertEqual(prefs, true);
-      });
-    }
+    const fixture = path.join(ROOT, 'tests', 'fixtures', 'extensions', 'extension-a-mv3');
+    let extensionId = null;
+
+    await t.test('no extension is bundled any more (uBlock Origin was retired) and the registry starts empty', async () => {
+      const list = (await api(chrome, 'getAllExtensions')).extensions || [];
+      assertEqual(list.map((e) => e.name).join(), '', 'pre-installed extensions');
+    });
+
+    await t.test('an unpacked MV3 extension can be installed and becomes active', async () => {
+      const res = await api(chrome, 'installExtension', fixture);
+      assertEqual(res.success, true, JSON.stringify(res));
+      extensionId = res.extension.id;
+      const ext = await waitFor(async () => {
+        const list = (await api(chrome, 'getAllExtensions')).extensions || [];
+        const e = list.find((x) => x.id === extensionId);
+        return e && e.status === 'active' ? e : null;
+      }, { message: 'the extension to become active' });
+      assertEqual(ext.name, 'Test Action Extension');
+    });
+
+    await t.test('its popup opens in a sandboxed window', async () => {
+      assertEqual(await api(chrome, 'openExtensionPopup', extensionId, bounds), true);
+      const wc = await waitFor(async () => (await listWebContents(app)).find((w) => w.url.startsWith('chrome-extension://') && /popup/.test(w.url) && !w.loading), { message: 'popup' });
+      const prefs = await app.evaluate(({ webContents }, id) => (webContents.fromId(id).getLastWebPreferences() || {}).sandbox, wc.id);
+      assertEqual(prefs, true);
+    });
+
+    await t.test('removing it works', async () => {
+      const res = await api(chrome, 'removeExtension', extensionId);
+      assertEqual(res.success, true, JSON.stringify(res));
+      assertEqual(((await api(chrome, 'getAllExtensions')).extensions || []).length, 0, 'extensions left');
+    });
   } finally {
     await ctx.close();
   }

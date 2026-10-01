@@ -32,5 +32,5 @@ Then verify (all must pass) before releasing:
 
 ## Known caveats
 
-* uBlock Origin (MV2, `extensions/uBlock0.chromium`) loads when running from source but **fails inside the packaged `app.asar`** (Chromium cannot read extension files from an asar archive), and Electron implements only a subset of the extension APIs (no `webRequest` blocking), so real ad-blocking comes from the Ghostery engine. Decide whether to drop the bundled extension.
+* Ad blocking is done by the Ghostery engine (`AdBlockerService`). Electron implements only a subset of the Chrome extension APIs (no blocking `webRequest`), so extension-based blockers such as uBlock Origin cannot work in this browser; the copy that used to be bundled was removed (the app also drops its stale registry entry on start).
 * Electron "fuses" (`runAsNode`, `onlyLoadAppFromAsar`, ASAR integrity, …) are not flipped yet — see electron-builder's `electronFuses` option.

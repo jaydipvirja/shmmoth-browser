@@ -344,20 +344,17 @@ class ShmmothBrowserApp {
   async loadExtensions() {
     if (!this.extensionManager) return;
 
-    // Ensure built-in ad blocker extensions are registered in the manager
-    const builtIns = [
-      { name: 'uBlock Origin', path: path.join(__dirname, '..', 'extensions', 'uBlock0.chromium') }
-    ];
-
-    for (const b of builtIns) {
-      if (fs.existsSync(b.path)) {
+    // Older versions bundled uBlock Origin under <app>/extensions/ and registered it on every start. It never
+    // loaded from an installed (asar) build and blocks nothing under Electron's extension support — the Ghostery
+    // engine in AdBlockerService does the blocking — so it is no longer shipped. Forget the stale registry entry.
+    for (const [id, record] of Object.entries(this.extensionManager.extensions)) {
+      const dir = String(record && record.path || '').replace(/\\/g, '/');
+      if (/\/extensions\/uBlock0\.chromium\/?$/.test(dir) && !fs.existsSync(record.path)) {
         try {
-          const id = this.extensionManager.generateExtensionId(b.path);
-          if (!this.extensionManager.extensions[id]) {
-            await this.extensionManager.installUnpacked(b.path, { enabled: true });
-          }
+          await this.extensionManager.removeExtension(id);
+          log.info('Removed the registry entry of the retired bundled uBlock Origin', { id });
         } catch (err) {
-          log.warn(`Could not register built-in extension: ${b.name}`, { error: err.message });
+          log.warn('Could not remove the retired uBlock Origin entry', { id, error: err.message });
         }
       }
     }
