@@ -196,6 +196,25 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert(/buttons: \['Cancel', 'Open anyway'\]/.test(block) && /defaultId: 0/.test(block) && /cancelId: 0/.test(block), block.slice(0, 300));
   });
 
+  console.log('\n📋 4. "Download Latest Installer" button');
+  const preloadInternal = fs.readFileSync(path.join(SRC, 'preload-internal.js'), 'utf8');
+  const preloadExternal = fs.readFileSync(path.join(SRC, 'preload-external.js'), 'utf8');
+  await test('the handler only ever builds a github.com/jaydipvirja/shmmoth-browser release URL from a validated version, via the normal downloader', async () => {
+    const h = mainJs.slice(mainJs.indexOf("ipcMain.handle('updater:downloadLatestInstaller'"), mainJs.indexOf("log.info('IPC handlers registered')"));
+    assert(/secureHandlerRaw/.test(h), 'must be an origin-checked IPC handler');
+    assert(h.includes('https://github.com/jaydipvirja/shmmoth-browser/releases/download/v${version}/SHMMOTH-Browser-Setup-${version}.exe'), 'URL template changed');
+    assert(/secureHandlerRaw\(async \(event\) =>/.test(h), 'the handler must take no data from the renderer (only the event, to see which window asked)');
+    assert(/app\.getVersion\(\)/.test(h) && /status\.availableVersion/.test(h), 'version sources changed');
+    assert(/\.downloadURL\(url\)/.test(h) && !/shell\.|spawn|exec|openPath/.test(h), 'it must only download, never run');
+  });
+  await test('the API is exposed to internal pages only, never to web content', async () => {
+    assert(/downloadLatestInstaller/.test(preloadInternal) && !/downloadLatestInstaller/.test(preloadExternal));
+  });
+  await test('the updater only reports plain x.y.z versions (what the button puts into the URL)', async () => {
+    const um = fs.readFileSync(path.join(SRC, 'services', 'updateManager.js'), 'utf8');
+    assert(um.includes("/^v?(\\d{1,4})\\.(\\d{1,4})\\.(\\d{1,4})$/.exec(String(release.tag_name"), 'release tag validation not found in updateManager');
+  });
+
   console.log('\n══════════════════════════════════════════════════════');
   console.log(`  Results: ${passed} passed, ${failed} failed`);
   console.log('══════════════════════════════════════════════════════\n');
