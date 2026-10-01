@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.1.4
+
+### Fixes
+- **Logins are kept more reliably (Google and other sites).** Chromium writes cookies to disk in batches, about every 30 seconds. If the browser was ended the hard way — the update installer closing it, Task Manager, a crash, a power cut — the last batch was lost. Google renews its session cookies every few minutes and refuses the old ones, so the next start came back "signed out". The browser now writes cookie changes to disk by itself a moment after they happen, once more before it quits, and before the update installer is started. Private (incognito) windows still keep nothing.
+
 ## 1.1.3
 
 ### Fixes — fast downloads and multi-network downloading

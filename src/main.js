@@ -310,7 +310,11 @@ class ShmmothBrowserApp {
     });
 
     // 11. Auto-Update Manager (electron-updater)
-    this.updateManager = new UpdateManager({ storage: this.storage });
+    this.updateManager = new UpdateManager({
+      storage: this.storage,
+      // the installer may end this process the hard way: everything must be on disk before it starts
+      prepareToQuit: () => Promise.race([this.flushBrowserData('quit'), new Promise((resolve) => setTimeout(resolve, 3000))])
+    });
     this.updateManager.on('status-changed', (status) => {
       this.broadcastUpdateStatus(status);
     });
@@ -325,7 +329,19 @@ class ShmmothBrowserApp {
       }, 15000);
     }
 
-    app.on('before-quit', () => this._finalizeSession());
+    app.on('before-quit', (event) => {
+      this._finalizeSession();
+      if (this._dataFlushed) return;
+      // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
+      // (about every 30 s): what is still in the last batch would be lost, and a session that Google has already
+      // renewed would come back with the old cookies and be refused ("signed out").
+      event.preventDefault();
+      this._dataFlushed = true;
+      Promise.race([this.flushBrowserData('quit'), new Promise((resolve) => setTimeout(resolve, 3000))])
+        .catch(() => {})
+        .then(() => app.quit());
+    });
+    this.setupLoginDurability();
 
     log.info('SHMMOTH Browser initialisation complete');
   }
@@ -387,6 +403,58 @@ class ShmmothBrowserApp {
   }
 
   /** Writes the session one last time and stops further writes (window closing / app quitting). */
+  // ─── Login durability ────────────────────────────────────────────────────
+
+  /** Writes the cookies and page storage of the normal profile to disk now (incognito is in memory by design). */
+  async flushBrowserData(tag = 'flush') {
+    const normal = session.defaultSession;
+    try { await normal.cookies.flushStore(); } catch (err) { log.warn('Could not write cookies to disk', { error: err.message }); }
+    try { normal.flushStorageData(); } catch (_) { /* nothing to write */ }
+    if (tag === 'quit') await this.logLoginHealth('at quit');
+  }
+
+  /**
+   * Cookie changes reach the disk a moment after they happen instead of with the next batch. Google renews its session
+   * cookies every few minutes; if the browser is ended hard (update installer, Task Manager, crash, power cut) the
+   * renewed value must already be stored.
+   */
+  setupLoginDurability() {
+    let timer = null;
+    let last = 0;
+    const schedule = () => {
+      if (timer) return;
+      const wait = Math.max(500, 3000 - (Date.now() - last));
+      timer = setTimeout(() => {
+        timer = null;
+        last = Date.now();
+        this.flushBrowserData().catch(() => {});
+      }, wait);
+      if (timer.unref) timer.unref();
+    };
+    try {
+      session.defaultSession.cookies.on('changed', schedule);
+    } catch (err) {
+      log.warn('Could not watch cookie changes', { error: err.message });
+    }
+    // what survives a restart, written to the log (names only, never values) to see where a lost login went
+    const t = setTimeout(() => this.logLoginHealth('at start').catch(() => {}), 8000);
+    if (t.unref) t.unref();
+  }
+
+  /** Logs which sign-in cookies of Google exist (names and counts only). */
+  async logLoginHealth(when) {
+    try {
+      const cookies = await session.defaultSession.cookies.get({ domain: 'google.com' });
+      const names = new Set(cookies.map((c) => c.name));
+      const keys = ['SID', 'HSID', 'LSID', '__Secure-1PSID', '__Secure-3PSID', '__Secure-1PSIDTS', '__Host-GAPS'];
+      log.info(`Google sign-in cookies ${when}`, {
+        cookies: cookies.length,
+        present: keys.filter((k) => names.has(k)),
+        sessionOnly: cookies.filter((c) => c.session).length
+      });
+    } catch (_) { /* logging only */ }
+  }
+
   _finalizeSession() {
     this._saveSessionNow();
     this._sessionReady = false;
