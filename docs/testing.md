@@ -42,7 +42,7 @@ runSuite('My feature', async (t) => {
 
 ## CI
 
-`.github/workflows/ci.yml`: unit tests + `npm audit --audit-level=high` and E2E on Linux are required. The two Windows jobs (E2E and packaged E2E) run on every push but are `continue-on-error` until they have been seen green — remove that flag afterwards. `.github/dependabot.yml` opens weekly PRs for npm packages (Electron grouped with electron-builder and Playwright) and monthly ones for GitHub Actions.
+`.github/workflows/ci.yml`: unit tests + `npm audit --audit-level=high`, E2E on Linux, E2E on Windows and packaged E2E on Windows all run on every push and pull request. Make the four jobs required status checks in the repository's branch protection settings so a red job blocks merging. `.github/dependabot.yml` opens weekly PRs for npm packages (Electron grouped with electron-builder and Playwright) and monthly ones for GitHub Actions.
 
 ## Not automated
 

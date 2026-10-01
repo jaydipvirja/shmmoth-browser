@@ -49,12 +49,10 @@ jobs:
       - run: npm ci
       - run: npm run test:e2e
 
-  # Windows is the real target platform. These jobs have not been run on Windows yet, so they do not block merges
-  # for now — once they are green, remove `continue-on-error` to make them required.
+  # Windows is the real target platform, so these two jobs are required like the Linux ones.
   e2e-windows:
     name: E2E (Windows)
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -72,7 +70,6 @@ jobs:
   e2e-windows-packaged:
     name: E2E (Windows, packaged build)
     runs-on: windows-latest
-    continue-on-error: true
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
