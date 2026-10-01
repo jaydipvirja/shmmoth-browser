@@ -2572,6 +2572,14 @@ class ShmmothBrowserApp {
   offerPasswordSave(tabId, origin, username, password) {
     if (!origin || !username || !password) return;
     if (this.passwordVault && this.passwordVault.isNeverSaveOrigin(origin)) return;
+    // Don't offer a "Save password?" bubble that cannot succeed (no OS-level encryption available)
+    if (this.passwordVault && !this.passwordVault.canEncrypt()) {
+      if (!this._warnedNoVaultEncryption) {
+        this._warnedNoVaultEncryption = true;
+        log.warn('Password save prompts disabled: OS-level encryption (safeStorage) is unavailable');
+      }
+      return;
+    }
 
     const promptId = 'pwd_prompt_' + (++this.passwordPromptCounter);
     this.pendingPasswordPrompts[promptId] = {
@@ -2606,12 +2614,17 @@ class ShmmothBrowserApp {
     delete this.pendingPasswordPrompts[promptId];
 
     if (action === 'save') {
-      const saved = this.passwordVault.saveCredential({
-        origin: prompt.origin,
-        username: prompt.username,
-        password: prompt.password
-      });
-      return { success: true, saved: true, id: saved.id };
+      try {
+        const saved = this.passwordVault.saveCredential({
+          origin: prompt.origin,
+          username: prompt.username,
+          password: prompt.password
+        });
+        return { success: true, saved: true, id: saved.id };
+      } catch (err) {
+        log.error('Saving password failed', { code: err.code, error: err.message });
+        return { success: false, error: err.message, code: err.code };
+      }
     } else if (action === 'never') {
       this.passwordVault.neverSaveOrigin(prompt.origin);
       return { success: true, never: true };
@@ -3368,19 +3381,27 @@ class ShmmothBrowserApp {
       if (!safeOrigin || !safeUser || !safePass) {
         return { success: false, error: 'Origin, username, and password are required' };
       }
-      const saved = this.passwordVault.saveCredential({
-        origin: safeOrigin,
-        username: safeUser,
-        password: safePass,
-      });
-      return { success: true, credential: saved };
+      try {
+        const saved = this.passwordVault.saveCredential({
+          origin: safeOrigin,
+          username: safeUser,
+          password: safePass,
+        });
+        return { success: true, credential: saved };
+      } catch (err) {
+        return { success: false, error: err.message, code: err.code };
+      }
     }));
 
     ipcMain.handle('passwords:update', secureHandlerRaw(async (event, id, updates) => {
       if (!this.passwordVault) return { success: false, error: 'Password vault unavailable' };
       const safeId = sanitizeString(id || '', 64, 'id');
-      const updated = this.passwordVault.updateCredential(safeId, updates);
-      return { success: Boolean(updated), credential: updated };
+      try {
+        const updated = this.passwordVault.updateCredential(safeId, updates);
+        return { success: Boolean(updated), credential: updated };
+      } catch (err) {
+        return { success: false, error: err.message, code: err.code };
+      }
     }));
 
     ipcMain.handle('passwords:delete', secureHandlerRaw(async (event, id) => {

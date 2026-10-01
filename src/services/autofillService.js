@@ -12,6 +12,7 @@ const fs   = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { storageLogger: log } = require('../utils/logger');
+const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 
 class AutofillService {
   /**
@@ -33,29 +34,29 @@ class AutofillService {
   }
 
   load() {
-    try {
-      if (fs.existsSync(this.storagePath)) {
-        const raw = fs.readFileSync(this.storagePath, 'utf8');
-        const data = JSON.parse(raw);
-        this.enabled = data.enabled !== false;
-        this.profiles = Array.isArray(data.profiles) ? data.profiles : [];
-        log.info('Autofill profiles loaded from disk', { count: this.profiles.length });
-      } else {
-        this.enabled = true;
-        this.profiles = [];
-      }
-    } catch (err) {
-      log.error('Failed to load autofill profiles from disk', { error: err.message });
+    const res = readJsonRecovering(this.storagePath, { validate: isPlainObject });
+    this.persistBlocked = res.source === 'unreadable';
+    if (res.source === 'unreadable') {
+      log.error('Autofill file cannot be read; running without persistence to protect it', { error: res.error && res.error.message });
+    } else if (res.corruptPath) {
+      log.error('Autofill file was damaged; the damaged copy was preserved', {
+        corruptCopy: res.corruptPath, recoveredFromBackup: res.source === 'backup'
+      });
+    }
+
+    if (res.data) {
+      this.enabled = res.data.enabled !== false;
+      this.profiles = Array.isArray(res.data.profiles) ? res.data.profiles : [];
+      log.info('Autofill profiles loaded from disk', { count: this.profiles.length, source: res.source });
+    } else {
       this.enabled = true;
       this.profiles = [];
     }
   }
 
   save() {
+    if (this.persistBlocked) return false;
     try {
-      const dir = path.dirname(this.storagePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
       const data = {
         version: 1,
         enabled: this.enabled,
@@ -63,7 +64,7 @@ class AutofillService {
         profiles: this.profiles
       };
 
-      fs.writeFileSync(this.storagePath, JSON.stringify(data, null, 2), 'utf8');
+      writeJsonAtomic(this.storagePath, data, { validate: isPlainObject });
       return true;
     } catch (err) {
       log.error('Failed to save autofill profiles to disk', { error: err.message });

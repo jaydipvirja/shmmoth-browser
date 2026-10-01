@@ -22,6 +22,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { app } = require('electron');
 const { mainLogger: log, securityLogger } = require('../utils/logger');
+const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 
 // Disallowed permissions that extensions are not allowed to request
 const DISALLOWED_PERMISSIONS = new Set([
@@ -97,10 +98,13 @@ class ExtensionManager {
    */
   loadRegistry() {
     try {
-      if (fs.existsSync(this.registryFilePath)) {
-        const raw = fs.readFileSync(this.registryFilePath, 'utf8');
-        const data = JSON.parse(raw);
-
+      const res = readJsonRecovering(this.registryFilePath, { validate: isPlainObject });
+      this.persistBlocked = res.source === 'unreadable';
+      if (res.corruptPath) {
+        log.error('Extension registry was damaged; the damaged copy was preserved', { corruptCopy: res.corruptPath, recoveredFromBackup: res.source === 'backup' });
+      }
+      {
+        const data = res.data;
         if (data && typeof data === 'object') {
           this.extensions = (typeof data.extensions === 'object' && data.extensions !== null) ? data.extensions : {};
           this.developerMode = Boolean(data.developerMode);
@@ -122,11 +126,10 @@ class ExtensionManager {
    */
   saveRegistry() {
     try {
-      const dir = path.dirname(this.registryFilePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
+      if (this.persistBlocked) {
+        log.error('Extension registry file is unreadable; not overwriting it');
+        return;
       }
-
       const payload = {
         version: 1,
         updatedAt: Date.now(),
@@ -134,9 +137,7 @@ class ExtensionManager {
         extensions: this.extensions
       };
 
-      const tmpPath = `${this.registryFilePath}.tmp_${Date.now()}`;
-      fs.writeFileSync(tmpPath, JSON.stringify(payload, null, 2), 'utf8');
-      fs.renameSync(tmpPath, this.registryFilePath);
+      writeJsonAtomic(this.registryFilePath, payload, { validate: isPlainObject });
       log.info('Extension registry saved to disk', { count: Object.keys(this.extensions).length });
     } catch (err) {
       log.error('Failed to save extension registry to disk', { error: err.message });

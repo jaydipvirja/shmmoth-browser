@@ -800,7 +800,11 @@ function setupPasswordsController() {
         const updates = { origin, username };
         if (password) updates.password = password;
         if (window.mtcAPI && window.mtcAPI.updatePassword) {
-          await window.mtcAPI.updatePassword(id, updates);
+          const res = await window.mtcAPI.updatePassword(id, updates);
+          if (!res || !res.success) {
+            alert('Could not update the password: ' + ((res && res.error) || 'unknown error'));
+            return;
+          }
           showToast('Password updated!');
         }
       } else {
@@ -809,7 +813,11 @@ function setupPasswordsController() {
           return;
         }
         if (window.mtcAPI && window.mtcAPI.savePassword) {
-          await window.mtcAPI.savePassword({ origin, username, password });
+          const res = await window.mtcAPI.savePassword({ origin, username, password });
+          if (!res || !res.success) {
+            alert('Could not save the password: ' + ((res && res.error) || 'unknown error'));
+            return;
+          }
           showToast('Password saved securely!');
         }
       }

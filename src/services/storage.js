@@ -12,6 +12,10 @@ const fs   = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { storageLogger: log } = require('../utils/logger');
+const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+
+// settings/bookmarks/history change on every navigation; refresh the .bak at most once a minute
+const BACKUP_INTERVAL_MS = 60 * 1000;
 
 class StorageService {
   constructor() {
@@ -111,32 +115,41 @@ class StorageService {
   // ═══════════════════════════════════════════════════════════════════
 
   load() {
-    try {
-      if (fs.existsSync(this.storagePath)) {
-        const fileContent = fs.readFileSync(this.storagePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        const merged = {
-          ...this.defaultData,
-          ...parsed,
-          settings: { ...this.defaultData.settings, ...(parsed.settings || {}) },
-          bookmarkFolders: parsed.bookmarkFolders || this.defaultData.bookmarkFolders
-        };
-        log.info('Storage loaded from disk', { path: this.storagePath });
-        return merged;
-      }
-    } catch (err) {
-      log.error('Error loading storage file, using defaults', { error: err.message });
+    const res = readJsonRecovering(this.storagePath, { validate: isPlainObject });
+    this.loadSource = res.source;
+    // When the file exists but the OS refuses to let us read it (locked/permissions) we must
+    // not start from defaults and then overwrite the user's data on the next save.
+    this.persistBlocked = res.source === 'unreadable';
+
+    if (res.source === 'unreadable') {
+      log.error('Storage file exists but cannot be read; running without persistence to protect it', {
+        path: this.storagePath, error: res.error && res.error.message
+      });
+    } else if (res.corruptPath) {
+      log.error('Storage file was damaged; the damaged copy was preserved', {
+        corruptCopy: res.corruptPath, error: res.error && res.error.message,
+        recoveredFromBackup: res.source === 'backup'
+      });
+    }
+
+    if (res.data) {
+      const parsed = res.data;
+      const merged = {
+        ...this.defaultData,
+        ...parsed,
+        settings: { ...this.defaultData.settings, ...(isPlainObject(parsed.settings) ? parsed.settings : {}) },
+        bookmarkFolders: Array.isArray(parsed.bookmarkFolders) ? parsed.bookmarkFolders : this.defaultData.bookmarkFolders
+      };
+      log.info('Storage loaded from disk', { path: this.storagePath, source: res.source });
+      return merged;
     }
     return JSON.parse(JSON.stringify(this.defaultData));
   }
 
   save() {
+    if (this.persistBlocked) return;
     try {
-      const dir = path.dirname(this.storagePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.storagePath, JSON.stringify(this.data, null, 2), 'utf-8');
+      writeJsonAtomic(this.storagePath, this.data, { backupIntervalMs: BACKUP_INTERVAL_MS, validate: isPlainObject });
     } catch (err) {
       log.error('Error saving storage file', { error: err.message });
     }

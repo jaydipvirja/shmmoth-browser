@@ -84,7 +84,8 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 | Risk | Severity | Mitigation |
 |---|---|---|
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
-| Synchronous file I/O in StorageService.save() | Low | No atomic write; crash-safe write is a Phase 2 improvement |
+| ~~No atomic write~~ | — | Done: all data files are written atomically with a `.bak` and damaged files are preserved (see storage.md) |
+| Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
 | AdBlocker filter download requires internet on first run | Low | Falls back to CRX extensions if unavailable |
 | notes.html inline script has no XSS protection beyond escapeHtml | Low | Notes content is user-typed only, not web content |
