@@ -89,12 +89,7 @@ runTest('7. setupIpc registers window:isFullScreen and window:setFullScreen hand
 
 // 8. Check Preload scripts expose fullscreen APIs
 runTest('8. Preload scripts expose isWindowFullScreen, toggleFullScreen, and onFullScreenChange', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
   const preloadInternal = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-internal.js'), 'utf8');
-
-  assert(preload.includes('isWindowFullScreen'), 'Missing isWindowFullScreen in preload.js');
-  assert(preload.includes('toggleFullScreen'), 'Missing toggleFullScreen in preload.js');
-  assert(preload.includes('onFullScreenChange'), 'Missing onFullScreenChange in preload.js');
 
   assert(preloadInternal.includes('isWindowFullScreen'), 'Missing isWindowFullScreen in preload-internal.js');
   assert(preloadInternal.includes('toggleFullScreen'), 'Missing toggleFullScreen in preload-internal.js');

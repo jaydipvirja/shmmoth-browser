@@ -1,10 +1,15 @@
 # MTC Browser — AI Architecture
 
-## Current State (Phase 1)
+> **Status: not wired into the app.** `src/ai/` is scaffolding for the SHMMOTH agent (see `agent-architecture.md`).
+> Nothing in `main.js` requires it, and the browser currently has **no AI side panel or AI settings** — an earlier
+> "AI Assistant" settings tab only stored values that nothing read, and was removed. The text below describes the
+> intended design.
+
+## Intended design (Phase 1)
 
 AI in the browser is a **display-URL side panel** — the browser loads an external AI web app (Gemini, ChatGPT) in a sandboxed `WebContentsView`.
 
-The AI provider is selected via settings and resolved in `main.js` using the `resolveAiProvider(settings)` factory.
+The AI provider would be selected via settings and resolved in `main.js` using a `resolveAiProvider(settings)` factory.
 
 ## Provider Class Hierarchy
 

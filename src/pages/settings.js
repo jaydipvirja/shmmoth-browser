@@ -28,10 +28,6 @@ const toggleAdblocker = document.getElementById('toggle-adblocker');
 const badgeBlockedCount = document.getElementById('badge-blocked-count');
 const btnOpenClearData = document.getElementById('btn-open-clear-data');
 const btnOpenCookiesModal = document.getElementById('btn-open-cookies-modal');
-const toggleAiSidebar = document.getElementById('toggle-ai-sidebar');
-const selectAiProvider = document.getElementById('select-ai-provider');
-const rowCustomAi = document.getElementById('row-custom-ai');
-const inputCustomAi = document.getElementById('input-custom-ai');
 const toggleRamSaver = document.getElementById('toggle-ram-saver');
 const selectRamTimeout = document.getElementById('select-ram-timeout');
 const selectTheme = document.getElementById('select-theme');
@@ -162,19 +158,10 @@ async function initSettings() {
       selectSearchEngine.value = currentSettings.searchEngine || 'google';
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
-      toggleAiSidebar.checked = currentSettings.aiSidebarEnabled ?? true;
-      selectAiProvider.value = currentSettings.aiProvider || 'gemini';
-      inputCustomAi.value = currentSettings.aiCustomUrl || 'https://gemini.google.com';
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       selectTheme.value = currentSettings.theme || 'dark';
       document.body.classList.toggle('theme-light', (currentSettings.theme === 'light'));
-
-      if (selectAiProvider.value === 'custom') {
-        rowCustomAi.style.display = 'flex';
-      } else {
-        rowCustomAi.style.display = 'none';
-      }
 
       // Live ad blocked count
       const blockedCount = await window.mtcAPI.getAdsBlockedCount();
@@ -227,30 +214,6 @@ toggleBookmarksBar.addEventListener('change', () => {
 
 toggleAdblocker.addEventListener('change', () => {
   saveSettingChange({ adBlockerEnabled: toggleAdblocker.checked });
-});
-
-toggleAiSidebar.addEventListener('change', () => {
-  saveSettingChange({ aiSidebarEnabled: toggleAiSidebar.checked });
-});
-
-selectAiProvider.addEventListener('change', () => {
-  const prov = selectAiProvider.value;
-  rowCustomAi.style.display = (prov === 'custom') ? 'flex' : 'none';
-  
-  let targetUrl = 'https://gemini.google.com';
-  if (prov === 'chatgpt') targetUrl = 'https://chatgpt.com';
-  else if (prov === 'custom') targetUrl = inputCustomAi.value;
-
-  saveSettingChange({
-    aiProvider: prov,
-    aiCustomUrl: targetUrl
-  });
-});
-
-inputCustomAi.addEventListener('change', () => {
-  if (selectAiProvider.value === 'custom') {
-    saveSettingChange({ aiCustomUrl: inputCustomAi.value.trim() });
-  }
 });
 
 toggleRamSaver.addEventListener('change', () => {
@@ -1170,9 +1133,6 @@ btnResetDefaults.addEventListener('click', async () => {
       adBlockerEnabled: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
-      aiSidebarEnabled: true,
-      aiProvider: 'gemini',
-      aiCustomUrl: 'https://gemini.google.com',
       theme: 'dark',
       showBookmarksBar: true
     };

@@ -16,7 +16,6 @@
 | Browser chrome (BrowserWindow, exact app file) | `preload-internal.js` | ✅ Full |
 | `mtc://` internal pages | `preload-internal.js` | ✅ Full |
 | External web tabs (https://, http://) | `preload-external.js` | ❌ None |
-| AI side panel (Gemini, ChatGPT) | `preload-external.js` | ❌ None |
 | Notes side panel (`mtc://notes`) | `preload-internal.js` | ✅ Full |
 
 ## IPC Security
@@ -121,5 +120,5 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 | Installer is not Authenticode-signed (Windows SmartScreen warning on first install) | Low | Buy a code-signing certificate; update signing (Ed25519) already protects updates |
 | Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
-| AdBlocker filter download requires internet on first run | Low | Falls back to CRX extensions if unavailable |
+| AdBlocker filter download requires internet on first run | Low | Without the lists a small built-in fallback filter is used until the next start |
 | notes.html inline script has no XSS protection beyond escapeHtml | Low | Notes content is user-typed only, not web content |

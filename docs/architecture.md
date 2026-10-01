@@ -12,10 +12,9 @@ SHMMOTH (MTC) Browser is an Electron desktop browser built on Chromium (Blink/V8
 │                                                     │
 │  MtcBrowserApp                                      │
 │  ├── StorageService      (mtc-data.json)            │
-│  ├── AdBlockerService    (Ghostery + CRX)           │
+│  ├── AdBlockerService    (Ghostery engine)          │
 │  ├── RamSaverService     (60s interval)             │
 │  ├── DownloadManager     (session will-download)    │
-│  ├── AI Providers        (GeminiProvider etc.)      │
 │  └── ipcMain handlers    (all privileged ops)       │
 │                                                     │
 │  Security modules:                                  │
@@ -35,7 +34,7 @@ SHMMOTH (MTC) Browser is an Electron desktop browser built on Chromium (Blink/V8
        │                │
 ┌──────▼──────┐  ┌──────▼──────────────────┐
 │  Tab Views  │  │  Side Panel View         │
-│  (N tabs)   │  │  (AI or Notes)           │
+│  (N tabs)   │  │  (Notes)                 │
 │             │  │                          │
 │  mtc:// URL │  │  mtc://notes             │
 │  → internal │  │  → preload-internal.js   │
@@ -63,16 +62,13 @@ SHMMOTH (MTC) Browser is an Electron desktop browser built on Chromium (Blink/V8
 | `src/security/urlPolicy.js` | URL classification + navigation policy |
 | `src/utils/logger.js` | Structured logger |
 | `src/services/storage.js` | JSON persistence layer |
-| `src/services/adblocker.js` | Ghostery + CRX ad blocking |
+| `src/services/adblocker.js` | Ghostery ad blocking |
 | `src/services/ramSaver.js` | Tab sleep/wake management |
 | `src/services/downloadManager.js` | File download lifecycle |
-| `src/ai/AIProvider.js` | AI provider abstraction |
-| `src/ai/providers/` | Concrete providers (Gemini, OpenAI, Custom) |
-| `src/agent/BrowserAgent.js` | Future SHMMOTH interface (stub) |
-| `src/agent/BrowserAction.js` | Structured action schema |
+| `src/ai/` | AI provider abstraction + providers (scaffolding for the SHMMOTH agent, **not wired in yet**) |
+| `src/agent/` | Future SHMMOTH agent interface and action schema (stub, **not wired in yet**) |
 | `src/renderer/` | Browser chrome HTML/JS/CSS |
 | `src/pages/` | Internal mtc:// page files |
-| `extensions/` | Bundled CRX extensions |
 
 ## Preload Architecture
 

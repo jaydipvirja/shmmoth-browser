@@ -16,9 +16,6 @@ Single JSON file: `%APPDATA%/mtc-browser/mtc-data.json`
     "adBlockerEnabled": true,
     "ramSaverEnabled": true,
     "ramSaverTimeoutMinutes": 15,
-    "aiSidebarEnabled": true,
-    "aiProvider": "gemini",
-    "aiCustomUrl": "https://gemini.google.com",
     "theme": "dark",
     "homepage": "mtc://newtab",
     "showBookmarksBar": true
