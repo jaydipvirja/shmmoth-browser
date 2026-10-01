@@ -76,6 +76,16 @@ const PERMISSION_DESCRIPTIONS = {
   'proxy': 'Manage and route network connections through proxies'
 };
 
+/**
+ * Electron >= 38 moved loadExtension/removeExtension from `session` to `session.extensions`
+ * (the old methods are deprecated and will be removed). Fall back to the session itself for
+ * older runtimes and for the minimal session fakes used by the unit tests.
+ */
+function extensionsApi(sessionInstance) {
+  const ns = sessionInstance && sessionInstance.extensions;
+  return ns && typeof ns.loadExtension === 'function' ? ns : sessionInstance;
+}
+
 class ExtensionManager {
   /**
    * @param {string} [customUserDataPath] Custom path for persisting extensions registry
@@ -460,7 +470,7 @@ class ExtensionManager {
     }
 
     try {
-      const ext = await sessionInstance.loadExtension(record.path, {
+      const ext = await extensionsApi(sessionInstance).loadExtension(record.path, {
         allowFileAccess: Boolean(record.allowFileAccess)
       });
 
@@ -490,8 +500,9 @@ class ExtensionManager {
 
     const targetId = record.loadedId || extensionId;
     try {
-      if (sessionInstance.removeExtension) {
-        await sessionInstance.removeExtension(targetId);
+      const api = extensionsApi(sessionInstance);
+      if (api && api.removeExtension) {
+        await api.removeExtension(targetId);
       }
       record.status = record.enabled ? 'inactive' : 'disabled';
       log.info(`Unloaded extension from session: ${record.name}`, { id: targetId });

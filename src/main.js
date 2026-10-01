@@ -37,10 +37,16 @@ const { mainLogger: log, securityLogger }                 = require('./utils/log
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
-app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+// The UA / Client-Hints strings we present must match the Chromium that is actually running; a
+// hard-coded version drifts apart from the engine on every Electron upgrade (and looks inconsistent
+// to anti-bot checks). Always derive it from the runtime.
+const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
+const CHROME_REDUCED = `Chrome/${CHROME_MAJOR}.0.0.0`;
+const DESKTOP_UA_FALLBACK = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Safari/537.36`;
+app.userAgentFallback = DESKTOP_UA_FALLBACK;
 
 // Dedicated Google Authentication User-Agent to pass BotGuard web attestation on accounts.google.com
-const GOOGLE_AUTH_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+const GOOGLE_AUTH_UA = `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Mobile Safari/537.36`;
 
 function isGoogleAuthUrl(url) {
   if (typeof url !== 'string') return false;
@@ -166,7 +172,7 @@ class ShmmothBrowserApp {
       .replace(/Electron\/\S+\s?/, '')
       .replace(/mtc-browser\/\S+\s?/, '')
       .replace(/shmmoth-browser\/\S+\s?/, '')
-      .trim() || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      .trim() || DESKTOP_UA_FALLBACK;
 
     app.userAgentFallback = this.cleanUa;
     session.defaultSession.setUserAgent(this.cleanUa);
@@ -1110,12 +1116,12 @@ class ShmmothBrowserApp {
 
       if (isAuthUrl) {
         headers['User-Agent'] = GOOGLE_AUTH_UA;
-        headers['sec-ch-ua'] = '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"';
+        headers['sec-ch-ua'] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not?A_Brand";v="99"`;
         headers['sec-ch-ua-mobile'] = '?1';
         headers['sec-ch-ua-platform'] = '"Android"';
       } else {
-        const ua = this.cleanUa || app.userAgentFallback || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || '130';
+        const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
+        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
 
         headers['User-Agent'] = ua;
         headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
@@ -1607,14 +1613,19 @@ class ShmmothBrowserApp {
     });
 
     // ── Credential Capture & Autofill (Stage 6) ──
-    wc.on('console-message', (event, level, message) => {
+    // Electron >= 35 passes one `details` object (details.message); the positional (level, message, …)
+    // arguments are deprecated and slated for removal, but older runtimes only provide those.
+    // (Declared with a single parameter on purpose: Electron prints a deprecation warning for listeners that
+    //  declare the positional arguments.)
+    const browserApp = this;
+    wc.on('console-message', function onConsoleMessage(event) {
+      const message = (event && typeof event.message === 'string') ? event.message : arguments[2];
       if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_SUBMIT__:')) {
-        event.preventDefault();
         try {
           const payload = JSON.parse(message.slice(25));
           if (payload && payload.username && payload.password && tabData.url) {
             const origin = new URL(tabData.url).origin;
-            this.offerPasswordSave(tabId, origin, payload.username, payload.password);
+            browserApp.offerPasswordSave(tabId, origin, payload.username, payload.password);
           }
         } catch (_) {}
       }

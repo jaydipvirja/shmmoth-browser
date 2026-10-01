@@ -63,6 +63,10 @@ Updates are verified before anything runs — see `docs/releasing.md` for the fu
 - networking uses Electron's `net`, so the browser's proxy settings apply;
 - **fail closed**: no key / no `.sig` / bad signature ⇒ the update is announced but never downloaded or run.
 
+## Keeping the engine current
+
+A browser is only as safe as its Chromium. Electron ships a new major roughly every 8 weeks and **supports only the latest three majors**; older ones get no Chromium security fixes (the project ran on Electron 33 — two years old, dozens of published advisories — until the upgrade to 44). Treat upgrades as routine: check `npm view electron dist-tags.latest` and `npm audit` monthly and follow `docs/upgrading-electron.md`.
+
 ## Renderer sandbox
 
 Every `BrowserWindow` / `WebContentsView` (tabs, side panel, browser chrome, bubbles, extension popup, OAuth popups) is created with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. A renderer exploit therefore starts inside Chromium's OS sandbox instead of with the user's full privileges.

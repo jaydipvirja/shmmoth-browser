@@ -250,13 +250,14 @@ if (isInternalPage) {
   // and align navigator.userAgentData with genuine Google Chrome
   try {
     const { webFrame } = require('electron');
+    const FALLBACK_CHROME_MAJOR = String((typeof process !== 'undefined' && process.versions && process.versions.chrome) || '130').split('.')[0];
     webFrame.executeJavaScriptInIsolatedWorld(0, [{
       code: `
         try {
           if (navigator.userAgentData) {
             const ua = navigator.userAgent || '';
             const isAndroid = ua.includes('Android');
-            const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
+            const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '${FALLBACK_CHROME_MAJOR}';
             const chromeBrands = [
               { brand: 'Chromium', version: chromeVersion },
               { brand: 'Google Chrome', version: chromeVersion },

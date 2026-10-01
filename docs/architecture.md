@@ -2,7 +2,7 @@
 
 ## Overview
 
-MTC Browser is an Electron 33 desktop browser built on Chromium (Blink/V8). It uses a multi-process architecture where each browser tab runs in a sandboxed `WebContentsView`, and the browser chrome (tabs, omnibox, toolbar) runs in a dedicated `BrowserWindow`.
+SHMMOTH (MTC) Browser is an Electron desktop browser built on Chromium (Blink/V8) — currently Electron 44 / Chromium 152 / Node 24 (see `docs/upgrading-electron.md`). It uses a multi-process architecture where each browser tab runs in a sandboxed `WebContentsView`, and the browser chrome (tabs, omnibox, toolbar) runs in a dedicated `BrowserWindow`.
 
 ## Process Model
 
