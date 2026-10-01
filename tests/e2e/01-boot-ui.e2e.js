@@ -141,34 +141,57 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
     t.section('Update UI (About page)');
 
     await openTab(ctx, 'mtc://settings#about', { waitPrefix: 'mtc://settings' });
-    const push = (status) => app.evaluate(({ webContents }, status) => {
-      webContents.getAllWebContents().filter((w) => w.getURL().startsWith('mtc://settings')).forEach((w) => w.send('updater:status', status));
-    }, status);
-    const ui = () => evalIn(app, 'mtc://settings', `(() => {
+    // Several Settings tabs exist by now (the pages loop above) and each page keeps its own update state. Everything in
+    // this section therefore talks to THE ONE tab showing the About pane, by its web-contents id.
+    const aboutWcId = await waitFor(() => app.evaluate(async ({ webContents }) => {
+      for (const w of webContents.getAllWebContents()) {
+        if (!w.getURL().startsWith('mtc://settings')) continue;
+        const showing = await w.executeJavaScript("Boolean(document.getElementById('tab-about') && document.getElementById('tab-about').classList.contains('active') && window.mtcAPI)").catch(() => false);
+        if (showing) return w.id;
+      }
+      return null;
+    }), { message: 'the Settings tab showing the About pane' });
+    const inAbout = (code) => app.evaluate(({ webContents }, { id, code }) => webContents.fromId(id).executeJavaScript(code), { id: aboutWcId, code });
+    const clickInAbout = (elementId) => inAbout(`document.getElementById(${JSON.stringify(elementId)}).click()`);
+    const push = (status) => app.evaluate(({ webContents }, { id, status }) => { webContents.fromId(id).send('updater:status', status); }, { id: aboutWcId, status });
+    const ui = () => inAbout(`(() => {
       const el = (id) => document.getElementById(id);
       const shown = (id) => getComputedStyle(el(id)).display !== 'none';
       return { title: el('update-status-title').textContent, desc: el('update-status-desc').textContent,
                relaunch: shown('btn-relaunch-update'), progress: shown('update-progress-container'),
                check: shown('btn-check-updates'), checkEnabled: !el('btn-check-updates').disabled,
-               manual: el('btn-manual-download').textContent.trim() };
+               manual: el('btn-manual-download').textContent.trim(),
+               installer: shown('btn-download-installer'), installerLabel: el('btn-download-installer').textContent.trim() };
     })()`);
 
-    await t.test('update available but not auto-installable: explains why, offers the download page, no fake progress bar', async () => {
+    await t.test('update available but not auto-installable: explains why, offers the releases page and the installer download, no fake progress bar', async () => {
       await push({ status: 'available', autoInstall: false, availableVersion: '1.0.17', currentVersion: '1.0.16',
         message: 'Update v1.0.17 is available but is not signed, so it will not be installed automatically.',
         manualDownloadUrl: 'https://github.com/jaydipvirja/shmmoth-browser/releases/tag/v1.0.17' });
       const s = await waitFor(async () => { const u = await ui(); return u.title.includes('1.0.17') ? u : null; }, { message: 'UI update' });
       assert(/not signed/.test(s.desc), s.desc);
       assert(!s.relaunch && !s.progress && s.check && s.checkEnabled, JSON.stringify(s));
-      assert(/download page/i.test(s.manual) && !/1\.0\.10/.test(s.manual), s.manual);
+      assert(/releases/i.test(s.manual) && !/1\.0\.10/.test(s.manual), s.manual);
+      assert(s.installer && /installer/i.test(s.installerLabel), JSON.stringify(s));
     });
 
-    await t.test('"Open download page" opens the release page in a new tab', async () => {
-      await evalIn(app, 'mtc://settings', 'document.getElementById("btn-manual-download").click()');
-      // a machine without direct internet access shows the error page for that address instead — still "that address in a new tab"
+    await t.test('"Download Latest Installer" starts a normal download of this version\'s installer from the project\'s GitHub releases (nothing is run)', async () => {
+      await app.evaluate(({ session }) => { global.__installerDownloads = []; session.defaultSession.downloadURL = (u) => { global.__installerDownloads.push(u); }; });
+      await clickInAbout('btn-download-installer');
+      const urls = await waitFor(async () => { const u = await app.evaluate(() => global.__installerDownloads); return u.length ? u : null; }, { message: 'the installer download to start' });
+      const version = await app.evaluate(({ app }) => app.getVersion());
+      assertEqual(urls[0], `https://github.com/jaydipvirja/shmmoth-browser/releases/download/v${version}/SHMMOTH-Browser-Setup-${version}.exe`);
+    });
+
+    await t.test('"View releases" opens the release page in a new tab', async () => {
+      const tabsBefore = await chrome.evaluate(() => document.querySelectorAll('.browser-tab').length);
+      await clickInAbout('btn-manual-download');
+      // The new tab shows the address it was opened for straight away, so this does not depend on github.com being
+      // reachable from the test machine (a blocked or slow network ends in the error page / a pending load).
       const release = 'https://github.com/jaydipvirja/shmmoth-browser/releases/tag/v1.0.17';
-      await waitFor(async () => (await listWebContents(app)).some((w) => w.url.startsWith(release) || (w.url.startsWith('mtc://error') && decodeURIComponent(w.url).includes(release))),
-        { timeout: 20000, message: 'a tab for the release page' });
+      await waitFor(async () => (await chrome.evaluate(() => document.getElementById('omnibox-input').value)) === release,
+        { timeout: 20000, message: 'the address bar to show the release page of the new tab' });
+      assertEqual(await chrome.evaluate(() => document.querySelectorAll('.browser-tab').length), tabsBefore + 1, 'tabs after the click');
     });
 
     await t.test('update downloaded: shows the restart button', async () => {
