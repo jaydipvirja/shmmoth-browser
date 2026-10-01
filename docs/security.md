@@ -116,6 +116,12 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 - **Not enabled on purpose:** `grantFileProtocolExtraPrivileges` stays at Electron's default because the browser chrome and the bubble windows are still loaded from `file://` (a packaged build cannot load them with the fuse off). Serving them through `mtc://` would allow switching it off. `enableCookieEncryption` is a one-way switch for existing profiles and gives little against malware running as the same Windows user, so it is left for a deliberate decision.
 - **Single instance.** `app.requestSingleInstanceLock()` — a second launch on the same profile hands its URLs to the running window and exits instead of racing it on the data files. Only `http(s)` addresses from the command line are opened (`utils/launchArgs.js`); files, `mtc://` and script URLs are dropped.
 
+## Error pages
+
+A page that cannot be loaded shows `mtc://error` (`pages/error.html`, built by `utils/errorPage.js`) instead of a blank tab: plain explanation, error code, **Try again** / **Go back**. The failed address travels in the query string of an *internal* page, so it is treated as untrusted text: `error.js` writes it with `textContent` only (no markup is ever parsed), offers *Try again* only for `http(s)` addresses, and the error name is reduced to `[A-Za-z0-9_]`. Certificate errors (`ERR_CERT_*`) get an explanation but **no "continue anyway"** option. `ERR_ABORTED` (navigated away / became a download) and sub-frame failures never show the page, and only `http(s)` failures do, so the error page cannot loop. The address bar, history, session file and *Reopen closed tab* use the failed address, not the error page's own address.
+
+The `mtc://` protocol handler is registered on both the normal and the `incognito` session (a handler belongs to one session; incognito tabs used to show blank internal pages).
+
 ## Known Remaining Risks (Phase 1)
 
 | Risk | Severity | Mitigation |

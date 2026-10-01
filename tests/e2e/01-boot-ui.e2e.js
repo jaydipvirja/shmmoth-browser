@@ -125,8 +125,17 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
       await waitFor(() => inc.evaluate(() => Boolean(window.mtcAPI)), { message: 'incognito mtcAPI' });
       assertEqual(await api(inc, 'isIncognitoWindow'), true);
       assertEqual(await api(chrome, 'isIncognitoWindow'), false);
-      await api(inc, 'createTab', 'mtc://settings');
-      await sleep(500);
+    });
+
+    await t.test('internal pages work inside incognito tabs too (they used to stay blank: the mtc:// handler was missing there)', async () => {
+      const inc = await chromeWindow(app, { incognito: true });
+      await api(inc, 'createTab', 'mtc://downloads');
+      const wc = await waitFor(() => app.evaluate(({ webContents, session }) => {
+        const incSession = session.fromPartition('incognito');
+        const w = webContents.getAllWebContents().find((x) => x.session === incSession && x.getURL().startsWith('mtc://downloads'));
+        return w && !w.isLoading() && w.getTitle() ? { url: w.getURL(), title: w.getTitle() } : null;
+      }), { message: 'an incognito Downloads page' });
+      assert(/Download/i.test(wc.title), wc.title);
     });
 
     t.section('Update UI (About page)');
@@ -156,7 +165,10 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
 
     await t.test('"Open download page" opens the release page in a new tab', async () => {
       await evalIn(app, 'mtc://settings', 'document.getElementById("btn-manual-download").click()');
-      await waitForWebContents(app, 'https://github.com/jaydipvirja/shmmoth-browser/releases/tag/v1.0.17', { settle: false });
+      // a machine without direct internet access shows the error page for that address instead — still "that address in a new tab"
+      const release = 'https://github.com/jaydipvirja/shmmoth-browser/releases/tag/v1.0.17';
+      await waitFor(async () => (await listWebContents(app)).some((w) => w.url.startsWith(release) || (w.url.startsWith('mtc://error') && decodeURIComponent(w.url).includes(release))),
+        { timeout: 20000, message: 'a tab for the release page' });
     });
 
     await t.test('update downloaded: shows the restart button', async () => {

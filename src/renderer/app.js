@@ -482,7 +482,7 @@ function renderTabs(tabs, activeId) {
   // Update Omnibox & Toolbar state for active tab
   const activeTab = currentTabs.find(t => t.id === activeTabId);
   if (activeTab) {
-    updateOmnibox(activeTab.url);
+    updateOmnibox(activeTab.url, activeTab.hasError);
     updateBookmarkStarState(activeTab.url);
     updateReloadStopButton(activeTab.isLoading);
     if (api && api.getZoomFactor) {
@@ -596,8 +596,13 @@ function navigate(query) {
   }
 }
 
-function updateOmnibox(url) {
-  if (!url || url === 'mtc://newtab') {
+function updateOmnibox(url, hasError = false) {
+  if (hasError && url) {
+    // the address that failed to load: never show the padlock for a page that was not delivered
+    omniboxInput.value = url;
+    omniboxSecurity.textContent = '⚠️';
+    omniboxSecurity.title = 'This page could not be loaded';
+  } else if (!url || url === 'mtc://newtab') {
     omniboxInput.value = '';
     omniboxSecurity.textContent = '🚀';
     omniboxSecurity.title = 'SHMMOTH Start Dashboard';
@@ -877,7 +882,7 @@ function setupEventListeners() {
         if (activeTab.isLoading && api && api.stopTab) {
           api.stopTab(activeTabId);
         }
-        updateOmnibox(activeTab.url);
+        updateOmnibox(activeTab.url, activeTab.hasError);
       }
       omniboxInput.blur();
     }

@@ -36,6 +36,7 @@ const { isTrustedInternalUrl, BROWSER_CHROME_URL }        = require('./security/
 const { MTC_PAGE_CSP }                                    = require('./security/csp');
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
 const { urlsFromArgv }                                    = require('./utils/launchArgs');
+const { shouldShowErrorPage, buildErrorPageUrl, displayUrl } = require('./utils/errorPage');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
@@ -864,7 +865,7 @@ class ShmmothBrowserApp {
       '.woff2': 'font/woff2'
     };
 
-    protocol.handle('mtc', (request) => {
+    const handleMtc = (request) => {
       try {
         const parsed   = new URL(request.url);
         let pageName   = parsed.hostname;
@@ -893,7 +894,12 @@ class ShmmothBrowserApp {
         log.error('Error handling mtc protocol request', { error: err.message });
         return new Response('Error loading internal page', { status: 500 });
       }
-    });
+    };
+
+    // A protocol handler belongs to one session. Incognito tabs run in their own partition, and without a handler
+    // there their new-tab page, Settings and error pages stayed blank.
+    protocol.handle('mtc', handleMtc);
+    session.fromPartition('incognito').protocol.handle('mtc', handleMtc);
 
     log.info('mtc:// protocol handler registered');
   }
@@ -1439,7 +1445,8 @@ class ShmmothBrowserApp {
       isUnresponsive: false,
       isHtmlFullScreen: false,
       lastValidUrl:   initialUrl,
-      pendingLoadUrl: null            // set for a restored background tab until it is first selected
+      pendingLoadUrl: null,           // set for a restored background tab until it is first selected
+      failedUrl:      null            // the address behind the error page this tab currently shows
     };
     if (options.deferLoad) {
       tabData.pendingLoadUrl = initialUrl;
@@ -1501,12 +1508,17 @@ class ShmmothBrowserApp {
       }
     });
 
-    wc.on('did-fail-load', (_, errorCode) => {
+    wc.on('did-fail-load', (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
       tabData.isLoading = false;
       this.broadcastTabsUpdate(tabData.isIncognito);
       const activeId = tabData.isIncognito ? this.activeIncognitoTabId : this.activeTabId;
       if (activeId === tabId) {
         this.updateNavigationState(tabData.isIncognito);
+      }
+
+      // Electron leaves a tab whose page could not be loaded blank: show a proper error page instead
+      if (shouldShowErrorPage({ errorCode, validatedURL, isMainFrame })) {
+        this._showErrorPage(tabData, errorCode, errorDescription, validatedURL);
       }
 
       // If a popup/new tab aborted because it converted into a download (-3 ERR_ABORTED),
@@ -1547,7 +1559,9 @@ class ShmmothBrowserApp {
     wc.on('did-navigate', (_, navUrl) => {
       updateTabUa(navUrl);
       tabData.url = navUrl;
-      if (navUrl && !navUrl.startsWith('mtc://crash')) {
+      const isErrorPage = Boolean(navUrl) && navUrl.startsWith('mtc://error');
+      if (!isErrorPage) tabData.failedUrl = null;              // a real page loaded: forget the address that failed before
+      if (navUrl && !navUrl.startsWith('mtc://crash') && !isErrorPage) {
         tabData.lastValidUrl = navUrl;
         tabData.isCrashed = false;
         tabData.crashReason = null;
@@ -1556,7 +1570,7 @@ class ShmmothBrowserApp {
       tabData.canGoBack = wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack();
       tabData.canGoForward = wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward();
       // Zero history recorded for incognito tabs (Stage 4)
-      if (!tabData.isIncognito) {
+      if (!tabData.isIncognito && !isErrorPage) {
         this.storage.addHistory({ title: tabData.title, url: navUrl, favicon: tabData.favicon });
       }
       this.broadcastTabsUpdate(tabData.isIncognito);
@@ -2025,6 +2039,19 @@ class ShmmothBrowserApp {
     }
   }
 
+  /** Replaces a blank, failed page with mtc://error (the failed address stays what the address bar shows). */
+  _showErrorPage(tab, errorCode, errorDescription, failedUrl) {
+    if (!tab || !tab.view) return;
+    log.warn(`Page failed to load in ${tab.id}`, { errorCode, errorDescription, url: String(failedUrl).slice(0, 200) });
+    tab.failedUrl = failedUrl;
+    // not inside the did-fail-load event itself: starting a navigation from there can race with the failed one
+    setImmediate(() => {
+      const wc = tab.view && tab.view.webContents;
+      if (!this.tabs[tab.id] || !wc || wc.isDestroyed()) return;
+      wc.loadURL(buildErrorPageUrl(errorCode, errorDescription, failedUrl)).catch(() => {});
+    });
+  }
+
   /** A restored background tab has not loaded its page yet; do it now (selected, reloaded or navigated). */
   _loadPendingUrl(tab) {
     if (!tab || !tab.pendingLoadUrl) return;
@@ -2055,8 +2082,9 @@ class ShmmothBrowserApp {
     }
 
     // Track closed tab for Reopen Closed Tab (Ctrl+Shift+T) ONLY for standard tabs
-    if (!isIncognito && tabData.url && !tabData.url.startsWith('mtc://newtab') && !tabData.url.startsWith('about:blank')) {
-      this.closedTabs.push({ url: tabData.url, title: tabData.title || tabData.url });
+    const closedUrl = displayUrl(tabData);
+    if (!isIncognito && closedUrl && !closedUrl.startsWith('mtc://newtab') && !closedUrl.startsWith('about:blank')) {
+      this.closedTabs.push({ url: closedUrl, title: tabData.title || closedUrl });
       if (this.closedTabs.length > 25) {
         this.closedTabs.shift();
       }
@@ -2098,7 +2126,7 @@ class ShmmothBrowserApp {
   duplicateTab(tabId) {
     const tab = this.tabs[tabId || this.activeTabId];
     if (!tab) return null;
-    return this.createTab(tab.url, tab.id, tab.isPinned, tab.isIncognito);
+    return this.createTab(displayUrl(tab), tab.id, tab.isPinned, tab.isIncognito);
   }
 
   togglePinTab(tabId) {
@@ -2193,6 +2221,7 @@ class ShmmothBrowserApp {
     const tab = this.tabs[tabId || this.activeTabId];
     if (!tab || !tab.view) return;
     if (tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }      // restored tab that never loaded: "reload" = load
+    if (tab.failedUrl && tab.url && tab.url.startsWith('mtc://error')) { tab.view.webContents.loadURL(tab.failedUrl); return; }
     if (tab.isCrashed || (tab.url && tab.url.startsWith('mtc://crash'))) {
       tab.isCrashed = false;
       const target = tab.lastValidUrl && !tab.lastValidUrl.startsWith('mtc://crash') ? tab.lastValidUrl : 'mtc://newtab';
@@ -2205,6 +2234,7 @@ class ShmmothBrowserApp {
   reloadTabIgnoringCache(tabId) {
     const tab = this.tabs[tabId || this.activeTabId];
     if (tab && tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }
+    if (tab && tab.view && tab.failedUrl && tab.url && tab.url.startsWith('mtc://error')) { tab.view.webContents.loadURL(tab.failedUrl); return; }
     if (tab && tab.view && tab.view.webContents) {
       tab.view.webContents.reloadIgnoringCache();
     }
@@ -2425,7 +2455,8 @@ class ShmmothBrowserApp {
         return {
           id:           t.id,
           title:        t.title,
-          url:          t.url,
+          url:          displayUrl(t),
+          hasError:     Boolean(t.failedUrl && t.url && t.url.startsWith('mtc://error')),
           favicon:      t.favicon,
           isAudible:    t.isAudible,
           isMuted:      t.isMuted,
@@ -2454,7 +2485,7 @@ class ShmmothBrowserApp {
         canGoBack:    canBack,
         canGoForward: canFwd,
         isLoading:    Boolean(activeTab.isLoading),
-        url:          activeTab.url
+        url:          displayUrl(activeTab)
       });
     }
   }

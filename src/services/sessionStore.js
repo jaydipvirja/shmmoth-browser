@@ -14,6 +14,7 @@
 
 const path = require('path');
 const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { displayUrl } = require('../utils/errorPage');
 
 const FORMAT_VERSION = 1;
 const MAX_TABS = 100;
@@ -48,7 +49,7 @@ function buildSnapshot(tabs, order, activeId) {
   for (const id of order || []) {
     const t = tabs && tabs[id];
     if (!t || t.isIncognito) continue;
-    const url = t.pendingLoadUrl || t.url;
+    const url = t.pendingLoadUrl || displayUrl(t);          // a tab showing the error page is saved under the address that failed
     if (!isRestorableUrl(url)) continue;
     if (id === activeId) active = out.length;
     out.push({ url, title: cleanTitle(t.title), favicon: cleanIcon(t.favicon), pinned: Boolean(t.isPinned) });
