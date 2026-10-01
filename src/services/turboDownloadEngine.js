@@ -63,8 +63,109 @@ const DEFAULT_LIMITS = Object.freeze({
 const MAX_REGIONS = 32;                    // bars shown in the download list
 const PART_SUFFIX = '.shmmoth-part';       // a download is written here until it is complete
 
-const TLS_ERROR = /^(UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CERT_UNTRUSTED|HOSTNAME_MISMATCH|ERR_TLS_.*|ERR_SSL_.*)$/;
+const TLS_ERROR = /^(ERR_TLS_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CERT_UNTRUSTED|HOSTNAME_MISMATCH|ERR_TLS_.*|ERR_SSL_.*)$/;
 const NETWORK_DOWN = /EADDRNOTAVAIL|ENETUNREACH|EHOSTUNREACH|ENETDOWN|ETIMEDOUT|EINVAL/;
+
+/** Electron's `net` (the browser's own network stack), or null outside Electron (plain-Node tests). */
+function electronNet() {
+  try {
+    const e = require('electron');
+    return e && e.net && typeof e.net.request === 'function' ? e.net : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+/** Chromium's net::ERR_* messages as Node-style codes, so the rest of the engine reads one kind of error. */
+function mapNetError(err) {
+  const m = /net::(ERR_[A-Z0-9_]+)/.exec((err && err.message) || '');
+  if (!m) return err;
+  const name = m[1];
+  const map = {
+    ERR_CONNECTION_TIMED_OUT: 'ETIMEDOUT', ERR_TIMED_OUT: 'ETIMEDOUT',
+    ERR_CONNECTION_RESET: 'ECONNRESET', ERR_CONNECTION_CLOSED: 'ECONNRESET', ERR_CONNECTION_ABORTED: 'ECONNRESET', ERR_EMPTY_RESPONSE: 'ECONNRESET',
+    ERR_CONNECTION_REFUSED: 'ECONNREFUSED',
+    ERR_NAME_NOT_RESOLVED: 'ENOTFOUND', ERR_NAME_RESOLUTION_FAILED: 'ENOTFOUND',
+    ERR_INTERNET_DISCONNECTED: 'ENETUNREACH', ERR_NETWORK_CHANGED: 'ENETUNREACH', ERR_ADDRESS_UNREACHABLE: 'EHOSTUNREACH'
+  };
+  if (/^ERR_CERT_|^ERR_SSL_|^ERR_BAD_SSL/.test(name)) err.code = 'ERR_TLS_CERT';
+  else if (map[name]) err.code = map[name];
+  err.netError = name;
+  return err;
+}
+
+/**
+ * The same job as requestWithRedirects(), done by Chromium's network stack: the TLS handshake, certificate store, HTTP/2,
+ * proxy, DNS (incl. DNS-over-HTTPS) and cookie jar of the browser itself. A server cannot tell these requests from the
+ * browser's own — Node's http/https looks different (TLS fingerprint, headers), and some servers answer it differently
+ * (a whole file for a ranged request, a refusal).
+ *
+ * Limits of Electron's net module: the Referer header cannot be set, and a request cannot be bound to a network card.
+ * Both stay with requestWithRedirects().
+ *
+ * Resolves { res, req, finalUrl } shaped like requestWithRedirects(): `res` has statusCode, headers, 'data'/'end'/
+ * 'error'/'close', pause()/resume(), `complete`; `req.destroy()` aborts.
+ */
+function chromiumRequest(electronNetModule, targetUrl, options = {}) {
+  return new Promise((resolve, reject) => {
+    let request;
+    try {
+      request = electronNetModule.request({
+        url: targetUrl,
+        method: options.method || 'GET',
+        session: options.session || undefined,
+        useSessionCookies: true,            // the cookies of the browser, as they are now
+        redirect: 'follow'
+      });
+    } catch (err) {
+      return reject(mapNetError(err));
+    }
+    // Only what the transport can carry: the range. Chromium adds the user agent, language, client hints and cookies itself.
+    const headers = options.headers || {};
+    for (const name of ['Range', 'If-Range']) {
+      if (headers[name]) { try { request.setHeader(name, headers[name]); } catch (_) { /* refused */ } }
+    }
+
+    let finalUrl = targetUrl;
+    let done = false;
+    const timeoutMs = options.timeout || 20000;
+    let timer = null;
+    const arm = (ms) => { clearTimeout(timer); timer = setTimeout(onTimeout, ms); };
+    let activeRes = null;
+    const onTimeout = () => {
+      const err = Object.assign(new Error('ETIMEDOUT: Socket connection timed out'), { code: 'ETIMEDOUT' });
+      try { request.abort(); } catch (_) { /* gone */ }
+      if (activeRes) activeRes.emit('error', err); else if (!done) { done = true; reject(err); }
+    };
+    arm(timeoutMs);
+    // `touch()` is called by the reader for every chunk (it restarts the idle timeout). Not a 'data' listener here: that
+    // would put the stream into flowing mode before the reader has attached its own handler, and the first chunks would be lost.
+    const handle = {
+      destroy() { clearTimeout(timer); try { request.abort(); } catch (_) { /* gone */ } },
+      touch() { if (activeRes && !activeRes.complete) arm(timeoutMs); }
+    };
+    if (typeof options.onRequest === 'function') options.onRequest(handle);
+
+    request.on('redirect', (_status, _method, redirectUrl) => { if (redirectUrl) finalUrl = redirectUrl; });
+    request.on('response', (res) => {
+      if (done) { try { request.abort(); } catch (_) { /* gone */ } return; }
+      done = true;
+      activeRes = res;
+      res.complete = false;
+      arm(timeoutMs);                                  // idle timeout, like the socket timeout of the Node transport
+      res.on('end', () => { res.complete = true; clearTimeout(timer); });
+      res.on('close', () => clearTimeout(timer));
+      resolve({ res, req: handle, finalUrl });
+    });
+    request.on('error', (err) => {
+      clearTimeout(timer);
+      const mapped = mapNetError(err);
+      if (activeRes) { activeRes.emit('error', mapped); return; }
+      if (!done) { done = true; reject(mapped); }
+    });
+    request.end();                          // nothing is sent before this
+  });
+}
 
 /** An HTTP status that is not a usable answer to a ranged download request. */
 class HttpStatusError extends Error {
@@ -199,6 +300,7 @@ class TurboDownloadEngine extends EventEmitter {
     for (const key of Object.keys(DEFAULT_LIMITS)) {
       if (Number.isFinite(options[key]) && options[key] > 0) this.limits[key] = options[key];
     }
+    this._net = options.net !== undefined ? options.net : electronNet();    // Chromium's network stack (null in plain Node)
     this.activeTasks = new Map();
     this._starting = new Set();      // ids whose start() is still probing / looking for network interfaces
     this._precancelled = new Set();  // ... and that were cancelled meanwhile
@@ -323,41 +425,70 @@ class TurboDownloadEngine extends EventEmitter {
   // ───────────────────────────────── probing ─────────────────────────────────
 
   /**
-   * Probes remote server to check for range support, file size, and final URL.
+   * Finds out whether a server can send a file in parts, and how big it is — with the request that works.
+   *
+   * Two ways of asking, because servers answer them differently (a server may send a whole file to one and a proper
+   * part to the other):
+   *   chromium  the browser's own network stack: what Chrome would send, including its cookies. No Referer.
+   *   node      Node's http/https: any header (Referer, the page's headers), but another TLS/HTTP "fingerprint".
+   * The first that gets "206 Partial Content" wins and is the one the download uses. `opts.allowNode: false` keeps
+   * the engine off Node's sockets (they ignore the browser's proxy settings).
+   *
    * @param {string} url
-   * @param {object} [headers]
+   * @param {object} [headers]   headers for the Node transport
    * @param {object} [opts]
-   * @param {number} [opts.timeout] socket timeout in ms
-   * @returns {Promise<{ acceptsRanges: boolean, totalBytes: number, finalUrl: string, filename: string, status: number, error?: string }>}
+   * @param {number} [opts.timeout]    socket timeout in ms
+   * @param {object} [opts.session]    Electron session whose cookies/proxy the Chromium transport uses
+   * @param {boolean} [opts.allowNode=true]
+   * @returns {Promise<{ acceptsRanges: boolean, totalBytes: number, finalUrl: string, filename: string, status: number,
+   *                     transport?: string, attempts: Array<{transport:string, range:string, status:number, error?:string}>, error?: string }>}
    */
   async probe(url, headers = {}, opts = {}) {
+    const attempts = [];
+    const plan = [];
+    if (this._net) plan.push({ transport: 'chromium', range: 'bytes=0-0' }, { transport: 'chromium', range: 'bytes=0-' });
+    if (opts.allowNode !== false) plan.push({ transport: 'node', range: 'bytes=0-0' });
+
+    let best = null;
+    let skipChromium = false;
+    for (const step of plan) {
+      if (skipChromium && step.transport === 'chromium') continue;
+      const r = await this._probeOnce(url, headers, { ...step, timeout: opts.timeout, session: opts.session });
+      attempts.push({ transport: step.transport, range: step.range, status: r.status, ...(r.error ? { error: r.error } : {}) });
+      if (r.acceptsRanges) return { ...r, transport: step.transport, attempts };
+      // the second chromium form only helps after "200": any other answer will not change with another range form
+      if (step.transport === 'chromium' && r.status !== 200) skipChromium = true;
+      if (!best || (r.status && !best.status)) best = r;
+    }
+    return { ...(best || { acceptsRanges: false, totalBytes: 0, finalUrl: url, filename: 'download', status: 0 }), acceptsRanges: false, attempts };
+  }
+
+  async _probeOnce(url, headers, { transport, range, timeout, session }) {
     const fallbackName = () => { try { return path.basename(new URL(url).pathname) || 'download'; } catch (_) { return 'download'; } };
     try {
-      // First attempt a range test request for byte 0-0
-      const { res, finalUrl, req } = await requestWithRedirects(url, {
+      // a range request for the first byte (or from the start): only the answer's headers matter
+      const { res, finalUrl, req } = await this._request(transport, url, {
         method: 'GET',
-        timeout: opts.timeout || this.limits.socketTimeoutMs,
-        headers: {
-          ...headers,
-          'Range': 'bytes=0-0'
-        }
+        timeout: timeout || this.limits.socketTimeoutMs,
+        session,
+        headers: { ...headers, 'Range': range }
       });
 
       res.resume();
       req.destroy(); // We only needed headers
 
       const statusCode = res.statusCode;
-      const contentRange = res.headers['content-range'] || '';
+      const contentRange = String(res.headers['content-range'] || '');
       let totalBytes = 0;
       let acceptsRanges = false;
 
       // 206 Partial Content means server supports byte ranges. Anything else (200 = the whole file was sent although
       // a range was asked for, errors …) means ranges cannot be used.
       if (statusCode === 206) {
-        acceptsRanges = true;
         const match = contentRange.match(/\/(\d+|\*)$/);
         if (match && match[1] !== '*') {
           totalBytes = parseInt(match[1], 10);
+          acceptsRanges = true;
         }
       } else if (statusCode === 200) {
         totalBytes = parseInt(res.headers['content-length'] || '0', 10) || 0;
@@ -365,7 +496,7 @@ class TurboDownloadEngine extends EventEmitter {
 
       // Extract filename if Content-Disposition exists
       let filename = '';
-      const disposition = res.headers['content-disposition'];
+      const disposition = String(res.headers['content-disposition'] || '');
       if (disposition) {
         const match = disposition.match(/filename\*?=(?:UTF-8'')?["']?([^"';]+)["']?/i);
         if (match && match[1]) {
@@ -391,6 +522,12 @@ class TurboDownloadEngine extends EventEmitter {
         error: (err && err.message) || String(err)
       };
     }
+  }
+
+  /** One request, over the named transport (falls back to Node's when Chromium's is not there). */
+  _request(transport, url, opts) {
+    if (transport === 'chromium' && this._net) return chromiumRequest(this._net, url, opts);
+    return requestWithRedirects(url, opts);
   }
 
   // ─────────────────────────────────── start ───────────────────────────────────
@@ -440,9 +577,12 @@ class TurboDownloadEngine extends EventEmitter {
       if (new URL(finalUrl).host !== new URL(url).host) headers = withoutCredentials(headers);
     } catch (_) {}
     const isTurboEligible = (probeInfo.acceptsRanges !== false) && totalBytes >= this.minTurboSize;
+    // the way that was proven to work; the Chromium way needs the session whose cookies/proxy it uses
+    const transport = probeInfo.transport === 'chromium' && this._net ? 'chromium' : 'node';
 
     let networks = [];
-    if (isTurboEligible && multiSourceRequested) {
+    // Bonding binds sockets to network cards, which only Node's sockets can do — and only if the server accepts Node's requests
+    if (isTurboEligible && multiSourceRequested && transport === 'node') {
       try { networks = await this._selectInterfaces(taskOpts, finalUrl); } catch (_) { networks = []; }
     }
 
@@ -473,6 +613,8 @@ class TurboDownloadEngine extends EventEmitter {
       lastProgressAt: Date.now(),   // last time bytes arrived (or the download was started / resumed)
       timer: null,
       rangeVerified: false,
+      transport,
+      session: taskOpts.session || null,
       workers: [],
       blocks: new Map(),
       requeue: [],
@@ -649,9 +791,10 @@ class TurboDownloadEngine extends EventEmitter {
 
     let res; let req;
     try {
-      ({ res, req } = await requestWithRedirects(task.url, {
+      ({ res, req } = await this._request(task.transport, task.url, {
         method: 'GET',
         timeout: this.limits.socketTimeoutMs,
+        session: task.session || undefined,
         localAddress: worker.iface && !worker.iface.failed ? worker.iface.address : undefined,
         onRequest: (r) => { worker.req = r; },
         headers: { ...task.headers, 'Range': `bytes=${from}-${block.end}` }
@@ -720,6 +863,7 @@ class TurboDownloadEngine extends EventEmitter {
 
       res.on('data', (data) => {
         if (settled) return;
+        if (req.touch) req.touch();
         if (worker.dead || block.done || task.state !== 'progressing' || task.isPaused || task.fd !== fd) return finish(null);
 
         let chunk = data;
@@ -897,9 +1041,10 @@ class TurboDownloadEngine extends EventEmitter {
     const fd = task.fd;
 
     try {
-      const { res, req } = existing || await requestWithRedirects(task.url, {
+      const { res, req } = existing || await this._request(task.transport, task.url, {
         method: 'GET',
         timeout: this.limits.socketTimeoutMs,
+        session: task.session || undefined,
         onRequest: (r) => { seg.req = r; },
         headers
       });
@@ -926,6 +1071,7 @@ class TurboDownloadEngine extends EventEmitter {
       };
 
       res.on('data', (chunk) => {
+        if (req.touch) req.touch();
         if (settled || seg.dead || task.isPaused || task.state !== 'progressing' || task.fd !== fd) {
           req.destroy();
           return;
@@ -1263,4 +1409,6 @@ class TurboDownloadEngine extends EventEmitter {
 }
 
 TurboDownloadEngine.HttpStatusError = HttpStatusError;
+TurboDownloadEngine.chromiumRequest = chromiumRequest;
+TurboDownloadEngine._mapNetError = mapNetError;
 module.exports = TurboDownloadEngine;

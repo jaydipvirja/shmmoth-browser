@@ -48,6 +48,16 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       const end = m && m[2] ? Number(m[2]) : SIZE - 1;
       return send(m ? 206 : 200, { 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Disposition': 'attachment; filename="needsref.bin"', ...(m ? { 'Content-Range': `bytes ${start}-${end}/${SIZE}` } : {}) }, PAYLOAD.subarray(start, end + 1));
     }
+    if (req.url.startsWith('/chromeonly') || req.url.startsWith('/norange')) {
+      // /chromeonly: parts only for requests that come from the browser's own network stack (it sends sec-fetch-mode: no-cors;
+      // the direct connection sends "navigate"); /norange: never parts
+      const picky = req.url.startsWith('/chromeonly') && req.headers['sec-fetch-mode'] === 'no-cors';
+      const m = picky ? /bytes=(\d+)-(\d*)/.exec(range || '') : null;
+      const start = m ? Number(m[1]) : 0;
+      const end = m && m[2] ? Number(m[2]) : SIZE - 1;
+      const name = req.url.startsWith('/chromeonly') ? 'chromeonly.bin' : 'norange.bin';
+      return send(m ? 206 : 200, { 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, 'Content-Disposition': `attachment; filename="${name}"`, ...(m ? { 'Content-Range': `bytes ${start}-${end}/${SIZE}` } : {}) }, PAYLOAD.subarray(start, end + 1));
+    }
     if (req.url.startsWith('/once')) {
       // a link that works once (a download token): the browser's own request uses it up, any later request is refused
       if (range || onceUsed) return send(403, {}, 'Forbidden');
@@ -99,6 +109,25 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       assertEqual(d.state, 'completed', d.error || 'state');
       assertEqual(Boolean(d.isTurbo), false, 'the fast engine must not have taken it over');
       assertEqual(sha(fs.readFileSync(path.join(downloadsDir, d.filename))), sha(PAYLOAD), 'content of the file');
+    });
+
+    await t.test('a server that gives parts only to the browser\'s own network stack (the way Chrome asks): the download is still split', async () => {
+      await api(chrome, 'createTab', `${server.url}/chromeonly`);
+      const d = await waitFor(async () => { const x = await find((r) => r.url.includes('/chromeonly')); return x && (x.state === 'completed' || x.state === 'interrupted') ? x : null; },
+        { timeout: 60000, message: 'the download to finish' });
+      assertEqual(d.state, 'completed', d.error || 'state');
+      assertEqual(Boolean(d.isTurbo), true, 'split into parts');
+      assert(d.threadsCount >= 2, 'several connections: ' + d.threadsCount);
+      assertEqual(sha(fs.readFileSync(path.join(downloadsDir, d.filename))), sha(PAYLOAD), 'content of the file');
+    });
+
+    await t.test('a server that never sends parts: the card says what each way of asking got', async () => {
+      await api(chrome, 'createTab', `${server.url}/norange`);
+      const d = await waitFor(async () => { const x = await find((r) => r.url.includes('/norange')); return x && (x.state === 'completed' || x.state === 'interrupted') ? x : null; },
+        { timeout: 60000, message: 'the download to finish' });
+      assertEqual(d.state, 'completed', d.error || 'state');
+      assertEqual(Boolean(d.isTurbo), false);
+      assert(/ignored the range request/.test(d.turboNote || '') && /browser network stack: HTTP 200/.test(d.turboNote) && /direct connection: HTTP 200/.test(d.turboNote), d.turboNote);
     });
 
     await t.test('no cookies or request headers are exposed in the download records', async () => {
@@ -165,6 +194,7 @@ runSuite('SHMMOTH Browser — E2E 13: downloads', async (t) => {
       await evalIn(app, `${server.url}/page`, 'document.getElementById("dl").click()', { gesture: true });
       const first = await waitFor(async () => find((r) => r.url.includes('/needsref') && r.state === 'completed'), { timeout: 60000, message: 'the first download' });
       assertEqual(first.referrer, `${server.url}/page`, 'the record remembers the page it came from');
+      assertEqual(Boolean(first.isTurbo), true, 'a server that needs the Referer is still split (the direct connection can send it)');
       // the Retry button of the list: only the address is handed over, the rest comes from the record
       seen.length = 0;
       const res = await api(chrome, 'retryDownload', first.url);
