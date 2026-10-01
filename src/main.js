@@ -38,6 +38,7 @@ const { mainLogger: log, securityLogger }                 = require('./utils/log
 const { urlsFromArgv }                                    = require('./utils/launchArgs');
 const { shouldShowErrorPage, buildErrorPageUrl, displayUrl } = require('./utils/errorPage');
 const secureDns = require('./services/secureDns');
+const { isAlwaysAllowedPermission } = require('./security/permissionPolicy');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
@@ -1281,8 +1282,8 @@ class ShmmothBrowserApp {
         return true;
       }
 
-      // Safe UI permissions
-      if (permission === 'fullscreen' || permission === 'pointerLock') {
+      // Permissions every page gets without a prompt (fullscreen, pointer lock, writing to the clipboard on a click)
+      if (isAlwaysAllowedPermission(permission)) {
         return true;
       }
 
@@ -1312,8 +1313,8 @@ class ShmmothBrowserApp {
         return callback(true);
       }
 
-      // Safe UI permissions
-      if (permission === 'fullscreen' || permission === 'pointerLock') {
+      // Permissions every page gets without a prompt (see security/permissionPolicy.js)
+      if (isAlwaysAllowedPermission(permission)) {
         return callback(true);
       }
 
@@ -1708,6 +1709,51 @@ class ShmmothBrowserApp {
           }));
           menu.append(new MenuItem({ type: 'separator' }));
         }
+      }
+
+      // 2b. Video / audio items (what Chrome offers; pages such as YouTube show their own menu and only let this one
+      //     through on a second right-click)
+      if (params.mediaType === 'video' || params.mediaType === 'audio') {
+        const kind = params.mediaType;
+        const flags = params.mediaFlags || {};
+        const px = Math.max(0, Math.round(Number(params.x) || 0));
+        const py = Math.max(0, Math.round(Number(params.y) || 0));
+        // runs `body` with `m` = the <video>/<audio> under the cursor, as a user action (play() and Picture-in-picture need one)
+        const withMedia = (body) => wc.executeJavaScript(
+          `(function(){var m=document.elementsFromPoint(${px},${py}).find(function(e){return e.tagName==='VIDEO'||e.tagName==='AUDIO';});if(!m)return;${body}})()`, true
+        ).catch((err) => log.warn('Media menu action failed', { error: err.message }));
+        const mediaUrl = /^https?:\/\//i.test(params.srcURL || '') ? params.srcURL : '';
+
+        menu.append(new MenuItem({ label: flags.isPaused === false ? 'Pause' : 'Play', click: () => withMedia('if(m.paused){m.play();}else{m.pause();}') }));
+        menu.append(new MenuItem({ label: flags.isMuted ? 'Unmute' : 'Mute', click: () => withMedia('m.muted=!m.muted;') }));
+        menu.append(new MenuItem({ label: 'Loop', type: 'checkbox', checked: Boolean(flags.isLooping), click: () => withMedia('m.loop=!m.loop;') }));
+        if (kind === 'video') {
+          menu.append(new MenuItem({
+            label: 'Show controls', type: 'checkbox', checked: Boolean(flags.isControlsVisible),
+            enabled: flags.canToggleControls !== false, click: () => withMedia('m.controls=!m.controls;')
+          }));
+          menu.append(new MenuItem({
+            label: 'Picture in picture', enabled: flags.canShowPictureInPicture !== false,
+            click: () => withMedia('if(document.pictureInPictureElement===m){document.exitPictureInPicture();}else if(m.requestPictureInPicture){m.requestPictureInPicture();}')
+          }));
+        }
+        if (mediaUrl) {
+          menu.append(new MenuItem({ type: 'separator' }));
+          menu.append(new MenuItem({
+            label: `Save ${kind} as...`,
+            click: () => {
+              try {
+                const sess = tabData.isIncognito ? session.fromPartition('incognito') : session.defaultSession;
+                sess.downloadURL(mediaUrl);
+              } catch (err) {
+                log.error('Save media as failed', { error: err.message });
+              }
+            }
+          }));
+          menu.append(new MenuItem({ label: `Copy ${kind} address`, click: () => clipboard.writeText(mediaUrl) }));
+          menu.append(new MenuItem({ label: `Open ${kind} in new tab`, click: () => this.createTab(mediaUrl, tabId, false, tabData.isIncognito) }));
+        }
+        menu.append(new MenuItem({ type: 'separator' }));
       }
 
       // 3. Selection / Text search items

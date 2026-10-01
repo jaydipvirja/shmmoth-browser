@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `npm test` | **Unit tests** (`tests/*.test.js`) — plain Node, Electron is mocked | Node ≥ 22.12 | ~15 s |
 | `npm run test:e2e` | **End-to-end tests** (`tests/e2e/*.e2e.js`) — the real app driven through Playwright | a display (Linux: Xvfb, started automatically) | ~30 s |
-| `npm run test:e2e:packaged` | E2E suites 01–04, 06–11 against an `electron-builder --dir` build (`app.asar`, `app.isPackaged`, production Electron fuses except `--inspect`, which Playwright needs; the other fuses are verified on the binary first) | as above + a build (~1 min) | ~1.5 min |
+| `npm run test:e2e:packaged` | E2E suites 01–04, 06–12 against an `electron-builder --dir` build (`app.asar`, `app.isPackaged`, production Electron fuses except `--inspect`, which Playwright needs; the other fuses are verified on the binary first) | as above + a build (~1 min) | ~1.5 min |
 | `npm run test:all` | unit + E2E | | |
 
 Useful options (after `--`): `--grep=<text>` (file name filter), `--list`, `--no-build` (reuse `dist/`). Set `APP_EXE=<path>` to test any other build. In containers/CI as root, or where user namespaces are restricted, set `E2E_NO_SANDBOX=1` (done automatically for root).
@@ -24,6 +24,7 @@ Useful options (after `--`): `--grep=<text>` (file name filter), `--list`, `--no
 | `09-error-pages` | an unreachable page shows mtc://error (plain explanation + error code) instead of a blank tab; the address bar keeps the failed address with a warning icon; not in history; session saves the failed address; Try again / Reload retry it; ERR_ABORTED (downloads) is not an error; markup in the address is inert; works in incognito |
 | `10-quality` | history shows each page under its own title (no stale title from the previous page); opening a downloaded program (.exe …) asks first and Cancel does not start it |
 | `11-secure-dns` | what the browser tells Chromium for each DNS choice (stubbed `configureHostResolver`), invalid custom addresses refused without changing anything, the Settings controls, the choice restored after a restart (a live DoH lookup needs the internet and is not asserted) |
+| `12-right-click-clipboard` | a page can copy to the clipboard on a click (Copy link / Copy video URL) but not read it; a page with its own right-click menu (YouTube) gets no second native menu; the browser's menu on a video offers Play/Pause, Mute, Loop, Show controls, Picture in picture, Save / Copy address / Open (http(s) sources only) and they act on the video |
 
 The suites replay the actual attacks and failures that were fixed (they fail on the original code: 24 failures across suites 01–04), so a regression shows up as a red test, not as a user report.
 
