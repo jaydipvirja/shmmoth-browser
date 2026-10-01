@@ -79,6 +79,7 @@ class UpdateManager extends EventEmitter {
    * @param {boolean} [options.allowHttp]    Allow http:// (tests only — never set by the app)
    * @param {Function} [options.launcher]    async (installerPath) → error string ('' = ok)
    * @param {Function} [options.quitApp]
+   * @param {Function} [options.prepareToQuit] async; called right before the installer is started (flush cookies to disk)
    */
   constructor(options = {}) {
     super();
@@ -99,6 +100,7 @@ class UpdateManager extends EventEmitter {
     this._updatesDir  = options.updatesDir || null;
     this._launcher    = options.launcher || null;
     this._quitApp     = options.quitApp || null;
+    this._prepareToQuit = options.prepareToQuit || null;   // async () => void, runs right before the installer starts
 
     /** Set only after a download passed every check: { path, version, assetName, sha256, size } */
     this.verifiedUpdate = null;
@@ -557,6 +559,13 @@ class UpdateManager extends EventEmitter {
         message: err instanceof UpdateError ? 'The downloaded update failed its final integrity check and was discarded.' : 'The downloaded update could not be read.'
       });
       return false;
+    }
+
+    if (this._prepareToQuit) {
+      // the installer closes the running browser, possibly the hard way: write cookies and storage first
+      try {
+        await Promise.race([this._prepareToQuit(), new Promise((resolve) => setTimeout(resolve, 4000))]);
+      } catch (err) { if (log) log.warn('Preparing to quit failed', { error: err.message }); }
     }
 
     if (log) log.info('Launching verified installer', { path: v.path, version: v.version });

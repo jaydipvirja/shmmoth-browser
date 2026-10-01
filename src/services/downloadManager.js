@@ -150,6 +150,58 @@ function isDangerousFile(nameOrPath) {
   return DANGEROUS_EXTENSIONS.has(base.slice(dot + 1).toLowerCase());
 }
 
+/**
+ * Why the fast engine was not used, in words for the person looking at the download.
+ * @param {object|null} probe result of TurboDownloadEngine.probe()
+ */
+function describeNoTurbo(probe, fallback = '') {
+  if (!probe) return fallback || 'the test request could not be made';
+  const st = probe.status;
+  if (st === 206) return fallback || 'the file is too small to be worth splitting';
+  if (!st) return `the server did not answer the test request${probe.error ? ` (${probe.error})` : ''}`;
+  if (st === 200) return 'this server cannot send a file in parts (it ignored the range request), so it can only be downloaded over one connection';
+  if (st === 401 || st === 403) return `this server refuses extra connections for this link (HTTP ${st})`;
+  if (st === 404 || st === 410) return `the link works only once or has expired (HTTP ${st})`;
+  if (st === 416) return 'the server did not accept the range request (HTTP 416)';
+  if (st === 429) return 'the server limits how many connections it accepts (HTTP 429)';
+  return `the server answered the test request with HTTP ${st}`;
+}
+
+/**
+ * The headers the browser itself sends when a link starts a download (a navigation), so that the fast engine's
+ * requests look like the browser's own to the server: same language, same client hints, same page as Referer.
+ * @param {object} p
+ * @param {string} p.url        address of the file
+ * @param {string} [p.referer]  address of the page the download was started from
+ * @param {string} [p.userAgent]
+ * @param {string} [p.locale]
+ */
+function browserLikeHeaders({ url, referer = '', userAgent = '', locale = 'en-US' }) {
+  const major = (/Chrome\/(\d+)/.exec(userAgent) || [])[1];
+  const headers = {
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
+    'Accept-Language': `${locale},${String(locale).split('-')[0]};q=0.9`,
+    'Accept-Encoding': 'identity',           // what Chromium asks for on ranged requests
+    'Upgrade-Insecure-Requests': '1',
+    'Sec-Fetch-Dest': 'document',
+    'Sec-Fetch-Mode': 'navigate',
+    'Sec-Fetch-User': '?1'
+  };
+  if (userAgent) headers['User-Agent'] = userAgent;
+  if (major) {
+    headers['sec-ch-ua'] = `"Chromium";v="${major}", "Google Chrome";v="${major}", "Not?A_Brand";v="99"`;
+    headers['sec-ch-ua-mobile'] = '?0';
+    headers['sec-ch-ua-platform'] = '"Windows"';
+  }
+  if (referer && !referer.startsWith('devtools://')) {
+    headers['Referer'] = referer;
+    try { headers['Sec-Fetch-Site'] = new URL(referer).origin === new URL(url).origin ? 'same-origin' : 'cross-site'; } catch (_) { headers['Sec-Fetch-Site'] = 'cross-site'; }
+  } else {
+    headers['Sec-Fetch-Site'] = 'none';
+  }
+  return headers;
+}
+
 class DownloadManager {
   /**
    * @param {object|null} storage StorageService instance
@@ -777,6 +829,10 @@ class DownloadManager {
     });
 
     if (!turboCandidate) {
+      if (webContents && this.isTurboEnabled() && isHttp && !handedOver && !options.useNative) {
+        if (proxied) record.turboNote = 'Normal download: a proxy is in use (the fast engine does not go through proxies).';
+        else if (total > 0 && total < this.turboEngine.minTurboSize) record.turboNote = `Normal download: the file is under ${Math.round(this.turboEngine.minTurboSize / 1048576)} MB, splitting it would not be faster.`;
+      }
       log.info(`Download started: ${record.filename}`, { id, url: url.slice(0, 120), isIncognito });
       this._notify(record);
       this._persist();
@@ -790,27 +846,23 @@ class DownloadManager {
     let paused = false;
     try { item.pause(); paused = true; } catch (_) { /* nothing to hold */ }
 
-    const headers = {
-      'Accept': '*/*'
-    };
+    let headers = { 'Accept': '*/*' };
     try {
       const referer = webContents.getURL ? webContents.getURL() : '';
-      if (referer && !referer.startsWith('devtools://')) {
-        headers['Referer'] = referer;
-      }
       const sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
+      let userAgent = '';
+      let cookieHeader = '';
       if (sess) {
-        if (sess.getUserAgent) {
-          const ua = sess.getUserAgent();
-          if (ua) headers['User-Agent'] = ua;
-        }
+        if (sess.getUserAgent) userAgent = sess.getUserAgent() || '';
         if (sess.cookies && sess.cookies.get) {
           const cookies = await sess.cookies.get({ url });
-          if (cookies && cookies.length > 0) {
-            headers['Cookie'] = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-          }
+          if (cookies && cookies.length > 0) cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
         }
       }
+      let locale = 'en-US';
+      try { if (typeof app.getLocale === 'function') locale = app.getLocale() || locale; } catch (_) { /* default */ }
+      headers = browserLikeHeaders({ url, referer, userAgent, locale });
+      if (cookieHeader) headers['Cookie'] = cookieHeader;
     } catch (hErr) {
       log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
     }
@@ -819,9 +871,9 @@ class DownloadManager {
     let reason = '';
     try { probe = await this.turboEngine.probe(url, headers, { timeout: 6000 }); } catch (_) { probe = null; }
     if (record.settled) return;                 // the item ended meanwhile (and was reported by its 'done' handler)
-    if (!probe || !probe.acceptsRanges) reason = 'the server does not answer ranged requests' + (probe && probe.status ? ` (HTTP ${probe.status})` : '');
-    else if (probe.totalBytes < this.turboEngine.minTurboSize) reason = 'the file is small';
-    else if (total > 0 && probe.totalBytes !== total) reason = 'the size differs from the one announced';
+    if (!probe || !probe.acceptsRanges) reason = describeNoTurbo(probe);
+    else if (probe.totalBytes < this.turboEngine.minTurboSize) reason = 'the file is under ' + Math.round(this.turboEngine.minTurboSize / 1048576) + ' MB, splitting it would not be faster';
+    else if (total > 0 && probe.totalBytes !== total) reason = 'the size reported by the test request differs from the announced size';
 
     if (!reason) {
       // Cancel the held native download (Chromium removes its placeholder file) and let the fast engine have it
@@ -854,6 +906,7 @@ class DownloadManager {
 
     // Not proven: the browser's own download carries on (nothing was lost, it was only held)
     log.info(`Turbo engine not used for "${filename}": ${reason}; the normal download continues`, { url: url.slice(0, 100) });
+    record.turboNote = `Normal download: ${reason}.`;
     record.held = false;
     if (paused) {
       try { item.resume(); } catch (err) { log.warn('Could not resume the held download', { error: err.message }); }
@@ -1262,4 +1315,6 @@ DownloadManager.getUniqueSavePath = getUniqueSavePath;
 DownloadManager.cleanupPartialFile = cleanupPartialFile;
 
 DownloadManager.isDangerousFile = isDangerousFile;
+DownloadManager.describeNoTurbo = describeNoTurbo;
+DownloadManager.browserLikeHeaders = browserLikeHeaders;
 module.exports = DownloadManager;

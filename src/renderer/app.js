@@ -1685,7 +1685,7 @@ function renderDownloadTray() {
     item.innerHTML = `
       <div class="download-tray-icon">${icon}</div>
       <div class="download-tray-details">
-        <div class="download-tray-filename" title="${escapeHtml(d.filename)}">${escapeHtml(d.filename)}</div>
+        <div class="download-tray-filename" title="${escapeHtml(d.turboNote ? d.filename + ' — ' + d.turboNote : d.filename)}">${escapeHtml(d.filename)}</div>
         <div class="download-tray-progress-bg">
           <div class="download-tray-progress-bar ${progressBarClass}" style="width: ${pct}%;"></div>
         </div>

@@ -286,6 +286,7 @@ function renderDownloads() {
           <span class="dl-state ${escapeHtml(record.state)}">${escapeHtml(record.state)}</span>
         </div>
         <div class="dl-url" title="${escapeHtml(record.url)}">${escapeHtml(record.url)}</div>
+        ${record.turboNote && !record.isTurbo ? `<div class="dl-note" title="${escapeHtml(record.turboNote)}">${escapeHtml(record.turboNote)}</div>` : ''}
         ${visualizerHtml}
         <div class="dl-footer">
           <div class="dl-meta">
