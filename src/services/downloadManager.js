@@ -132,12 +132,17 @@ class DownloadManager {
    * @param {object|null} storage StorageService instance
    * @param {object} [options]
    * @param {function} [options.promptSaveDialog] Optional async callback for "Ask where to save"
+   * @param {function} [options.isProxyActive] (isIncognito:boolean) => boolean. The Turbo engine talks to the
+   *        network with Node's http/https, which ignores the browser's proxy settings; while a proxy is in use
+   *        downloads therefore stay on Chromium's native downloader (which honours it) instead of leaking the real IP.
    */
   constructor(storage = null, options = {}) {
     this.storage = storage;
     this.downloads = {};
     this._onUpdate = null;
     this._promptSaveDialog = options.promptSaveDialog || null;
+    this._isProxyActive = typeof options.isProxyActive === 'function' ? options.isProxyActive : null;
+    this._sessions = { default: null, incognito: null };
 
     // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
     this.turboEngine = new TurboDownloadEngine({
@@ -364,12 +369,23 @@ class DownloadManager {
     this._resolveSaveDir();
 
     const isIncognito = Boolean(options.isIncognito);
+    this._sessions[isIncognito ? 'incognito' : 'default'] = session;
 
     session.on('will-download', (event, item, webContents) => {
       this._handleDownload(item, webContents, { isIncognito });
     });
 
     log.info(`DownloadManager attached to session ${isIncognito ? '(Incognito)' : '(Default)'}`);
+  }
+
+  /** True while the browser is configured to use a proxy (conservatively true if that cannot be determined). */
+  isProxyActive(isIncognito = false) {
+    if (!this._isProxyActive) return false;
+    try {
+      return Boolean(this._isProxyActive(Boolean(isIncognito)));
+    } catch (_) {
+      return true;
+    }
   }
 
   isTurboEnabled() {
@@ -416,6 +432,17 @@ class DownloadManager {
   async startTurboDownload(opts = {}) {
     const { url, filename: customFilename, headers = {}, isIncognito = false, threads } = opts;
     if (!url || typeof url !== 'string') throw new Error('Valid URL required for Turbo download');
+
+    // Node's http/https ignores the browser proxy → hand the download to Chromium, which honours it
+    if (this.isProxyActive(isIncognito)) {
+      const sess = this._sessions[isIncognito ? 'incognito' : 'default'];
+      if (sess && typeof sess.downloadURL === 'function') {
+        log.info('Proxy active: Turbo download routed through the native (proxied) downloader', { url: url.slice(0, 100) });
+        sess.downloadURL(url);
+        return null;
+      }
+      throw new Error('Turbo downloads are unavailable while a proxy is configured');
+    }
 
     // Anti-duplicate protection for Turbo downloads
     const now = Date.now();
@@ -583,7 +610,11 @@ class DownloadManager {
 
     // Check if eligible for Turbo multi-threaded IDM downloading
     const isHttp = /^https?:\/\//i.test(url);
-    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative) {
+    const proxied = this.isProxyActive(isIncognito);
+    if (proxied && webContents && this.isTurboEnabled() && isHttp) {
+      log.info('Proxy active: using the native downloader instead of Turbo so the proxy is honoured', { url: url.slice(0, 100) });
+    }
+    if (webContents && this.isTurboEnabled() && isHttp && !options.useNative && !proxied) {
       const headers = {
         'Accept': '*/*'
       };
@@ -770,6 +801,15 @@ class DownloadManager {
     const record = this.downloads[id];
     if (!record) return false;
     if (record.isTurbo) {
+      if (this.isProxyActive(record.isIncognito)) {
+        // A proxy was configured after this download started: don't continue it outside the proxy
+        try { this.turboEngine.pause(id); } catch (_) {}
+        record.state = 'interrupted';
+        record.isPaused = false;
+        this._notify(record);
+        log.warn('Not resuming a Turbo download while a proxy is active; retry it to download through the proxy', { id });
+        return false;
+      }
       if (this.turboEngine.activeTasks && this.turboEngine.activeTasks.has(id)) {
         return this.turboEngine.resume(id, record.headers || {});
       } else {

@@ -9,29 +9,40 @@ class AdBlockerService {
     this.blockedCount = 0;
     this.isEnabled = this.storage.getSettings().adBlockerEnabled ?? true;
     this.blocker = null;
-    this.session = null;
+    this._blockerPromise = null;
+    // Every session the blocker protects (normal + incognito). Previously a single `this.session`
+    // was overwritten when the incognito window opened, so toggling the setting only affected
+    // incognito and the normal session could never be switched off again.
+    this.sessions = new Set();
+  }
+
+  /** Builds the (expensive, network-backed) filter engine once and shares it between sessions. */
+  _loadBlocker() {
+    if (!this._blockerPromise) {
+      this._blockerPromise = ElectronBlocker.fromPrebuiltAdsAndTracking(fetch).then((blocker) => {
+        blocker.config.loadCosmeticFilters = false;
+        blocker.on('request-blocked', () => { this.blockedCount++; });
+        blocker.on('request-redirected', () => { this.blockedCount++; });
+        return blocker;
+      });
+      // A failed download must not be cached forever
+      this._blockerPromise.catch(() => { this._blockerPromise = null; });
+    }
+    return this._blockerPromise;
   }
 
   async setupFilter(sessionInstance) {
     if (!sessionInstance) return;
-    this.session = sessionInstance;
+    this.sessions.add(sessionInstance);
 
     try {
       console.log('Loading Ghostery ElectronBlocker rules (EasyList + EasyPrivacy)...');
-      this.blocker = await ElectronBlocker.fromPrebuiltAdsAndTracking(fetch);
-      this.blocker.config.loadCosmeticFilters = false;
+      this.blocker = await this._loadBlocker();
 
       if (this.isEnabled) {
-        this.blocker.enableBlockingInSession(this.session);
-        console.log('Ad-Blocker successfully activated across all sessions.');
+        this.blocker.enableBlockingInSession(sessionInstance);
+        console.log('Ad-Blocker successfully activated for a session.');
       }
-
-      this.blocker.on('request-blocked', () => {
-        this.blockedCount++;
-      });
-      this.blocker.on('request-redirected', () => {
-        this.blockedCount++;
-      });
     } catch (err) {
       console.error('Failed to initialize Ghostery ElectronBlocker, using fallback filter:', err);
       this.setupFallbackFilter(sessionInstance);
@@ -87,11 +98,13 @@ class AdBlockerService {
   setEnabled(enabled) {
     this.isEnabled = enabled;
     this.storage.updateSettings({ adBlockerEnabled: enabled });
-    if (this.blocker && this.session) {
-      if (enabled) {
-        this.blocker.enableBlockingInSession(this.session);
-      } else {
-        this.blocker.disableBlockingInSession(this.session);
+    if (this.blocker) {
+      for (const sess of this.sessions) {
+        if (enabled) {
+          this.blocker.enableBlockingInSession(sess);
+        } else {
+          this.blocker.disableBlockingInSession(sess);
+        }
       }
     }
   }

@@ -79,12 +79,21 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 - IPC handlers reject external origins
 - The page cannot forge an internal origin
 
+## Network privacy (proxy, WebRTC, fonts)
+
+- **One proxy for every session.** `applyProxyToAllSessions()` (main.js) applies the saved proxy to the normal *and* the incognito session at start-up and whenever it is saved/reset — incognito used to bypass it.
+- **WebRTC.** With a manual proxy every tab gets `setWebRTCIPHandlingPolicy('disable_non_proxied_udp')` so WebRTC cannot reveal the real IP over UDP; it returns to `default` when the proxy is reset. (Trade-off: some video-call sites may need TCP/relay.)
+- **Turbo downloads.** The Turbo engine uses Node's http/https, which ignores browser proxy settings. While a proxy is in effect (manual mode, or a system/PAC proxy detected by `session.resolveProxy`) downloads stay on Chromium's native downloader, which honours it; a Turbo download paused before a proxy was configured is not resumed outside the proxy.
+- **No third-party fonts.** Inter is bundled (`pages/fonts.css`, SIL OFL licence in `pages/inter-OFL.txt`); the pages no longer contact Google Fonts and the CSP only allows `'self'` fonts.
+- **Ad blocker.** One filter engine is shared by the normal and incognito session; the on/off setting applies to both.
+
 ## Known Remaining Risks (Phase 1)
 
 | Risk | Severity | Mitigation |
 |---|---|---|
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
 | ~~No atomic write~~ | — | Done: all data files are written atomically with a `.bak` and damaged files are preserved (see storage.md) |
+| Update checker (`updateManager.js`) and the ad-block list download use Node networking, i.e. they do not go through the browser proxy | Low | Planned with the updater hardening: switch to Electron `net` (session proxy) |
 | Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
 | AdBlocker filter download requires internet on first run | Low | Falls back to CRX extensions if unavailable |

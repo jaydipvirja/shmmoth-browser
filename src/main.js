@@ -191,6 +191,7 @@ class ShmmothBrowserApp {
 
     // 6. Wire DownloadManager to sessions (with multi-target broadcasting and dialog support)
     this.downloads = new DownloadManager(this.storage, {
+      isProxyActive: () => this.isProxyActive(),
       promptSaveDialog: async ({ filename, defaultPath, webContents }) => {
         const win = (webContents && BrowserWindow.fromWebContents(webContents)) || this.mainWindow;
         if (!win || win.isDestroyed()) return { cancelled: true };
@@ -236,8 +237,8 @@ class ShmmothBrowserApp {
     this.autofillService = new AutofillService();
     this.proxyManager = new ProxyManager(null, this.passwordVault);
 
-    // Apply saved proxy to defaultSession
-    await this.proxyManager.applyToSession(session.defaultSession).catch(err => {
+    // Apply saved proxy to EVERY browsing session (normal + incognito) so incognito never bypasses it
+    await this.applyProxyToAllSessions().catch(err => {
       log.warn('Initial proxy setup failed', { error: err.message });
     });
 
@@ -272,6 +273,64 @@ class ShmmothBrowserApp {
     }
 
     log.info('SHMMOTH Browser initialisation complete');
+  }
+
+  // ─── Proxy / network privacy ─────────────────────────────────────────────
+
+  /** All sessions that carry web content. A proxy must apply to every one of them. */
+  _browsingSessions() {
+    return [session.defaultSession, session.fromPartition('incognito')];
+  }
+
+  /**
+   * WebRTC can open UDP sockets that bypass an HTTP/SOCKS proxy and reveal the real IP.
+   * With a manual proxy only proxied UDP is allowed; otherwise Chromium's default is kept.
+   */
+  _webRtcPolicyForProxy() {
+    const cfg = this.proxyManager ? this.proxyManager.getConfig() : null;
+    return cfg && cfg.mode === 'manual' ? 'disable_non_proxied_udp' : 'default';
+  }
+
+  _applyWebRtcPolicy(wc) {
+    try {
+      if (wc && !wc.isDestroyed()) wc.setWebRTCIPHandlingPolicy(this._webRtcPolicyForProxy());
+    } catch (err) {
+      log.warn('Could not set WebRTC IP handling policy', { error: err.message });
+    }
+  }
+
+  /** Applies the saved proxy to the normal AND the incognito session, and refreshes WebRTC policy of open tabs. */
+  async applyProxyToAllSessions() {
+    if (!this.proxyManager) return;
+    for (const sess of this._browsingSessions()) {
+      await this.proxyManager.applyToSession(sess);
+    }
+    await this.refreshSystemProxyState();
+    for (const tab of Object.values(this.tabs)) {
+      if (tab && tab.view) this._applyWebRtcPolicy(tab.view.webContents);
+    }
+  }
+
+  /**
+   * In 'system' mode Chromium may still be using a proxy (Windows settings / PAC). Node-based code such as the
+   * Turbo downloader cannot see it, so remember whether one is in effect. Cached because callers are synchronous.
+   */
+  async refreshSystemProxyState() {
+    try {
+      const resolved = await session.defaultSession.resolveProxy('https://www.example.com/');
+      const hops = String(resolved || '').split(';').map(h => h.trim()).filter(Boolean);
+      this._systemProxyActive = hops.some(h => !/^DIRECT$/i.test(h));
+    } catch (_) {
+      this._systemProxyActive = true; // unknown → be conservative (keeps downloads on the proxied native path)
+    }
+  }
+
+  /** True when web traffic is currently routed through a proxy. */
+  isProxyActive() {
+    const cfg = this.proxyManager ? this.proxyManager.getConfig() : null;
+    if (!cfg || cfg.mode === 'direct') return false;
+    if (cfg.mode === 'manual') return Boolean(cfg.rules && cfg.rules.host);
+    return Boolean(this._systemProxyActive);
   }
 
   // ─── Chrome Extension Management (Stage 7) ───────────────────────────────
@@ -720,7 +779,8 @@ class ShmmothBrowserApp {
       '.js':   'application/javascript; charset=utf-8',
       '.json': 'application/json; charset=utf-8',
       '.png':  'image/png',
-      '.svg':  'image/svg+xml'
+      '.svg':  'image/svg+xml',
+      '.woff2': 'font/woff2'
     };
 
     protocol.handle('mtc', (request) => {
@@ -1315,6 +1375,7 @@ class ShmmothBrowserApp {
     this._reorderPinnedFirst(isIncognito);
 
     const wc = view.webContents;
+    this._applyWebRtcPolicy(wc);
 
     // ── Title + Favicon updates ──
     wc.on('page-title-updated', (_, title) => {
@@ -1637,6 +1698,7 @@ class ShmmothBrowserApp {
     // When an allowed popup window is created (such as Google OAuth login window)
     wc.on('did-create-window', (childWin, { url: childUrl }) => {
       if (!childWin || !childWin.webContents) return;
+      this._applyWebRtcPolicy(childWin.webContents);
       if (isGoogleAuthUrl(childUrl)) {
         childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
       }
@@ -3500,7 +3562,7 @@ class ShmmothBrowserApp {
       if (!this.proxyManager) return { success: false, error: 'Proxy manager unavailable' };
       try {
         const publicCfg = this.proxyManager.setConfig(config);
-        await this.proxyManager.applyToSession(session.defaultSession);
+        await this.applyProxyToAllSessions();
         return { success: true, config: publicCfg };
       } catch (err) {
         return { success: false, error: err.message };
@@ -3519,7 +3581,8 @@ class ShmmothBrowserApp {
 
     ipcMain.handle('proxy:reset', secureHandlerRaw(async () => {
       if (!this.proxyManager) return { success: false };
-      const res = await this.proxyManager.resetToSystem(session.defaultSession);
+      const res = await this.proxyManager.resetToSystem();
+      await this.applyProxyToAllSessions();
       return { success: true, config: res };
     }));
 

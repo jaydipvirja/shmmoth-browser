@@ -15,8 +15,8 @@
 const MTC_PAGE_CSP = [
   "default-src 'none'",
   "script-src 'self'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src https://fonts.gstatic.com data:",
+  "style-src 'self' 'unsafe-inline'",
+  "font-src 'self'",
   "img-src 'self' data: blob: http: https: file:",
   "connect-src 'self'",
   "object-src 'none'",
