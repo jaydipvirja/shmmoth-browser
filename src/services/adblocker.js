@@ -35,6 +35,10 @@ class AdBlockerService {
     if (!sessionInstance) return;
     this.sessions.add(sessionInstance);
 
+    // The full engine needs a network download first (seconds, or never when offline), and until then nothing would be
+    // blocked. Start with the short built-in list; when the engine is ready its own webRequest listeners replace this one.
+    if (!this.blocker) this.setupFallbackFilter(sessionInstance);
+
     try {
       console.log('Loading Ghostery ElectronBlocker rules (EasyList + EasyPrivacy)...');
       this.blocker = await this._loadBlocker();
@@ -44,8 +48,7 @@ class AdBlockerService {
         console.log('Ad-Blocker successfully activated for a session.');
       }
     } catch (err) {
-      console.error('Failed to initialize Ghostery ElectronBlocker, using fallback filter:', err);
-      this.setupFallbackFilter(sessionInstance);
+      console.error('Failed to initialize Ghostery ElectronBlocker, keeping the built-in fallback filter:', err);
     }
   }
 

@@ -49,6 +49,22 @@ jobs:
       - run: npm ci
       - run: npm run test:e2e
 
+  # The shipped configuration: build it as users get it and read the Electron fuses back from the binary
+  # (the E2E builds differ in one fuse, because Playwright needs --inspect).
+  packaged-fuses:
+    name: Production build + Electron fuses
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --dir --publish never
+      - run: node scripts/check-fuses.js dist/linux-unpacked/mtc-browser
+
   # Windows is the real target platform, so these two jobs are required like the Linux ones.
   e2e-windows:
     name: E2E (Windows)

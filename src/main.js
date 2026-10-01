@@ -34,6 +34,7 @@ const { checkNavigation, isPopupBlocked, isSafeToLoad }  = require('./security/u
 const { isTrustedInternalUrl, BROWSER_CHROME_URL }        = require('./security/trustedPages');
 const { MTC_PAGE_CSP }                                    = require('./security/csp');
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
+const { urlsFromArgv }                                    = require('./utils/launchArgs');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
@@ -155,6 +156,9 @@ class ShmmothBrowserApp {
     this._cachedHeaderHeight = 114;
     this._resizeTimeout = null;
     this.cleanUa = '';
+
+    // Web addresses given on the command line, waiting for the browser window to be ready
+    this.launchUrls = [];
   }
 
   // ─── Initialisation ─────────────────────────────────────────────────────────
@@ -229,10 +233,10 @@ class ShmmothBrowserApp {
       }
     });
 
-    // 8. Wire AdBlocker (Ghostery engine — defense in depth on top of CRX extensions)
+    // 8. Wire AdBlocker (Ghostery engine; a short built-in list covers the first seconds and offline starts)
     this.adBlocker = new AdBlockerService(this.storage);
     this.adBlocker.setupFilter(session.defaultSession).catch(err => {
-      log.warn('AdBlocker setupFilter failed (CRX extensions still active)', { error: err.message });
+      log.warn('AdBlocker setupFilter failed', { error: err.message });
     });
 
     // 9. Wire Content Permissions (Stage 5)
@@ -279,6 +283,26 @@ class ShmmothBrowserApp {
     }
 
     log.info('SHMMOTH Browser initialisation complete');
+  }
+
+  // ─── Single instance ─────────────────────────────────────────────────────
+
+  /**
+   * A second launch with the same profile (double-clicked shortcut, `shmmoth.exe <url>`) must not start another
+   * process that fights over the same data files; the running browser comes to the front and opens the URLs.
+   */
+  handleSecondInstance(argv) {
+    const urls = urlsFromArgv(argv);
+    log.info('Second instance handed over to the running browser', { urls: urls.length });
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed() || Object.keys(this.tabs).length === 0) {
+      this.launchUrls.push(...urls);                       // still starting up: the first tab will pick them up
+      return;
+    }
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    urls.forEach((u) => this.createTab(u));
   }
 
   // ─── Proxy / network privacy ─────────────────────────────────────────────
@@ -846,7 +870,9 @@ class ShmmothBrowserApp {
 
     this.mainWindow.webContents.on('did-finish-load', () => {
       if (Object.keys(this.tabs).length === 0) {
-        this.createTab('mtc://newtab');
+        const urls = this.launchUrls.splice(0);
+        if (urls.length === 0) this.createTab('mtc://newtab');
+        else urls.forEach((u) => this.createTab(u));
       } else {
         this.broadcastTabsUpdate();
         this.updateViewBounds();
@@ -3837,7 +3863,14 @@ process.on('unhandledRejection', (reason) => {
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 const shmmothApp = new ShmmothBrowserApp();
-shmmothApp.init().catch(err => {
-  console.error('[FATAL] SHMMOTH Browser failed to initialise:', err);
+if (!app.requestSingleInstanceLock()) {
+  log.info('SHMMOTH Browser is already running with this profile — handing over and exiting');
   app.quit();
-});
+} else {
+  shmmothApp.launchUrls = urlsFromArgv(process.argv);
+  app.on('second-instance', (_event, argv) => shmmothApp.handleSecondInstance(argv));
+  shmmothApp.init().catch(err => {
+    console.error('[FATAL] SHMMOTH Browser failed to initialise:', err);
+    app.quit();
+  });
+}

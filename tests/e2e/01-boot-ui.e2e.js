@@ -32,7 +32,9 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
     });
 
     await t.test('the app started with a default tab and no startup errors in the log', async () => {
-      assert(/Tab created: tab_1/.test(ctx.log.text), 'first tab not created');
+      // packaged builds ignore the early-output hook, so the first log lines can predate the test's view of the log
+      if (ctx.log.complete) assert(/Tab created: tab_1/.test(ctx.log.text), 'first tab not created');
+      assert((await listWebContents(app)).some((w) => w.url.startsWith('mtc://newtab')), 'no new-tab page open');
       assert(!/\[FATAL\]|Uncaught exception in main process/.test(ctx.log.text), 'startup error in log');
     });
 

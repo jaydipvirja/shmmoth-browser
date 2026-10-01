@@ -99,6 +99,7 @@ const NO_SYSTEM_PROXY_ENV = {
  *   userData   the --user-data-dir in use (pass it back via opts.userData to simulate a restart)
  *   log        { text } – everything the app wrote to stdout/stderr
  *   close()    closes the app
+ *   (opts.firstTabPrefix: URL prefix of the tab to wait for at start-up, default mtc://newtab)
  */
 async function launchApp(opts = {}) {
   const userData = opts.userData || tmpDir();
@@ -148,8 +149,29 @@ async function launchApp(opts = {}) {
   ctx.chrome = await chromeWindow(app, { incognito: false });
   await waitFor(() => ctx.chrome.evaluate(() => Boolean(window.mtcAPI)), { message: 'window.mtcAPI in the chrome window', timeout: 30000 });
   // let start-up work (tab creation, extension load, …) settle
-  await waitFor(() => listWebContents(app).then((l) => l.some((w) => w.url.startsWith('mtc://newtab'))), { message: 'the first tab', timeout: 30000 });
+  const firstTab = opts.firstTabPrefix || 'mtc://newtab';
+  await waitFor(() => listWebContents(app).then((l) => l.some((w) => w.url.startsWith(firstTab))), { message: 'the first tab', timeout: 30000 });
+  ctx.executablePath = executablePath;
+  ctx.baseArgs = packaged ? [] : [ROOT];
   return ctx;
+}
+
+/**
+ * Starts a SECOND process of the app on the same profile (what a double-clicked shortcut does) and waits for it to
+ * exit. Resolves { code, ms }. Rejects if it is still running after `timeout` ms (it should hand over and quit).
+ */
+function runSecondInstance(ctx, extraArgs = [], { timeout = 30000 } = {}) {
+  const { spawn } = require('child_process');
+  const args = [...ctx.baseArgs, `--user-data-dir=${ctx.userData}`, '--disable-gpu'];
+  if (needsNoSandbox()) args.push('--no-sandbox');
+  args.push(...extraArgs);
+  return new Promise((resolve, reject) => {
+    const started = Date.now();
+    const child = spawn(ctx.executablePath, args, { env: buildEnv({ ...NO_SYSTEM_PROXY_ENV }), stdio: 'ignore' });
+    const timer = setTimeout(() => { child.kill('SIGKILL'); reject(new Error(`the second instance was still running after ${timeout} ms`)); }, timeout);
+    child.on('exit', (code, signal) => { clearTimeout(timer); resolve({ code, signal, ms: Date.now() - started }); });
+    child.on('error', (err) => { clearTimeout(timer); reject(err); });
+  });
 }
 
 /** The browser-chrome window (normal or incognito). */
@@ -256,7 +278,7 @@ function fileHandler({ size = 3 * 1024 * 1024, filename = 'file.bin', onRequest 
 
 module.exports = {
   ROOT, sleep, assert, assertEqual, runSuite, waitFor,
-  launchApp, chromeWindow, api, tmpDir,
+  launchApp, runSecondInstance, chromeWindow, api, tmpDir,
   listWebContents, waitForWebContents, evalIn, openTab,
   installMonitors, cspViolations, hostsContacted,
   startServer, fileHandler,

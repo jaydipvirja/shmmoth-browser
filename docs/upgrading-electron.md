@@ -33,4 +33,4 @@ Then verify (all must pass) before releasing:
 ## Known caveats
 
 * Ad blocking is done by the Ghostery engine (`AdBlockerService`). Electron implements only a subset of the Chrome extension APIs (no blocking `webRequest`), so extension-based blockers such as uBlock Origin cannot work in this browser; the copy that used to be bundled was removed (the app also drops its stale registry entry on start).
-* Electron "fuses" (`runAsNode`, `onlyLoadAppFromAsar`, ASAR integrity, …) are not flipped yet — see electron-builder's `electronFuses` option.
+* Electron fuses are configured in `package.json → build.electronFuses` and verified by `scripts/check-fuses.js` (CI builds the production configuration on Linux and checks the binary). After an upgrade, check the Electron release notes for new fuses; `grantFileProtocolExtraPrivileges` and `enableCookieEncryption` are deliberately left at their defaults (see `security.md`).

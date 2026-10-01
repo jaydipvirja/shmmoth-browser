@@ -30,7 +30,9 @@ const packaged = has('--packaged');
 // Electron-run scripts that talk to live services (kept for manual use, not part of the automated suite)
 const UNIT_EXCLUDE = new Set(['google-login-verification.test.js']);
 // E2E suites that make sense against a packaged build (05 drives the raw Electron binary with a fixture app)
-const PACKAGED_E2E = /^0[1-46]-/;
+// the one fuse the test build turns back on (see the build step below)
+const TEST_BUILD_FUSE_OVERRIDE = 'true';
+const PACKAGED_E2E = /^0[1-467]-/;
 
 const unitTests = fs.readdirSync(__dirname).filter((f) => f.endsWith('.test.js') && !UNIT_EXCLUDE.has(f)).sort();
 const e2eTests = fs.readdirSync(path.join(__dirname, 'e2e')).filter((f) => f.endsWith('.e2e.js')).sort()
@@ -110,13 +112,18 @@ async function main() {
     if (packaged) {
       if (!process.env.APP_EXE && !has('--no-build')) {
         console.log('\n▶ Building an unpacked app with electron-builder --dir …\n');
-        const b = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['electron-builder', '--dir', '--publish', 'never'],
+        // Playwright can only attach to an Electron binary whose enableNodeCliInspectArguments fuse is on; every other
+        // production fuse stays as configured in package.json and is verified below.
+        const b = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx',
+          ['electron-builder', '--dir', '--publish', 'never', `-c.electronFuses.enableNodeCliInspectArguments=${TEST_BUILD_FUSE_OVERRIDE}`],
           { cwd: ROOT, stdio: 'inherit', shell: process.platform === 'win32' });
         if (b.status !== 0) { console.error('electron-builder failed'); process.exit(1); }
       }
       env.APP_EXE = packagedExecutable();
       if (!fs.existsSync(env.APP_EXE)) { console.error(`Packaged app not found: ${env.APP_EXE}`); process.exit(1); }
       console.log(`Packaged app: ${env.APP_EXE}`);
+      const fuses = spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'check-fuses.js'), env.APP_EXE, '--ignore=enableNodeCliInspectArguments'], { cwd: ROOT, stdio: 'inherit' });
+      if (fuses.status !== 0) { console.error('The packaged app does not carry the configured Electron fuses'); process.exit(1); }
     }
     console.log(`\n▶ End-to-end tests (${selected(e2eTests).length})${packaged ? ' — packaged build' : ''}\n`);
     for (const f of selected(e2eTests)) {

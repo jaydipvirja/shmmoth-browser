@@ -110,6 +110,12 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 - **No third-party fonts.** Inter is bundled (`pages/fonts.css`, SIL OFL licence in `pages/inter-OFL.txt`); the pages no longer contact Google Fonts and the CSP only allows `'self'` fonts.
 - **Ad blocker.** One filter engine is shared by the normal and incognito session; the on/off setting applies to both.
 
+## Process hardening
+
+- **Electron fuses** (`package.json → build.electronFuses`, flipped by electron-builder and read back from the binary by `scripts/check-fuses.js`): `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` / `NODE_EXTRA_CA_CERTS` and `--inspect` are ignored, and the app is loaded only from `app.asar` with its integrity validated (Windows/macOS). Without these, the signed `SHMMOTH Browser.exe` can be turned into a general-purpose Node interpreter by an environment variable, or have its code swapped out of an unpacked `app` folder. Consequence: `NODE_EXTRA_CA_CERTS` (corporate root CA for Node-side requests such as the ad-block list download) is not honoured in a shipped build.
+- **Not enabled on purpose:** `grantFileProtocolExtraPrivileges` stays at Electron's default because the browser chrome and the bubble windows are still loaded from `file://` (a packaged build cannot load them with the fuse off). Serving them through `mtc://` would allow switching it off. `enableCookieEncryption` is a one-way switch for existing profiles and gives little against malware running as the same Windows user, so it is left for a deliberate decision.
+- **Single instance.** `app.requestSingleInstanceLock()` — a second launch on the same profile hands its URLs to the running window and exits instead of racing it on the data files. Only `http(s)` addresses from the command line are opened (`utils/launchArgs.js`); files, `mtc://` and script URLs are dropped.
+
 ## Known Remaining Risks (Phase 1)
 
 | Risk | Severity | Mitigation |
@@ -120,5 +126,5 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 | Installer is not Authenticode-signed (Windows SmartScreen warning on first install) | Low | Buy a code-signing certificate; update signing (Ed25519) already protects updates |
 | Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
-| AdBlocker filter download requires internet on first run | Low | Without the lists a small built-in fallback filter is used until the next start |
+| AdBlocker filter download requires internet at start-up | Low | A small built-in list of the biggest ad networks is armed immediately and stays in force when the download fails; the full engine replaces it once the lists are loaded |
 | notes.html inline script has no XSS protection beyond escapeHtml | Low | Notes content is user-typed only, not web content |

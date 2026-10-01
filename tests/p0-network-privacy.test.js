@@ -28,7 +28,7 @@ const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_p0_net_'));
 const SRC  = path.join(__dirname, '..', 'src');
 
 // ── Module mocks: electron + the Ghostery engine ─────────────────────────────
-const ghostery = { fetchCalls: 0, blockers: [] };
+const ghostery = { fetchCalls: 0, blockers: [], gate: null, fail: false };
 const Module = require('module');
 const origLoad = Module._load;
 Module._load = function (request, ...args) {
@@ -44,12 +44,18 @@ Module._load = function (request, ...args) {
       ElectronBlocker: {
         fromPrebuiltAdsAndTracking: async () => {
           ghostery.fetchCalls++;
+          if (ghostery.gate) await ghostery.gate;                     // simulates the slow list download
+          if (ghostery.fail) throw new Error('offline');
           const handlers = {};
           const blocker = {
             config: {},
             enabledSessions: new Set(),
-            enableBlockingInSession(s) { this.enabledSessions.add(s); },
-            disableBlockingInSession(s) { this.enabledSessions.delete(s); },
+            // like the real engine: registering its own webRequest listener replaces whatever was there
+            enableBlockingInSession(s) {
+              this.enabledSessions.add(s);
+              if (s.webRequest) s.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, Object.assign((d, cb) => cb({}), { engine: true }));
+            },
+            disableBlockingInSession(s) { this.enabledSessions.delete(s); if (s.webRequest) s.webRequest.onBeforeRequest(null); },
             on(evt, cb) { handlers[evt] = cb; },
             fire(evt) { handlers[evt] && handlers[evt](); }
           };
@@ -91,6 +97,17 @@ function mockWebContents() {
     getURL: () => 'https://example.com/page',
     session: { getUserAgent: () => 'UA', cookies: { get: async () => [] } }
   };
+}
+/** A session whose webRequest.onBeforeRequest keeps only the latest listener, like Electron's. */
+function webRequestSession(extra = {}) {
+  const sess = { ...extra, listener: null };
+  sess.webRequest = { onBeforeRequest(filter, handler) { sess.listener = typeof filter === 'function' ? filter : (handler || null); } };
+  return sess;
+}
+function verdict(sess, url) {
+  let out = null;
+  sess.listener({ url }, (r) => { out = r; });
+  return out;
 }
 function mockSession() {
   const s = { downloadedUrls: [], listeners: {} };
@@ -191,7 +208,7 @@ function mockSession() {
   await test('one engine is built and shared by the normal and incognito session', async () => {
     ghostery.fetchCalls = 0; ghostery.blockers.length = 0;
     const ab = new AdBlockerService(newStorage('ab1'));
-    const normal = { name: 'normal' }, incog = { name: 'incognito' };
+    const normal = webRequestSession({ name: 'normal' }), incog = webRequestSession({ name: 'incognito' });
     await ab.setupFilter(normal);
     await ab.setupFilter(incog);
     assert(ghostery.fetchCalls === 1, 'filter lists were downloaded ' + ghostery.fetchCalls + ' times');
@@ -202,7 +219,7 @@ function mockSession() {
   await test('REGRESSION: opening incognito no longer detaches the normal session from the setting', async () => {
     ghostery.blockers.length = 0;
     const ab = new AdBlockerService(newStorage('ab2'));
-    const normal = {}, incog = {};
+    const normal = webRequestSession(), incog = webRequestSession();
     await ab.setupFilter(normal);
     await ab.setupFilter(incog);          // incognito window opened
     ab.setEnabled(false);                  // user switches the ad blocker off
@@ -217,17 +234,59 @@ function mockSession() {
     ghostery.blockers.length = 0;
     const st = newStorage('ab3'); st.updateSettings({ adBlockerEnabled: false });
     const ab = new AdBlockerService(st);
-    const s = {};
+    const s = webRequestSession();
     await ab.setupFilter(s);
     assert(ghostery.blockers[0].enabledSessions.size === 0);
     ab.setEnabled(true);
     assert(ghostery.blockers[0].enabledSessions.has(s));
   });
 
+  await test('the built-in list blocks the big ad networks immediately, before the engine has downloaded its lists', async () => {
+    ghostery.blockers.length = 0;
+    let release; ghostery.gate = new Promise((r) => { release = r; });
+    try {
+      const ab = new AdBlockerService(newStorage('ab5'));
+      const s = webRequestSession();
+      const pending = ab.setupFilter(s);
+      await new Promise((r) => setImmediate(r));
+      assert(s.listener && !s.listener.engine, 'the fallback list should already be armed');
+      assert(verdict(s, 'https://googleads.g.doubleclick.net/pagead/ads').cancel === true, 'ad network not blocked while the engine loads');
+      assert(verdict(s, 'https://example.com/index.html').cancel === false, 'normal sites must pass');
+      release(); await pending;
+      assert(s.listener && s.listener.engine === true, 'once ready, the engine takes over from the fallback');
+      assert(ab.getBlockedCount() === 1, 'blocked count ' + ab.getBlockedCount());
+    } finally { ghostery.gate = null; }
+  });
+
+  await test('offline start: the engine cannot load, the built-in list keeps protecting the session', async () => {
+    ghostery.blockers.length = 0; ghostery.fail = true;
+    const origErr = console.error; console.error = () => {};
+    try {
+      const ab = new AdBlockerService(newStorage('ab6'));
+      const s = webRequestSession();
+      await ab.setupFilter(s);
+      assert(s.listener && !s.listener.engine && verdict(s, 'https://adservice.google.com/x').cancel === true);
+    } finally { ghostery.fail = false; console.error = origErr; }
+  });
+
+  await test('switching the blocker off lets the built-in list through too', async () => {
+    ghostery.blockers.length = 0; ghostery.fail = true;
+    const origErr = console.error; console.error = () => {};
+    try {
+      const ab = new AdBlockerService(newStorage('ab7'));
+      const s = webRequestSession();
+      await ab.setupFilter(s);
+      ab.setEnabled(false);
+      assert(verdict(s, 'https://googleads.g.doubleclick.net/x').cancel === false, 'still blocking while switched off');
+      ab.setEnabled(true);
+      assert(verdict(s, 'https://googleads.g.doubleclick.net/x').cancel === true);
+    } finally { ghostery.fail = false; console.error = origErr; }
+  });
+
   await test('blocked-request counter aggregates across sessions', async () => {
     ghostery.blockers.length = 0;
     const ab = new AdBlockerService(newStorage('ab4'));
-    await ab.setupFilter({}); await ab.setupFilter({});
+    await ab.setupFilter(webRequestSession()); await ab.setupFilter(webRequestSession());
     ghostery.blockers[0].fire('request-blocked'); ghostery.blockers[0].fire('request-redirected');
     assert(ab.getBlockedCount() === 2);
   });
