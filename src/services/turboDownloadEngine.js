@@ -61,6 +61,7 @@ const DEFAULT_LIMITS = Object.freeze({
 });
 
 const MAX_REGIONS = 32;                    // bars shown in the download list
+const PART_SUFFIX = '.shmmoth-part';       // a download is written here until it is complete
 
 const TLS_ERROR = /^(UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT|UNABLE_TO_GET_ISSUER_CERT_LOCALLY|SELF_SIGNED_CERT_IN_CHAIN|DEPTH_ZERO_SELF_SIGNED_CERT|CERT_HAS_EXPIRED|CERT_NOT_YET_VALID|CERT_UNTRUSTED|HOSTNAME_MISMATCH|ERR_TLS_.*|ERR_SSL_.*)$/;
 const NETWORK_DOWN = /EADDRNOTAVAIL|ENETUNREACH|EHOSTUNREACH|ENETDOWN|ETIMEDOUT|EINVAL/;
@@ -451,7 +452,8 @@ class TurboDownloadEngine extends EventEmitter {
     const task = {
       id,
       url: finalUrl,
-      savePath,
+      savePath,                                  // where the finished file ends up
+      workPath: savePath + PART_SUFFIX,          // where it is written meanwhile (renamed when complete)
       totalBytes,
       receivedBytes: 0,
       state: 'progressing',
@@ -485,9 +487,12 @@ class TurboDownloadEngine extends EventEmitter {
       fs.mkdirSync(dir, { recursive: true });
     }
 
-    // Open target file for random access positional writing (w+)
+    // Open the part file for random access positional writing (w+). The final name is only taken at the very end: a
+    // file under the final name could be removed by something else that used the name before (the browser's own,
+    // cancelled download of the same file deletes its placeholder shortly after the cancel — it did delete a finished
+    // Turbo download on Windows).
     try {
-      task.fd = fs.openSync(savePath, 'w+');
+      task.fd = fs.openSync(task.workPath, 'w+');
     } catch (err) {
       this.activeTasks.delete(id);
       throw err;
@@ -1090,11 +1095,26 @@ class TurboDownloadEngine extends EventEmitter {
     const run = () => {
       try { if (task.fd !== null) fs.closeSync(task.fd); } catch (_) {}
       task.fd = null;
-      if (remove) { try { if (fs.existsSync(task.savePath)) fs.unlinkSync(task.savePath); } catch (_) {} }
+      if (remove) { try { if (fs.existsSync(task.workPath)) fs.unlinkSync(task.workPath); } catch (_) {} }
       if (done) done();
     };
     if (task.pendingWrites > 0) task.onDrained = run;
     else run();
+  }
+
+  /**
+   * Gives the finished part file its final name. Retried for a moment: on Windows a virus scanner may still hold the
+   * file that was just closed.
+   * @param {function(Error|null)} done
+   */
+  _commitFile(task, done, attempt = 0) {
+    try {
+      fs.renameSync(task.workPath, task.savePath);
+      return done(null);
+    } catch (err) {
+      if (attempt >= 15) return done(err);
+      setTimeout(() => this._commitFile(task, done, attempt + 1), 150);
+    }
   }
 
   _finishTask(task) {
@@ -1108,16 +1128,28 @@ class TurboDownloadEngine extends EventEmitter {
     if (task.timer) clearInterval(task.timer);
     this._killWorkers(task);
     this.activeTasks.delete(task.id);
-    // announced once the file is closed: the caller may open or move it at once (Windows refuses while it is open)
+    // announced once the file is closed and has its final name: the caller may open or move it at once
     this._disposeFile(task, {}, () => {
-      this.emit('completed', {
-        id: task.id,
-        savePath: task.savePath,
-        total: task.totalBytes,
-        received: task.receivedBytes,
-        isTurbo: task.isTurbo,
-        isMultiSource: task.isMultiSource,
-        threads: task.threadsCount
+      this._commitFile(task, (err) => {
+        if (err) {
+          try { fs.unlinkSync(task.workPath); } catch (_) {}
+          return this.emit('error', {
+            id: task.id,
+            error: 'The finished file could not be saved as "' + path.basename(task.savePath) + '" (' + (err.code || err.message) + ').',
+            received: task.receivedBytes,
+            status: null,
+            stalled: false
+          });
+        }
+        this.emit('completed', {
+          id: task.id,
+          savePath: task.savePath,
+          total: task.totalBytes,
+          received: task.receivedBytes,
+          isTurbo: task.isTurbo,
+          isMultiSource: task.isMultiSource,
+          threads: task.threadsCount
+        });
       });
     });
   }
@@ -1190,7 +1222,7 @@ class TurboDownloadEngine extends EventEmitter {
     task.headers = { ...(task.headers || {}), ...(headers || {}) };
 
     if (task.fd === null) {
-      task.fd = fs.openSync(task.savePath, 'r+');
+      task.fd = fs.openSync(task.workPath, 'r+');
     }
 
     this._startSpeedMonitoring(task);

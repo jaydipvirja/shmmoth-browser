@@ -294,6 +294,35 @@ async function main() {
     eq(sha(fs.readFileSync(savePath)), sha(payload), 'content');
   });
 
+  await test('the file is written under a temporary name and only takes its final name when complete (a late delete of the old placeholder cannot take it away)', async () => {
+    const payload = crypto.randomBytes(6 * 1024 * 1024);
+    const srv = await listen((req, res) => serveRange(req, res, payload, rangeOf(req, payload.length) || { start: 0, end: payload.length - 1 }, { ratePerSec: 3 * 1024 * 1024 }));
+    const savePath = path.join(base, 'placeholder.bin');
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, defaultThreads: 4, blockBytes: 512 * 1024 });
+    const done = new Promise((resolve) => { engine.once('completed', resolve); engine.once('error', (e) => resolve({ error: e.error })); });
+    await engine.start({ id: 'placeholder', url: `${srv.url}/f.bin`, savePath, totalBytes: payload.length, threads: 4, multiSource: false });
+    await sleep(250);
+    eq(fs.existsSync(savePath), false, 'the final name must not exist while downloading');
+    assert(fs.existsSync(savePath + '.shmmoth-part'), 'the part file is being written');
+    // the browser\'s cancelled download of the same name deleting its placeholder "late"
+    fs.writeFileSync(savePath, 'placeholder'); await sleep(100); fs.unlinkSync(savePath);
+    const r = await done;
+    await srv.close();
+    assert(!r.error, r.error);
+    eq(sha(fs.readFileSync(savePath)), sha(payload), 'content under the final name');
+    eq(fs.existsSync(savePath + '.shmmoth-part'), false, 'no part file left');
+  });
+
+  await test('a failed or cancelled download leaves neither the final file nor the part file', async () => {
+    const srv = await listen((req, res) => { res.writeHead(403); res.end(); });
+    const savePath = path.join(base, 'gone.bin');
+    const engine = new TurboDownloadEngine({ minTurboSize: 1024, defaultThreads: 2 });
+    const r = await run(engine, { id: 'gone', url: `${srv.url}/f.bin`, savePath, totalBytes: 4 * 1024 * 1024, threads: 2, multiSource: false });
+    await srv.close();
+    eq(r.ok, false);
+    eq(fs.existsSync(savePath), false); eq(fs.existsSync(savePath + '.shmmoth-part'), false);
+  });
+
   await test('virtual adapters (WSL, VMs, VPNs, containers) are recognised so they never count as extra networks', async () => {
     const real = os.networkInterfaces;
     os.networkInterfaces = () => ({

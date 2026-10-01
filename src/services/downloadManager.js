@@ -120,12 +120,12 @@ function cleanupPartialFile(filePath) {
       fs.unlinkSync(filePath);
     }
   } catch (_) {}
-  try {
-    const crdownload = `${filePath}.crdownload`;
-    if (fs.existsSync(crdownload)) {
-      fs.unlinkSync(crdownload);
-    }
-  } catch (_) {}
+  for (const suffix of ['.crdownload', '.shmmoth-part']) {
+    try {
+      const partial = `${filePath}${suffix}`;
+      if (fs.existsSync(partial)) fs.unlinkSync(partial);
+    } catch (_) {}
+  }
 }
 
 /**
@@ -831,6 +831,7 @@ class DownloadManager {
       // Chromium removes its placeholder file shortly after the cancel: the fast engine must not open the same file
       // before that (the late removal would delete the file it is writing to)
       savePath = await this._afterPlaceholderGone(savePath);
+      await new Promise((r) => setTimeout(r, 250));      // grace: the file thread may still be finishing with the cancelled item
 
       try {
         return await this.startTurboDownload({
