@@ -137,6 +137,8 @@ function mockSession() {
     const dm = new DownloadManager(newStorage('dm' + Math.random()), { isProxyActive: () => proxyActive.value });
     dm.turboStarts = [];
     dm.turboEngine.start = async (opts) => { dm.turboStarts.push(opts); };
+    // the browser's own download is only given up once a ranged request has proven the link (no network in this test)
+    dm.turboEngine.probe = async (url) => ({ acceptsRanges: true, totalBytes: 50 * 1024 * 1024, finalUrl: url, filename: 'big.iso', status: 206 });
     return dm;
   }
 
