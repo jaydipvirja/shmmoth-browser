@@ -51,8 +51,9 @@ function sanitizeFilename(name) {
   // Strip null bytes and control characters
   let clean = name.replace(/[\x00-\x1f\x80-\x9f]/g, '').trim();
 
-  // Strip directory paths and path traversal
-  clean = path.basename(clean);
+  // Strip directory paths and path traversal. Servers send both "/" and "\" separators regardless of the
+  // host OS, and path.basename() only knows the host's own separator, so split on both.
+  clean = clean.split(/[\\/]/).pop();
 
   // Replace invalid characters for Windows and Unix: < > : " / \ | ? *
   clean = clean.replace(/[<>:"/\\|?*]/g, '_');
