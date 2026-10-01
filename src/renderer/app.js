@@ -1643,7 +1643,7 @@ function renderDownloadTray() {
       metaText = `Cancelled`;
     } else if (d.state === 'interrupted') {
       progressBarClass = 'interrupted';
-      metaText = `Interrupted`;
+      metaText = d.error ? `Failed • ${d.error}` : `Interrupted`;
     } else if (d.isPaused) {
       progressBarClass = 'paused';
       metaText = `${formatDownloadBytes(d.received)} / ${formatDownloadBytes(d.total)} • Paused`;
@@ -1689,7 +1689,7 @@ function renderDownloadTray() {
         <div class="download-tray-progress-bg">
           <div class="download-tray-progress-bar ${progressBarClass}" style="width: ${pct}%;"></div>
         </div>
-        <div class="download-tray-meta">${escapeHtml(metaText)}</div>
+        <div class="download-tray-meta" title="${escapeHtml(metaText)}">${escapeHtml(metaText)}</div>
       </div>
       <div class="download-tray-buttons">
         ${buttonsHtml}

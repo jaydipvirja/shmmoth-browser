@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.2
+
+### Fixes
+- **Downloads can no longer get stuck at "0 B"** (for example a 13 GB file that never started). The fast multi-stream engine now checks every answer from the server. If the server refuses its requests, ignores byte ranges, hangs, or closes the connection early, the browser handles it instead of waiting for ever: a refused or silent start continues automatically with the standard Chromium downloader (same entry in the list), a connection that drops is resumed where it stopped, and a download that really cannot continue is shown as *Failed* with the reason (hover for the full text). Before, a refusing server could even end with a "completed" file full of error text.
+- **Retry** now always uses the standard downloader (the most compatible one) and is no longer ignored because the same link is still listed.
+- A download that was still running when the browser was closed no longer comes back as a download that looks alive (Pause and Cancel did nothing). It is shown as interrupted; Retry or remove it.
+- **Cancel** and **Remove** now really stop a fast download (it used to continue in the background), also when pressed right after it started. A cancelled or failed download leaves no half-written file of the full size behind.
+- Privacy: the cookies of the page a download came from are no longer written to the download history, and are not passed on when a download is redirected to another website.
+- The new tab page showed "Chromium 130" whatever the real version was; it now shows the version that runs.
+
 ## 1.1.1
 
 ### New
