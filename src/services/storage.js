@@ -147,7 +147,23 @@ class StorageService {
     return JSON.parse(JSON.stringify(this.defaultData));
   }
 
+  /**
+   * Like save() but coalesced: history is written on every page load and title change, and each save is an
+   * fsync'ed atomic write of the whole file. Use for high-frequency, low-value changes; flush() on the way out.
+   */
+  saveSoon(delayMs = 2000) {
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => this.save(), delayMs);
+    if (this._saveTimer.unref) this._saveTimer.unref();
+  }
+
+  /** Writes pending changes now (app quitting / window closing). */
+  flush() {
+    if (this._saveTimer) this.save();
+  }
+
   save() {
+    if (this._saveTimer) { clearTimeout(this._saveTimer); this._saveTimer = null; }
     if (this.persistBlocked) return;
     try {
       writeJsonAtomic(this.storagePath, this.data, { backupIntervalMs: BACKUP_INTERVAL_MS, validate: isPlainObject });
@@ -347,7 +363,22 @@ class StorageService {
     if (this.data.history.length > 2000) {
       this.data.history = this.data.history.slice(0, 2000);
     }
-    this.save();
+    this.saveSoon();
+  }
+
+  /**
+   * The title and icon of a page are only known after it has been added to the history (the navigation event fires
+   * first), so they are filled in when they arrive. Unknown addresses are ignored.
+   */
+  updateHistoryEntry(url, { title, favicon } = {}) {
+    if (typeof url !== 'string' || !this.data.history) return false;
+    const entry = this.data.history.find(h => h.url === url.trim());
+    if (!entry) return false;
+    let changed = false;
+    if (typeof title === 'string' && title && title !== 'New Tab' && title !== entry.title) { entry.title = title.slice(0, 500); changed = true; }
+    if (typeof favicon === 'string' && favicon && favicon.length <= 2048 && favicon !== entry.favicon) { entry.favicon = favicon; changed = true; }
+    if (changed) this.saveSoon();
+    return changed;
   }
 
   deleteHistoryItem(id) {

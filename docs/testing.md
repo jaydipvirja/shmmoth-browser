@@ -4,7 +4,7 @@
 |---|---|---|---|
 | `npm test` | **Unit tests** (`tests/*.test.js`) — plain Node, Electron is mocked | Node ≥ 22.12 | ~15 s |
 | `npm run test:e2e` | **End-to-end tests** (`tests/e2e/*.e2e.js`) — the real app driven through Playwright | a display (Linux: Xvfb, started automatically) | ~30 s |
-| `npm run test:e2e:packaged` | E2E suites 01–04 and 06–09 against an `electron-builder --dir` build (`app.asar`, `app.isPackaged`, production Electron fuses except `--inspect`, which Playwright needs; the other fuses are verified on the binary first) | as above + a build (~1 min) | ~1.5 min |
+| `npm run test:e2e:packaged` | E2E suites 01–04, 06–10 against an `electron-builder --dir` build (`app.asar`, `app.isPackaged`, production Electron fuses except `--inspect`, which Playwright needs; the other fuses are verified on the binary first) | as above + a build (~1 min) | ~1.5 min |
 | `npm run test:all` | unit + E2E | | |
 
 Useful options (after `--`): `--grep=<text>` (file name filter), `--list`, `--no-build` (reuse `dist/`). Set `APP_EXE=<path>` to test any other build. In containers/CI as root, or where user namespaces are restricted, set `E2E_NO_SANDBOX=1` (done automatically for root).
@@ -22,6 +22,7 @@ Useful options (after `--`): `--grep=<text>` (file name filter), `--list`, `--no
 | `07-single-instance` | a second launch on the same profile hands its URL to the running window and exits (no second window); command-line URLs open as tabs, only `http(s)` is accepted |
 | `08-session-restore` | open tabs written to disk (never incognito), restored after a normal exit and after SIGKILL with order / titles / pinned / selected tab, only the selected tab loads until the others are opened, command-line URL added on top, default setting restores nothing, damaged session file kept aside |
 | `09-error-pages` | an unreachable page shows mtc://error (plain explanation + error code) instead of a blank tab; the address bar keeps the failed address with a warning icon; not in history; session saves the failed address; Try again / Reload retry it; ERR_ABORTED (downloads) is not an error; markup in the address is inert; works in incognito |
+| `10-quality` | history shows each page under its own title (no stale title from the previous page); opening a downloaded program (.exe …) asks first and Cancel does not start it |
 
 The suites replay the actual attacks and failures that were fixed (they fail on the original code: 24 failures across suites 01–04), so a regression shows up as a red test, not as a user report.
 

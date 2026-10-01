@@ -119,8 +119,9 @@ runSuite('SHMMOTH Browser — E2E 08: session restore', async (t) => {
     await t.test('a URL from the command line is opened in addition to the restored tabs, and is the selected one', async () => {
       const ctx = await launchApp({ userData: ud, args: [`${site.url}/from-cli`], firstTabPrefix: `${site.url}/from-cli` });
       try {
-        const tabs = await strip(ctx);
-        assertEqual(tabs.find((x) => x.active).title, 'page /from-cli', 'selected tab');
+        // the title of a page that was just opened arrives a moment after its address
+        const tabs = await waitFor(async () => { const t2 = await strip(ctx); const a = t2.find((x) => x.active); return a && a.title === 'page /from-cli' ? t2 : null; },
+          { message: 'the command-line page to be the selected tab' });
         assert(tabs.some((x) => x.title === 'page /a') && tabs.some((x) => x.title === 'page /c'), 'restored tabs missing');
       } finally { await ctx.close(); }
     });

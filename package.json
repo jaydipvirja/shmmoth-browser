@@ -33,8 +33,7 @@
     "playwright-core": "^1.63.0"
   },
   "dependencies": {
-    "@ghostery/adblocker-electron": "^2.18.2",
-    "cross-fetch": "^4.1.0"
+    "@ghostery/adblocker-electron": "^2.18.2"
   },
   "build": {
     "appId": "com.mtc.shmmothbrowser",

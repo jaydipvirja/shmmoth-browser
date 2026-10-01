@@ -128,10 +128,35 @@ function cleanupPartialFile(filePath) {
   } catch (_) {}
 }
 
+/**
+ * File types that run code (or open a shell / macro document) when opened. Opening one from the downloads list asks
+ * first, like Chrome and Edge do. Judged by the LAST extension, with the trailing dots and spaces that Windows ignores
+ * removed, so "invoice.pdf.exe" and "setup.exe. " are caught.
+ */
+const DANGEROUS_EXTENSIONS = new Set([
+  'exe', 'msi', 'msp', 'bat', 'cmd', 'com', 'scr', 'pif', 'cpl', 'dll', 'sys', 'drv', 'ocx',
+  'js', 'jse', 'vbs', 'vbe', 'wsf', 'wsh', 'ws', 'ps1', 'ps1xml', 'psc1', 'psm1', 'hta', 'jar',
+  'lnk', 'reg', 'msc', 'inf', 'scf', 'url', 'library-ms', 'search-ms', 'diagcab', 'chm',
+  'appx', 'msix', 'appxbundle', 'msixbundle', 'application', 'gadget',
+  'docm', 'dotm', 'xlsm', 'xlam', 'pptm', 'ppam',
+  'sh', 'command', 'app', 'pkg', 'dmg', 'deb', 'rpm', 'run'
+]);
+
+function isDangerousFile(nameOrPath) {
+  if (typeof nameOrPath !== 'string') return false;
+  const base = nameOrPath.split(/[\\/]/).pop().replace(/[. ]+$/, '');
+  const dot = base.lastIndexOf('.');
+  if (dot < 0) return false;
+  return DANGEROUS_EXTENSIONS.has(base.slice(dot + 1).toLowerCase());
+}
+
 class DownloadManager {
   /**
    * @param {object|null} storage StorageService instance
    * @param {object} [options]
+   * @param {function} [options.confirmOpenDangerous] async ({ filename, filePath }) => boolean. Asked before a file
+   *        that can run code (.exe, .msi, .bat, .js, …) is opened; without it such files are never opened, only shown in
+   *        their folder.
    * @param {function} [options.promptSaveDialog] Optional async callback for "Ask where to save"
    * @param {function} [options.isProxyActive] (isIncognito:boolean) => boolean. The Turbo engine talks to the
    *        network with Node's http/https, which ignores the browser's proxy settings; while a proxy is in use
@@ -142,6 +167,7 @@ class DownloadManager {
     this.downloads = {};
     this._onUpdate = null;
     this._promptSaveDialog = options.promptSaveDialog || null;
+    this._confirmOpenDangerous = typeof options.confirmOpenDangerous === 'function' ? options.confirmOpenDangerous : null;
     this._isProxyActive = typeof options.isProxyActive === 'function' ? options.isProxyActive : null;
     this._sessions = { default: null, incognito: null };
 
@@ -877,11 +903,24 @@ class DownloadManager {
     return false;
   }
 
-  openFile(id) {
+  async openFile(id) {
     const record = this.downloads[id];
     if (!record || !record.savePath) return { success: false, error: 'Download record not found' };
     if (!fs.existsSync(record.savePath)) {
       return { success: false, error: 'File does not exist on disk' };
+    }
+    if (isDangerousFile(record.savePath)) {
+      let allowed = false;
+      try {
+        allowed = this._confirmOpenDangerous
+          ? Boolean(await this._confirmOpenDangerous({ filename: path.basename(record.savePath), filePath: record.savePath }))
+          : false;
+      } catch (_) { allowed = false; }
+      if (!allowed) {
+        log.warn(`Opening a program-type download was not confirmed: ${record.savePath}`);
+        try { shell.showItemInFolder(record.savePath); } catch (_) { /* best effort */ }
+        return { success: false, cancelled: true, dangerous: true, error: 'This type of file can run programs, so it was not opened. It is shown in its folder instead.' };
+      }
     }
     try {
       shell.openPath(record.savePath);
@@ -973,4 +1012,5 @@ DownloadManager.sanitizeFilename = sanitizeFilename;
 DownloadManager.getUniqueSavePath = getUniqueSavePath;
 DownloadManager.cleanupPartialFile = cleanupPartialFile;
 
+DownloadManager.isDangerousFile = isDangerousFile;
 module.exports = DownloadManager;

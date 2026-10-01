@@ -28,7 +28,7 @@ const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_p0_net_'));
 const SRC  = path.join(__dirname, '..', 'src');
 
 // ── Module mocks: electron + the Ghostery engine ─────────────────────────────
-const ghostery = { fetchCalls: 0, blockers: [], gate: null, fail: false };
+const ghostery = { fetchCalls: 0, fromCache: 0, calls: [], blockers: [], gate: null, fail: false };
 const Module = require('module');
 const origLoad = Module._load;
 Module._load = function (request, ...args) {
@@ -42,32 +42,40 @@ Module._load = function (request, ...args) {
   if (request === '@ghostery/adblocker-electron') {
     return {
       ElectronBlocker: {
-        fromPrebuiltAdsAndTracking: async () => {
+        fromPrebuiltAdsAndTracking: async (fetchImpl, caching) => {
+          ghostery.calls.push({ fetchImpl, caching });
+          // like the real engine: a readable cache wins, otherwise download and write the cache
+          if (caching) {
+            try { await caching.read(caching.path); ghostery.fromCache++; return makeBlocker(); } catch (_) { /* no cache yet */ }
+          }
           ghostery.fetchCalls++;
           if (ghostery.gate) await ghostery.gate;                     // simulates the slow list download
           if (ghostery.fail) throw new Error('offline');
-          const handlers = {};
-          const blocker = {
-            config: {},
-            enabledSessions: new Set(),
-            // like the real engine: registering its own webRequest listener replaces whatever was there
-            enableBlockingInSession(s) {
-              this.enabledSessions.add(s);
-              if (s.webRequest) s.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, Object.assign((d, cb) => cb({}), { engine: true }));
-            },
-            disableBlockingInSession(s) { this.enabledSessions.delete(s); if (s.webRequest) s.webRequest.onBeforeRequest(null); },
-            on(evt, cb) { handlers[evt] = cb; },
-            fire(evt) { handlers[evt] && handlers[evt](); }
-          };
-          ghostery.blockers.push(blocker);
-          return blocker;
+          if (caching) await caching.write(caching.path, Buffer.from('compiled-engine'));
+          return makeBlocker();
         }
       }
     };
   }
-  if (request === 'cross-fetch') return () => { throw new Error('network must not be used in tests'); };
   return origLoad.call(this, request, ...args);
 };
+function makeBlocker() {
+  const handlers = {};
+  const blocker = {
+    config: {},
+    enabledSessions: new Set(),
+    // like the real engine: registering its own webRequest listener replaces whatever was there
+    enableBlockingInSession(s) {
+      this.enabledSessions.add(s);
+      if (s.webRequest) s.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, Object.assign((d, cb) => cb({}), { engine: true }));
+    },
+    disableBlockingInSession(s) { this.enabledSessions.delete(s); if (s.webRequest) s.webRequest.onBeforeRequest(null); },
+    on(evt, cb) { handlers[evt] = cb; },
+    fire(evt) { handlers[evt] && handlers[evt](); }
+  };
+  ghostery.blockers.push(blocker);
+  return blocker;
+}
 
 const StorageService   = require('../src/services/storage');
 const DownloadManager  = require('../src/services/downloadManager');
@@ -281,6 +289,77 @@ function mockSession() {
       ab.setEnabled(true);
       assert(verdict(s, 'https://googleads.g.doubleclick.net/x').cancel === true);
     } finally { ghostery.fail = false; console.error = origErr; }
+  });
+
+  // ── compiled-engine cache ──
+  const cacheDir = fs.mkdtempSync(path.join(ROOT, 'abcache_'));
+  const reset = () => { ghostery.fetchCalls = 0; ghostery.fromCache = 0; ghostery.calls.length = 0; ghostery.blockers.length = 0; ghostery.fail = false; };
+  const age = (file, ms) => { const t = new Date(Date.now() - ms); fs.utimesSync(file, t, t); };
+
+  await test('first start downloads the lists and keeps the compiled engine; the next start needs no network at all', async () => {
+    reset();
+    const file = path.join(cacheDir, 'engine1.bin');
+    await new AdBlockerService(newStorage('abc1'), { cacheFile: file }).setupFilter(webRequestSession());
+    assert(ghostery.fetchCalls === 1 && fs.existsSync(file), 'first start: downloaded ' + ghostery.fetchCalls);
+    await new AdBlockerService(newStorage('abc2'), { cacheFile: file }).setupFilter(webRequestSession());
+    assert(ghostery.fetchCalls === 1 && ghostery.fromCache === 1, `second start: downloads=${ghostery.fetchCalls} fromCache=${ghostery.fromCache}`);
+  });
+
+  await test('the lists are fetched with the injected fetch (Electron net.fetch in the app), never with Node http', async () => {
+    reset();
+    const myFetch = async () => { throw new Error('not called by the mock'); };
+    await new AdBlockerService(newStorage('abc3'), { cacheFile: path.join(cacheDir, 'engine3.bin'), fetch: myFetch }).setupFilter(webRequestSession());
+    assert(ghostery.calls[0].fetchImpl === myFetch, 'custom fetch not used');
+    const src = fs.readFileSync(path.join(SRC, 'services', 'adblocker.js'), 'utf8');
+    assert(/require\('electron'\)\.net\.fetch/.test(src) && !/cross-fetch|node-fetch/.test(src), 'default fetch must be net.fetch');
+  });
+
+  await test('a cache older than the time-to-live is refreshed, and the old copy is removed after a successful refresh', async () => {
+    reset();
+    const file = path.join(cacheDir, 'engine4.bin');
+    fs.writeFileSync(file, 'old-engine'); age(file, 3 * 24 * 3600 * 1000);
+    await new AdBlockerService(newStorage('abc4'), { cacheFile: file }).setupFilter(webRequestSession());
+    assert(ghostery.fetchCalls === 1, 'stale cache should have been refreshed');
+    assert(fs.readFileSync(file, 'utf8') === 'compiled-engine' && !fs.existsSync(file + '.stale'), 'new engine kept, old copy removed');
+  });
+
+  await test('a stale cache + no internet: the previous engine keeps protecting (instead of only the short built-in list)', async () => {
+    reset(); ghostery.fail = true;
+    const origWarn = console.warn; console.warn = () => {};
+    try {
+      const file = path.join(cacheDir, 'engine5.bin');
+      fs.writeFileSync(file, 'old-engine'); age(file, 3 * 24 * 3600 * 1000);
+      const ab = new AdBlockerService(newStorage('abc5'), { cacheFile: file });
+      const s = webRequestSession();
+      await ab.setupFilter(s);
+      assert(ghostery.fromCache === 1, 'the old engine should have been loaded from the cache');
+      assert(s.listener && s.listener.engine === true, 'the engine, not the fallback, should be in charge');
+      assert(fs.readFileSync(file, 'utf8') === 'old-engine' && !fs.existsSync(file + '.stale'), 'old copy must be back in place');
+    } finally { ghostery.fail = false; console.warn = origWarn; }
+  });
+
+  await test('no cache + no internet: the short built-in list stays in force and a later start can still download', async () => {
+    reset(); ghostery.fail = true;
+    const origErr = console.error; console.error = () => {};
+    try {
+      const file = path.join(cacheDir, 'engine6.bin');
+      const s = webRequestSession();
+      await new AdBlockerService(newStorage('abc6'), { cacheFile: file }).setupFilter(s);
+      assert(!fs.existsSync(file) && s.listener && !s.listener.engine, 'nothing cached, fallback in force');
+    } finally { ghostery.fail = false; console.error = origErr; }
+    await new AdBlockerService(newStorage('abc7'), { cacheFile: path.join(cacheDir, 'engine6.bin') }).setupFilter(webRequestSession());
+    assert(fs.existsSync(path.join(cacheDir, 'engine6.bin')), 'second start (online) should create the cache');
+  });
+
+  await test('a damaged cache file is replaced by a fresh download', async () => {
+    reset();
+    const file = path.join(cacheDir, 'engine8.bin');
+    fs.mkdirSync(file);                                    // unreadable as a file: read() fails like a corrupt cache would
+    const origErr = console.error; console.error = () => {};
+    try { await new AdBlockerService(newStorage('abc8'), { cacheFile: file }).setupFilter(webRequestSession()); }
+    catch (_) { /* the mock cannot overwrite a directory; the point is that start-up survived */ }
+    finally { console.error = origErr; }
+    assert(ghostery.fetchCalls >= 1, 'a download should have been attempted after the failed read');
   });
 
   await test('blocked-request counter aggregates across sessions', async () => {

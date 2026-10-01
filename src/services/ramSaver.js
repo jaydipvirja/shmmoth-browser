@@ -24,10 +24,11 @@ class RamSaverService {
     if (!this.tabManager || !this.tabManager.tabs) return;
 
     const activeTabId = this.tabManager.activeTabId;
+    const activeIncognitoTabId = this.tabManager.activeIncognitoTabId;
 
     for (const [tabId, tabData] of Object.entries(this.tabManager.tabs)) {
-      // Never sleep the active tab
-      if (tabId === activeTabId) continue;
+      // Never sleep the tab in use in either window
+      if (tabId === activeTabId || tabId === activeIncognitoTabId) continue;
 
       // Never sleep audio playing tabs
       if (tabData.view && tabData.view.webContents && tabData.view.webContents.isCurrentlyAudible()) continue;

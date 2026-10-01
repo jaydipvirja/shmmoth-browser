@@ -102,17 +102,21 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 - IPC handlers reject external origins
 - The page cannot forge an internal origin
 
+## Downloaded programs
+
+Opening a download whose type runs code (`.exe .msi .bat .cmd .scr .js .vbs .ps1 .hta .jar .lnk .reg .dll .msix .docm …`, judged by the last extension so `invoice.pdf.exe` and `setup.exe.` are caught — `DownloadManager.isDangerousFile`) asks first, with **Cancel** as the default button; Cancel shows the file in its folder instead. Without a confirmation callback such files are never started. Downloading itself is unchanged.
+
 ## Network privacy (proxy, WebRTC, fonts)
 
 - **One proxy for every session.** `applyProxyToAllSessions()` (main.js) applies the saved proxy to the normal *and* the incognito session at start-up and whenever it is saved/reset — incognito used to bypass it.
 - **WebRTC.** With a manual proxy every tab gets `setWebRTCIPHandlingPolicy('disable_non_proxied_udp')` so WebRTC cannot reveal the real IP over UDP; it returns to `default` when the proxy is reset. (Trade-off: some video-call sites may need TCP/relay.)
 - **Turbo downloads.** The Turbo engine uses Node's http/https, which ignores browser proxy settings. While a proxy is in effect (manual mode, or a system/PAC proxy detected by `session.resolveProxy`) downloads stay on Chromium's native downloader, which honours it; a Turbo download paused before a proxy was configured is not resumed outside the proxy.
 - **No third-party fonts.** Inter is bundled (`pages/fonts.css`, SIL OFL licence in `pages/inter-OFL.txt`); the pages no longer contact Google Fonts and the CSP only allows `'self'` fonts.
-- **Ad blocker.** One filter engine is shared by the normal and incognito session; the on/off setting applies to both.
+- **Ad blocker.** One filter engine is shared by the normal and incognito session; the on/off setting applies to both. The filter lists are downloaded with Electron's `net.fetch`, so they follow the browser's proxy and trust the operating system's certificate store, and the compiled engine is cached in `adblock-engine.bin` (refreshed after 24 h; if a refresh fails the previous copy keeps being used). A short built-in list of the biggest ad networks is armed from the first request.
 
 ## Process hardening
 
-- **Electron fuses** (`package.json → build.electronFuses`, flipped by electron-builder and read back from the binary by `scripts/check-fuses.js`): `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` / `NODE_EXTRA_CA_CERTS` and `--inspect` are ignored, and the app is loaded only from `app.asar` with its integrity validated (Windows/macOS). Without these, the signed `SHMMOTH Browser.exe` can be turned into a general-purpose Node interpreter by an environment variable, or have its code swapped out of an unpacked `app` folder. Consequence: `NODE_EXTRA_CA_CERTS` (corporate root CA for Node-side requests such as the ad-block list download) is not honoured in a shipped build.
+- **Electron fuses** (`package.json → build.electronFuses`, flipped by electron-builder and read back from the binary by `scripts/check-fuses.js`): `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` / `NODE_EXTRA_CA_CERTS` and `--inspect` are ignored, and the app is loaded only from `app.asar` with its integrity validated (Windows/macOS). Without these, the signed `SHMMOTH Browser.exe` can be turned into a general-purpose Node interpreter by an environment variable, or have its code swapped out of an unpacked `app` folder. Consequence: `NODE_EXTRA_CA_CERTS` is not honoured in a shipped build; network code that must trust a corporate root CA therefore uses Electron's `net` (system certificate store), as the ad-block list download does.
 - **Not enabled on purpose:** `grantFileProtocolExtraPrivileges` stays at Electron's default because the browser chrome and the bubble windows are still loaded from `file://` (a packaged build cannot load them with the fuse off). Serving them through `mtc://` would allow switching it off. `enableCookieEncryption` is a one-way switch for existing profiles and gives little against malware running as the same Windows user, so it is left for a deliberate decision.
 - **Single instance.** `app.requestSingleInstanceLock()` — a second launch on the same profile hands its URLs to the running window and exits instead of racing it on the data files. Only `http(s)` addresses from the command line are opened (`utils/launchArgs.js`); files, `mtc://` and script URLs are dropped.
 
@@ -128,7 +132,6 @@ The `mtc://` protocol handler is registered on both the normal and the `incognit
 |---|---|---|
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
 | ~~No atomic write~~ | — | Done: all data files are written atomically with a `.bak` and damaged files are preserved (see storage.md) |
-| The ad-block list download (Ghostery, at start-up) uses Node networking, i.e. it does not go through the browser proxy | Low | Planned: switch to Electron `net` / cache the lists |
 | Installer is not Authenticode-signed (Windows SmartScreen warning on first install) | Low | Buy a code-signing certificate; update signing (Ed25519) already protects updates |
 | Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |

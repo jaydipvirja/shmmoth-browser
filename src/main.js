@@ -211,6 +211,20 @@ class ShmmothBrowserApp {
     // 6. Wire DownloadManager to sessions (with multi-target broadcasting and dialog support)
     this.downloads = new DownloadManager(this.storage, {
       isProxyActive: () => this.isProxyActive(),
+      confirmOpenDangerous: async ({ filename }) => {
+        const win = this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null;
+        const res = await dialog.showMessageBox(...(win ? [win] : []), {
+          type: 'warning',
+          title: 'Open this file?',
+          message: `"${filename}" can run programs on your computer.`,
+          detail: 'Only open it if you downloaded it on purpose from a website you trust. Otherwise choose Cancel and delete it.',
+          buttons: ['Cancel', 'Open anyway'],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        });
+        return res.response === 1;
+      },
       promptSaveDialog: async ({ filename, defaultPath, webContents }) => {
         const win = (webContents && BrowserWindow.fromWebContents(webContents)) || this.mainWindow;
         if (!win || win.isDestroyed()) return { cancelled: true };
@@ -231,9 +245,13 @@ class ShmmothBrowserApp {
     }, { isIncognito: true });
 
     // 7. RAM Saver
+    const browser = this;
     this.ramSaver = new RamSaverService(this.storage, {
       tabs: this.tabs,
-      activeTabId: this.activeTabId,
+      // getters: a plain `activeTabId: this.activeTabId` copied the value (null) at start-up, so the tab in use could be
+      // put to sleep after the idle time
+      get activeTabId() { return browser.activeTabId; },
+      get activeIncognitoTabId() { return browser.activeIncognitoTabId; },
       notifyTabStatus: (tabId, status) => {
         if (this.tabs[tabId]) {
           Object.assign(this.tabs[tabId], status);
@@ -243,7 +261,7 @@ class ShmmothBrowserApp {
     });
 
     // 8. Wire AdBlocker (Ghostery engine; a short built-in list covers the first seconds and offline starts)
-    this.adBlocker = new AdBlockerService(this.storage);
+    this.adBlocker = new AdBlockerService(this.storage, { cacheFile: path.join(app.getPath('userData'), 'adblock-engine.bin') });
     this.adBlocker.setupFilter(session.defaultSession).catch(err => {
       log.warn('AdBlocker setupFilter failed', { error: err.message });
     });
@@ -325,6 +343,7 @@ class ShmmothBrowserApp {
   _finalizeSession() {
     this._saveSessionNow();
     this._sessionReady = false;
+    if (this.storage) this.storage.flush();            // coalesced history writes
   }
 
   /** Called on every tab change; writes at most once a second. */
@@ -1448,11 +1467,10 @@ class ShmmothBrowserApp {
       pendingLoadUrl: null,           // set for a restored background tab until it is first selected
       failedUrl:      null            // the address behind the error page this tab currently shows
     };
-    if (options.deferLoad) {
-      tabData.pendingLoadUrl = initialUrl;
-      if (typeof options.title === 'string' && options.title) tabData.title = options.title;
-      if (typeof options.favicon === 'string') tabData.favicon = options.favicon;
-    }
+    if (options.deferLoad) tabData.pendingLoadUrl = initialUrl;
+    // a restored tab shows its saved title / icon straight away (the page replaces them as soon as it reports its own)
+    if (typeof options.title === 'string' && options.title) tabData.title = options.title;
+    if (typeof options.favicon === 'string') tabData.favicon = options.favicon;
 
     this.tabs[tabId] = tabData;
 
@@ -1479,12 +1497,14 @@ class ShmmothBrowserApp {
     // ── Title + Favicon updates ──
     wc.on('page-title-updated', (_, title) => {
       tabData.title = title || 'New Tab';
+      if (!tabData.isIncognito && title) this.storage.updateHistoryEntry(tabData.url, { title });
       this.broadcastTabsUpdate(tabData.isIncognito);
     });
 
     wc.on('page-favicon-updated', (_, favicons) => {
       if (favicons && favicons.length > 0) {
         tabData.favicon = favicons[0];
+        if (!tabData.isIncognito) this.storage.updateHistoryEntry(tabData.url, { favicon: favicons[0] });
         this.broadcastTabsUpdate(tabData.isIncognito);
       }
     });
@@ -1571,7 +1591,9 @@ class ShmmothBrowserApp {
       tabData.canGoForward = wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward();
       // Zero history recorded for incognito tabs (Stage 4)
       if (!tabData.isIncognito && !isErrorPage) {
-        this.storage.addHistory({ title: tabData.title, url: navUrl, favicon: tabData.favicon });
+        // tabData.title / favicon still belong to the PREVIOUS page here; the real ones are filled in by the
+        // page-title-updated / page-favicon-updated handlers above
+        this.storage.addHistory({ title: '', url: navUrl, favicon: '' });
       }
       this.broadcastTabsUpdate(tabData.isIncognito);
       const activeId = tabData.isIncognito ? this.activeIncognitoTabId : this.activeTabId;
