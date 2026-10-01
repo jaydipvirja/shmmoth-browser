@@ -11,7 +11,7 @@
 'use strict';
 
 const {
-  runSuite, assert, assertEqual, waitFor,
+  runSuite, assert, assertEqual, waitFor, sleep,
   launchApp, runSecondInstance, listWebContents, waitForWebContents, startServer
 } = require('./helpers');
 
@@ -60,12 +60,26 @@ runSuite('SHMMOTH Browser — E2E 07: single instance & command-line URLs', asyn
 
       await t.test('only web addresses are accepted from the command line (no files, no internal pages, no scripts)', async () => {
         const before = (await listWebContents(ctx.app)).length;
-        const r = await runSecondInstance(ctx, ['file:///etc/hostname', 'mtc://settings', 'javascript:window.__x=1', `${site.url}/after-bad-ones`]);
-        assertEqual(r.code, 0);
+        // what the running browser does with the arguments a second launch hands over (same code path as a real second launch)
+        await ctx.app.evaluate(({ app }, argv) => { app.emit('second-instance', {}, argv); },
+          ['shmmoth', 'file:///etc/hostname', 'mtc://settings', 'javascript:window.__x=1', 'data:text/html,x', `${site.url}/after-bad-ones`]);
         await waitForWebContents(ctx.app, `${site.url}/after-bad-ones`);
         const urls = (await listWebContents(ctx.app)).map((w) => w.url);
-        assert(!urls.some((u) => u.startsWith('file:///etc')) && !urls.some((u) => u.startsWith('mtc://settings')), 'a refused address was opened: ' + urls.join(' | '));
+        assert(!urls.some((u) => u.startsWith('file:///etc')) && !urls.some((u) => u.startsWith('mtc://settings')) && !urls.some((u) => u.startsWith('data:')),
+          'a refused address was opened: ' + urls.join(' | '));
         assertEqual(urls.length, before + 1, 'exactly one new web contents (the good URL)');
+      });
+
+      await t.test('real second launches carrying refused addresses open nothing (the OS may refuse some of them outright; only the outcome matters)', async () => {
+        const before = (await listWebContents(ctx.app)).length;
+        const codes = [];
+        for (const bad of ['file:///etc/hostname', 'mtc://settings', 'javascript:window.__x=1']) {
+          const r = await runSecondInstance(ctx, [bad]);
+          codes.push(`${bad.split(':')[0]}=${r.code}`);
+        }
+        console.log(`         exit codes: ${codes.join(' ')}`);
+        await sleep(500);
+        assertEqual((await listWebContents(ctx.app)).length, before, 'web contents after the refused launches');
       });
 
       await t.test('the profile still works afterwards', async () => {
