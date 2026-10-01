@@ -1,0 +1,16 @@
+# Keeps the browser engine and the toolchain current. Electron supports only the latest three majors, and an
+# outdated Chromium is the biggest security risk of this project (see docs/upgrading-electron.md).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      electron-toolchain:
+        patterns: ["electron", "electron-builder", "playwright-core"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

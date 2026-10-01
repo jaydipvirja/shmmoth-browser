@@ -71,3 +71,15 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
    ```powershell
    npm start
    ```
+
+---
+
+## 🧪 Tests (ટેસ્ટ)
+
+```powershell
+npm test                    # unit tests (~15 s)
+npm run test:e2e            # end-to-end tests against the real app (~30 s)
+npm run test:e2e:packaged   # same, against a packaged build
+```
+
+Details: `docs/testing.md`. Releasing signed updates: `docs/releasing.md`. Upgrading Electron: `docs/upgrading-electron.md`.

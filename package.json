@@ -7,6 +7,10 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist": "electron-builder",
+    "test": "node tests/run-all.js --unit",
+    "test:e2e": "node tests/run-all.js --e2e",
+    "test:e2e:packaged": "node tests/run-all.js --e2e --packaged",
+    "test:all": "node tests/run-all.js --all",
     "release:keygen": "node scripts/release-tool.js keygen",
     "release:sign": "node scripts/release-tool.js sign",
     "release:verify": "node scripts/release-tool.js verify"
@@ -24,7 +28,8 @@
   },
   "devDependencies": {
     "electron": "^44.5.1",
-    "electron-builder": "^26.15.3"
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.63.0"
   },
   "dependencies": {
     "@ghostery/adblocker-electron": "^2.18.2",

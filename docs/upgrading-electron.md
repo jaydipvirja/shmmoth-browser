@@ -15,11 +15,11 @@ npm audit                                 # should report 0 vulnerabilities
 
 Then verify (all must pass) before releasing:
 
-1. **Unit tests**: run every `tests/*.test.js` (`node tests/<file>`; `stage11…` and `live-*` need Electron).
+1. **Automated**: `npm run test:all` (unit + end-to-end against the real app), then `npm run test:e2e:packaged` (packaged build). See `docs/testing.md`.
 2. **Boot the app** (`npm start`) and check the console for `(electron) … is deprecated` lines — fix them now; they become errors in a later major.
 3. **Manual smoke on Windows** (the real target; CI/containers only cover Linux): tabs, omnibox, window drag/resize/maximize/fullscreen, YouTube fullscreen, a download (normal + Turbo), incognito window, Settings → Network (proxy), password save prompt, extension popup, Settings → About → Check for updates.
-4. **Packaged build**: `npx electron-builder --dir` and run the result — `app.asar` paths and `app.isPackaged` behave differently from `npm start` (the trusted-page check in `security/trustedPages.js` and the updater both depend on them).
-5. Security invariants (covered by the `tests/p0-*.test.js` files): sandbox on for every window, `window.mtcAPI` only on trusted pages, CSP active, proxy applied to incognito, updater verifies signatures.
+4. **Packaged build**: `npm run test:e2e:packaged` — `app.asar` paths and `app.isPackaged` behave differently from `npm start` (the trusted-page check in `security/trustedPages.js` and the updater both depend on them).
+5. Security invariants are covered by `tests/p0-*.test.js` and `tests/e2e/02-security.e2e.js`: sandbox on for every window, `window.mtcAPI` only on trusted pages, CSP active, proxy applied to incognito, updater verifies signatures.
 
 ## What the 33 → 44 upgrade needed
 

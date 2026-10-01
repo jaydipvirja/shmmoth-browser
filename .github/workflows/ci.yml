@@ -1,0 +1,82 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast checks: unit tests (Electron mocked) and a dependency audit.
+  unit:
+    name: Unit tests + npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Fails when a published advisory affects Electron or another dependency — the signal to upgrade (docs/upgrading-electron.md)
+      - run: npm audit --audit-level=high
+
+  # The real app, driven by Playwright, on Linux under Xvfb.
+  e2e-linux:
+    name: E2E (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # GitHub's Ubuntu images restrict unprivileged user namespaces, which Chromium's sandbox needs
+      E2E_NO_SANDBOX: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: npm ci
+      - run: npm run test:e2e
+
+  # Windows is the real target platform. These jobs have not been run on Windows yet, so they do not block merges
+  # for now — once they are green, remove `continue-on-error` to make them required.
+  e2e-windows:
+    name: E2E (Windows)
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - run: npm run test:e2e
+
+  # Same security/UI scenarios against an electron-builder --dir build (app.asar, app.isPackaged, real OS sandbox).
+  e2e-windows-packaged:
+    name: E2E (Windows, packaged build)
+    runs-on: windows-latest
+    continue-on-error: true
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:e2e:packaged
