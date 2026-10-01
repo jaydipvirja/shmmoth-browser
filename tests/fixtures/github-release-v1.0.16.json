@@ -1,0 +1,35 @@
+{
+  "tag_name": "v1.0.16",
+  "target_commitish": "main",
+  "name": "SHMMOTH Browser v1.0.16 - Direct Google Account Login Fix",
+  "draft": false,
+  "prerelease": false,
+  "immutable": false,
+  "html_url": "https://github.com/jaydipvirja/shmmoth-browser/releases/tag/v1.0.16",
+  "assets": [
+    {
+      "name": "latest.yml",
+      "state": "uploaded",
+      "content_type": "text/yaml",
+      "size": 361,
+      "browser_download_url": "https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.16/latest.yml",
+      "digest": "sha256:aaa8b4b1bfcf5fa7138a2be38555ac85a9c18bffd82374278e8c01610a44bdbb"
+    },
+    {
+      "name": "SHMMOTH-Browser-Setup-1.0.16.exe",
+      "state": "uploaded",
+      "content_type": "application/octet-stream",
+      "size": 91556040,
+      "browser_download_url": "https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.16/SHMMOTH-Browser-Setup-1.0.16.exe",
+      "digest": "sha256:6cdc7c2257e4fecc9b0ca154cf8d59a3cf01e534d9473e7d912680190dc154f0"
+    },
+    {
+      "name": "SHMMOTH-Browser-Setup-1.0.16.exe.blockmap",
+      "state": "uploaded",
+      "content_type": "application/octet-stream",
+      "size": 96006,
+      "browser_download_url": "https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.16/SHMMOTH-Browser-Setup-1.0.16.exe.blockmap",
+      "digest": "sha256:60e48bd9dc1892a0c60f3cbc4fd4f22898743dc3f625ff4be05581000a45291a"
+    }
+  ]
+}

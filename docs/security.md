@@ -54,6 +54,15 @@ Internal pages render data that originates from untrusted websites (page titles,
 
 `tests/p0-xss-and-trusted-pages.test.js` guards both layers.
 
+## Auto-update security
+
+Updates are verified before anything runs — see `docs/releasing.md` for the full flow:
+
+- installers must carry a detached **Ed25519 signature** (`<installer>.sig`) from a key compiled into the app (`services/updateKeys.js`); the private key never lives on GitHub, so a compromised GitHub account/token/release cannot push malware to users (checksums on the same release would be replaced together with the file);
+- strict release/asset validation, HTTPS + host allow-list on every redirect hop, size + digest checks, a private download folder and a re-hash right before the installer is launched;
+- networking uses Electron's `net`, so the browser's proxy settings apply;
+- **fail closed**: no key / no `.sig` / bad signature ⇒ the update is announced but never downloaded or run.
+
 ## Renderer sandbox
 
 Every `BrowserWindow` / `WebContentsView` (tabs, side panel, browser chrome, bubbles, extension popup, OAuth popups) is created with `sandbox: true`, `contextIsolation: true`, `nodeIntegration: false`. A renderer exploit therefore starts inside Chromium's OS sandbox instead of with the user's full privileges.
@@ -104,7 +113,8 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 |---|---|---|
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
 | ~~No atomic write~~ | — | Done: all data files are written atomically with a `.bak` and damaged files are preserved (see storage.md) |
-| Update checker (`updateManager.js`) and the ad-block list download use Node networking, i.e. they do not go through the browser proxy | Low | Planned with the updater hardening: switch to Electron `net` (session proxy) |
+| The ad-block list download (Ghostery, at start-up) uses Node networking, i.e. it does not go through the browser proxy | Low | Planned: switch to Electron `net` / cache the lists |
+| Installer is not Authenticode-signed (Windows SmartScreen warning on first install) | Low | Buy a code-signing certificate; update signing (Ed25519) already protects updates |
 | Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
 | AdBlocker filter download requires internet on first run | Low | Falls back to CRX extensions if unavailable |

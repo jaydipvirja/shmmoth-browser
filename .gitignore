@@ -18,3 +18,7 @@ Desktop.ini
 # Temporary files
 tmp/
 temp/
+
+# Release signing keys — NEVER commit (see docs/releasing.md)
+release-signing-key*
+*.pem

@@ -6,7 +6,10 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "release:keygen": "node scripts/release-tool.js keygen",
+    "release:sign": "node scripts/release-tool.js sign",
+    "release:verify": "node scripts/release-tool.js verify"
   },
   "keywords": [
     "browser",
@@ -53,6 +56,7 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "artifactName": "SHMMOTH-Browser-Setup-${version}.${ext}",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "SHMMOTH Browser"

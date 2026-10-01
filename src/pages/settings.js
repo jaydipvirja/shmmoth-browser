@@ -1208,8 +1208,12 @@ function setupAutoUpdateController() {
 
   if (!btnCheckUpdates || !window.mtcAPI) return;
 
+  const RELEASES_PAGE = 'https://github.com/jaydipvirja/shmmoth-browser/releases/latest';
+  let lastManualDownloadUrl = RELEASES_PAGE;
+
   function renderStatus(status) {
     if (!status) return;
+    if (status.manualDownloadUrl) lastManualDownloadUrl = status.manualDownloadUrl;
 
     const currentVer = status.currentVersion || '1.0.0';
     if (aboutBrowserVersion) aboutBrowserVersion.textContent = currentVer;
@@ -1232,9 +1236,16 @@ function setupAutoUpdateController() {
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = `Update available: v${status.availableVersion || ''}`;
-        if (updateStatusDesc) updateStatusDesc.textContent = 'Downloading update in background...';
-        if (btnCheckUpdates) btnCheckUpdates.disabled = true;
-        if (updateProgressContainer) updateProgressContainer.classList.remove('hidden');
+        if (status.autoInstall === false) {
+          // Cannot be installed automatically (unsigned release / signing not configured): point to the releases page
+          if (updateStatusDesc) updateStatusDesc.textContent = status.message || 'Download the new version from the releases page.';
+          if (btnCheckUpdates) { btnCheckUpdates.disabled = false; btnCheckUpdates.classList.remove('hidden'); }
+          if (updateProgressContainer) updateProgressContainer.classList.add('hidden');
+        } else {
+          if (updateStatusDesc) updateStatusDesc.textContent = 'Downloading update in background...';
+          if (btnCheckUpdates) btnCheckUpdates.disabled = true;
+          if (updateProgressContainer) updateProgressContainer.classList.remove('hidden');
+        }
         break;
 
       case 'downloading':
@@ -1350,7 +1361,8 @@ function setupAutoUpdateController() {
   const btnManualDownload = document.getElementById('btn-manual-download');
   if (btnManualDownload) {
     btnManualDownload.addEventListener('click', () => {
-      const url = 'https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.10/SHMMOTH-Browser-Setup-1.0.10.exe';
+      // Opens the releases page (always the newest release) instead of a hard-coded old installer
+      const url = lastManualDownloadUrl || RELEASES_PAGE;
       if (window.mtcAPI && window.mtcAPI.createTab) {
         window.mtcAPI.createTab(url);
       } else {
