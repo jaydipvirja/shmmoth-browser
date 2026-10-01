@@ -121,12 +121,21 @@ async function refreshNetworkInterfaces() {
       return;
     }
 
-    const onlineIfaces = ifaces.filter(i => i.isOnline !== false);
+    // Adapters that only exist inside the computer (WSL, virtual machines, VPNs, containers) leave through the same
+    // connection as everything else: they never add speed, so they are not counted as sources.
+    const onlineIfaces = ifaces.filter(i => i.isOnline !== false && !i.isVirtual);
+    const anyOnline = ifaces.some(i => i.isOnline !== false);
+
+    let bondingOn = true;
+    try {
+      const settings = api.getSettings ? await api.getSettings() : null;
+      if (settings && (settings.multiSourceBonding === false || settings.turboDownloadEnabled === false)) bondingOn = false;
+    } catch (_) {}
 
     activeAdaptersList.innerHTML = ifaces.map((i) => {
       const isOnline = i.isOnline !== false;
-      const dotClass = isOnline ? 'dot-green' : 'dot-amber';
-      const statusText = isOnline ? 'Online' : 'No Internet';
+      const dotClass = i.isVirtual ? '' : (isOnline ? 'dot-green' : 'dot-amber');
+      const statusText = i.isVirtual ? 'Virtual, not used' : (isOnline ? 'Online' : 'No Internet');
       return `
         <span class="net-badge ${dotClass}" title="Interface: ${escapeHtml(i.name)} (${escapeHtml(i.address)}) - ${statusText}">
           ${escapeHtml(i.name)}: <strong>${escapeHtml(i.address)}</strong> <small style="opacity:0.85">(${statusText})</small>
@@ -135,12 +144,16 @@ async function refreshNetworkInterfaces() {
     }).join('');
 
     if (bondingStatusBadge) {
-      if (onlineIfaces.length > 1) {
+      if (!bondingOn) {
+        bondingStatusBadge.innerHTML = '⏸ <strong>Multi-network downloading is off</strong> (Settings → Downloads)';
+        bondingStatusBadge.style.color = '#94a3b8';
+      } else if (onlineIfaces.length > 1) {
         const names = onlineIfaces.map(i => i.name).join(' + ');
-        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-WAN Bonding Active (${onlineIfaces.length} Sources: ${escapeHtml(names)})</strong>`;
+        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-network ready (${onlineIfaces.length} networks: ${escapeHtml(names)})</strong> • used when the server can be reached through each`;
         bondingStatusBadge.style.color = '#34d399';
-      } else if (onlineIfaces.length === 1) {
-        bondingStatusBadge.innerHTML = `⚡ <strong>Turbo Active (${escapeHtml(onlineIfaces[0].name)} Online)</strong> • Connect 2nd source for Multi-WAN`;
+      } else if (anyOnline) {
+        const only = onlineIfaces[0] || ifaces.find(i => i.isOnline !== false);
+        bondingStatusBadge.innerHTML = `⚡ <strong>Turbo active (${escapeHtml(only.name)})</strong> • connect a 2nd network (Wi-Fi + Ethernet or a phone hotspot) for multi-network speed`;
         bondingStatusBadge.style.color = '#60a5fa';
       } else {
         bondingStatusBadge.innerHTML = '⚠️ Offline (No Internet Available)';

@@ -1,5 +1,18 @@
 # Changelog
 
+## 1.1.3
+
+### Fixes — fast downloads and multi-network downloading
+- **Fast download engine rebuilt.** The file is now cut into small blocks that every connection takes from a shared queue, instead of one equal part per connection. A fast connection simply does more blocks than a slow one, a stuck connection no longer holds up the end (another connection repeats its block), and a connection that keeps failing steps aside while the others carry on. Data is written to disk in file order without blocking the browser, so a big file no longer makes the disk "pre-fill" gigabytes before the first byte is saved.
+- **Multi-network (Wi-Fi + Ethernet / phone hotspot) now really adds up.** The work follows the speed of each network, instead of waiting for the slow network to finish its half. A network is used only if it can really reach the download server (tested through that network, not with a connection to port 53 that many mobile networks block); virtual adapters (WSL, virtual machines, VPNs, containers) are no longer counted as extra networks; a network that stops working is dropped and its connections move to a working one. The Downloads page shows which networks take part.
+- **The browser's own download is no longer thrown away first.** The fast engine takes over only after one test request has shown that the link allows it (it works for links that can be used once, and for servers that refuse extra connections). Otherwise the normal download simply goes on. No more "Save as" window flashing up (or the download hanging) before a fast download starts.
+- **Retry keeps the page of the original download** (Referer), as every browser does, so servers that only answer requests coming from their own page accept it.
+- Downloads with "Ask where to save each file" turned on no longer open a second, built-in Save dialog.
+- Cancelling a fast download no longer risks that a late disk write lands in another file.
+
+### Also
+- The Downloads page no longer fails to read the network list (Turbo state).
+
 ## 1.1.2
 
 ### Fixes

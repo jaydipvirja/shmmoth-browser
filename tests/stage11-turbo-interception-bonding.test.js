@@ -52,6 +52,8 @@ async function runTest(name, fn) {
   // 3. Test _handleDownload delegates web downloads to Turbo
   await runTest('3. _handleDownload intercepts web downloads with webContents into startTurboDownload', async () => {
     const dm = new DownloadManager();
+    // the browser's own download is only given up once a ranged request has proven that the fast engine works for the link
+    dm.turboEngine.probe = async () => ({ acceptsRanges: true, totalBytes: 50000000, finalUrl: 'https://example.com/largefile.zip', filename: 'largefile.zip', status: 206 });
     let turboStarted = false;
     dm.startTurboDownload = (opts) => {
       turboStarted = true;
