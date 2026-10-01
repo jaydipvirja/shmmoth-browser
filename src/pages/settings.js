@@ -23,6 +23,7 @@ navLinks.forEach(link => {
 
 // UI Elements
 const selectSearchEngine = document.getElementById('select-search-engine');
+const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
 const badgeBlockedCount = document.getElementById('badge-blocked-count');
@@ -156,6 +157,7 @@ async function initSettings() {
       
       // Populate fields
       selectSearchEngine.value = currentSettings.searchEngine || 'google';
+      selectStartup.value = currentSettings.startupBehavior === 'restore' ? 'restore' : 'newtab';
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
@@ -206,6 +208,10 @@ async function saveSettingChange(delta) {
 // Event Listeners
 selectSearchEngine.addEventListener('change', () => {
   saveSettingChange({ searchEngine: selectSearchEngine.value });
+});
+
+selectStartup.addEventListener('change', () => {
+  saveSettingChange({ startupBehavior: selectStartup.value === 'restore' ? 'restore' : 'newtab' });
 });
 
 toggleBookmarksBar.addEventListener('change', () => {
@@ -1134,6 +1140,7 @@ btnResetDefaults.addEventListener('click', async () => {
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
       theme: 'dark',
+      startupBehavior: 'newtab',
       showBookmarksBar: true
     };
     await saveSettingChange(defaults);

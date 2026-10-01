@@ -42,6 +42,7 @@ class StorageService {
         theme:                  'dark',
         homepage:               'mtc://newtab',
         showBookmarksBar:       true,
+        startupBehavior:        'newtab',      // 'newtab' | 'restore' (continue where I left off)
         downloadPath:           '',
         askWhereToSave:         false
       },

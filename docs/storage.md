@@ -18,6 +18,7 @@ Single JSON file: `%APPDATA%/mtc-browser/mtc-data.json`
     "ramSaverTimeoutMinutes": 15,
     "theme": "dark",
     "homepage": "mtc://newtab",
+    "startupBehavior": "newtab",
     "showBookmarksBar": true
   },
   "bookmarks": [{ "id": "bm_1", "title": "", "url": "", "favicon": "", "createdAt": 0 }],
@@ -54,6 +55,10 @@ getShortcuts() / addShortcut(sc) / removeShortcut(id)
 const shmmothData = this.storage.get('shmmoth', {});
 this.storage.set('shmmoth', { ...shmmothData, lastTask: taskId });
 ```
+
+## Session (`shmmoth-session.json`)
+
+The open **normal** tabs (address, title, icon, pinned) and the selected one, rewritten within a second of every tab change (`services/sessionStore.js`, atomic like the other files, with a `.bak`). Incognito tabs, `file://`, `javascript:`, `data:` and unknown `mtc://` addresses are never written, and the file is validated again when read. It is only *used* when Settings → On Start-up is "Continue where I left off" (`startupBehavior: "restore"`); the default is the new tab page. Restored background tabs are created without loading and load when first selected, so restoring 40 tabs does not start 40 page loads.
 
 ## Sensitive Data (NOT stored here)
 

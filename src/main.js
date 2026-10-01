@@ -27,6 +27,7 @@ const { AutofillService } = require('./services/autofillService');
 const { ProxyManager }    = require('./services/proxyManager');
 const ExtensionManager    = require('./services/extensionManager');
 const UpdateManager       = require('./services/updateManager');
+const { SessionStore, buildSnapshot } = require('./services/sessionStore');
 
 
 const { secureHandlerRaw, validateUrl, sanitizeString } = require('./security/ipcSecurity');
@@ -159,6 +160,12 @@ class ShmmothBrowserApp {
 
     // Web addresses given on the command line, waiting for the browser window to be ready
     this.launchUrls = [];
+
+    // Session restore: tabs are written to disk shortly after every change, but only once start-up has finished
+    // creating its tabs (otherwise the half-built tab list would overwrite the session that is about to be restored)
+    this.sessionStore = null;
+    this._sessionReady = false;
+    this._sessionTimer = null;
   }
 
   // ─── Initialisation ─────────────────────────────────────────────────────────
@@ -169,6 +176,7 @@ class ShmmothBrowserApp {
 
     // 1. Storage
     this.storage = new StorageService();
+    this.sessionStore = new SessionStore(app.getPath('userData'));
 
     // Standardise User-Agent to match official Google Chrome early (before any windows or tabs are created)
     const rawUa = session.defaultSession.getUserAgent();
@@ -282,7 +290,53 @@ class ShmmothBrowserApp {
       }, 15000);
     }
 
+    app.on('before-quit', () => this._finalizeSession());
+
     log.info('SHMMOTH Browser initialisation complete');
+  }
+
+  // ─── Session restore ─────────────────────────────────────────────────────
+
+  /** The first tabs of this run: the previous session ("Continue where I left off"), command-line URLs, or the new-tab page. */
+  _createStartupTabs() {
+    const launchUrls = this.launchUrls.splice(0);
+    const wantsRestore = this.storage.getSettings().startupBehavior === 'restore';
+    const saved = wantsRestore && this.sessionStore ? this.sessionStore.load() : null;
+
+    if (saved) {
+      const ids = saved.tabs.map((t, i) => this.createTab(t.url, null, t.pinned, false, false, {
+        // only the tab the user will see is loaded now; the others load when they are first selected
+        background: i !== saved.active, deferLoad: i !== saved.active, title: t.title, favicon: t.favicon
+      }));
+      log.info('Previous session restored', { tabs: ids.length });
+      // a pinned tab moves to the front, so select the tab by id rather than by position
+      const wanted = ids[saved.active];
+      if (wanted && this.tabs[wanted]) this.switchTab(wanted);
+    }
+    launchUrls.forEach((u) => this.createTab(u));
+    if (!saved && launchUrls.length === 0) this.createTab('mtc://newtab');
+
+    this._sessionReady = true;
+    this._saveSessionNow();
+  }
+
+  /** Writes the session one last time and stops further writes (window closing / app quitting). */
+  _finalizeSession() {
+    this._saveSessionNow();
+    this._sessionReady = false;
+  }
+
+  /** Called on every tab change; writes at most once a second. */
+  _scheduleSessionSave() {
+    if (!this._sessionReady || this._sessionTimer) return;
+    this._sessionTimer = setTimeout(() => { this._sessionTimer = null; this._saveSessionNow(); }, 1000);
+    if (this._sessionTimer.unref) this._sessionTimer.unref();
+  }
+
+  _saveSessionNow() {
+    if (!this._sessionReady || !this.sessionStore) return;
+    if (this._sessionTimer) { clearTimeout(this._sessionTimer); this._sessionTimer = null; }
+    this.sessionStore.save(buildSnapshot(this.tabs, this.tabOrder, this.activeTabId));
   }
 
   // ─── Single instance ─────────────────────────────────────────────────────
@@ -870,9 +924,7 @@ class ShmmothBrowserApp {
 
     this.mainWindow.webContents.on('did-finish-load', () => {
       if (Object.keys(this.tabs).length === 0) {
-        const urls = this.launchUrls.splice(0);
-        if (urls.length === 0) this.createTab('mtc://newtab');
-        else urls.forEach((u) => this.createTab(u));
+        this._createStartupTabs();
       } else {
         this.broadcastTabsUpdate();
         this.updateViewBounds();
@@ -902,6 +954,8 @@ class ShmmothBrowserApp {
       broadcastWindowState(this.mainWindow.isMaximized());
       setTimeout(() => this.updateViewBounds(this.mainWindow), 50);
     });
+    // The tab list is final the moment the window starts closing; tearing the tabs down must not rewrite the session
+    this.mainWindow.on('close',      () => this._finalizeSession());
     this.mainWindow.on('closed',     () => { this.mainWindow = null; });
 
     log.info('Main window created');
@@ -1337,7 +1391,7 @@ class ShmmothBrowserApp {
 
   // ─── Tab Management (Stage 1 Core) ───────────────────────────────────────
 
-  createTab(initialUrl = 'mtc://newtab', insertAfterTabId = null, isPinned = false, isIncognito = false, isPopupTab = false) {
+  createTab(initialUrl = 'mtc://newtab', insertAfterTabId = null, isPinned = false, isIncognito = false, isPopupTab = false, options = {}) {
     const tabId = 'tab_' + this.tabCounter++;
     const preloadPath = selectPreload(initialUrl);
 
@@ -1384,8 +1438,14 @@ class ShmmothBrowserApp {
       crashReason:    null,
       isUnresponsive: false,
       isHtmlFullScreen: false,
-      lastValidUrl:   initialUrl
+      lastValidUrl:   initialUrl,
+      pendingLoadUrl: null            // set for a restored background tab until it is first selected
     };
+    if (options.deferLoad) {
+      tabData.pendingLoadUrl = initialUrl;
+      if (typeof options.title === 'string' && options.title) tabData.title = options.title;
+      if (typeof options.favicon === 'string') tabData.favicon = options.favicon;
+    }
 
     this.tabs[tabId] = tabData;
 
@@ -1876,11 +1936,12 @@ class ShmmothBrowserApp {
       }
     });
 
-    // Load initial URL
-    wc.loadURL(initialUrl);
+    // Load initial URL (a restored background tab waits until it is selected)
+    if (!tabData.pendingLoadUrl) wc.loadURL(initialUrl);
 
-    this.switchTab(tabId);
-    log.info(`Tab created: ${tabId}`, { url: initialUrl, isPinned, isIncognito });
+    if (options.background) this.broadcastTabsUpdate(isIncognito);
+    else this.switchTab(tabId);
+    log.info(`Tab created: ${tabId}`, { url: initialUrl, isPinned, isIncognito, deferred: Boolean(tabData.pendingLoadUrl) });
     return tabId;
   }
 
@@ -1942,6 +2003,7 @@ class ShmmothBrowserApp {
     }
 
     currentTab.lastActiveTime = Date.now();
+    this._loadPendingUrl(currentTab);
 
     if (currentTab.isSleeping && this.ramSaver && !isIncognito) {
       this.ramSaver.wakeTab(tabId, currentTab);
@@ -1960,6 +2022,16 @@ class ShmmothBrowserApp {
         const factor = currentTab.view.webContents.getZoomFactor();
         targetWin.webContents.send('zoom:changed', { tabId, zoomFactor: factor });
       } catch (_) {}
+    }
+  }
+
+  /** A restored background tab has not loaded its page yet; do it now (selected, reloaded or navigated). */
+  _loadPendingUrl(tab) {
+    if (!tab || !tab.pendingLoadUrl) return;
+    const url = tab.pendingLoadUrl;
+    tab.pendingLoadUrl = null;
+    if (tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.loadURL(url).catch(() => {});
     }
   }
 
@@ -2117,8 +2189,22 @@ class ShmmothBrowserApp {
     }
   }
 
+  reloadTab(tabId) {
+    const tab = this.tabs[tabId || this.activeTabId];
+    if (!tab || !tab.view) return;
+    if (tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }      // restored tab that never loaded: "reload" = load
+    if (tab.isCrashed || (tab.url && tab.url.startsWith('mtc://crash'))) {
+      tab.isCrashed = false;
+      const target = tab.lastValidUrl && !tab.lastValidUrl.startsWith('mtc://crash') ? tab.lastValidUrl : 'mtc://newtab';
+      tab.view.webContents.loadURL(target);
+      return;
+    }
+    tab.view.webContents.reload();
+  }
+
   reloadTabIgnoringCache(tabId) {
     const tab = this.tabs[tabId || this.activeTabId];
+    if (tab && tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }
     if (tab && tab.view && tab.view.webContents) {
       tab.view.webContents.reloadIgnoringCache();
     }
@@ -2325,6 +2411,7 @@ class ShmmothBrowserApp {
   // ─── Broadcast Helpers ───────────────────────────────────────────────────
 
   broadcastTabsUpdate(isIncognito = false) {
+    if (!isIncognito) this._scheduleSessionSave();
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     if (!targetWin || !targetWin.webContents || targetWin.isDestroyed()) return;
 
@@ -2867,6 +2954,7 @@ class ShmmothBrowserApp {
           securityLogger.security(`IPC tab:navigate blocked`, { reason: result.reason });
           return { success: false, error: result.reason };
         }
+        tab.pendingLoadUrl = null;
         tab.view.webContents.loadURL(safeUrl);
       }
     }));
@@ -2889,16 +2977,7 @@ class ShmmothBrowserApp {
     }));
 
     ipcMain.handle('tab:reload', secureHandlerRaw((_, tabId) => {
-      const tab = this.tabs[tabId || this.activeTabId];
-      if (tab && tab.view) {
-        if (tab.isCrashed || (tab.url && tab.url.startsWith('mtc://crash'))) {
-          tab.isCrashed = false;
-          const target = tab.lastValidUrl && !tab.lastValidUrl.startsWith('mtc://crash') ? tab.lastValidUrl : 'mtc://newtab';
-          tab.view.webContents.loadURL(target);
-          return;
-        }
-        tab.view.webContents.reload();
-      }
+      this.reloadTab(tabId);
     }));
 
     ipcMain.handle('tab:goBack', secureHandlerRaw((_, tabId) => {

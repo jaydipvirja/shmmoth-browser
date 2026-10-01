@@ -84,6 +84,13 @@ runSuite('SHMMOTH Browser — E2E 01: boot & internal UI', async (t) => {
       assertEqual(r, 'none,none,none,none');
     });
 
+    await t.test('settings: the start-up option is shown, defaults to the new-tab page and is saved when changed', async () => {
+      assertEqual(await evalIn(app, 'mtc://settings', 'document.getElementById("select-startup").value'), 'newtab');
+      await evalIn(app, 'mtc://settings', '(() => { const s = document.getElementById("select-startup"); s.value = "restore"; s.dispatchEvent(new Event("change")); })()');
+      await waitFor(async () => (await api(chrome, 'getSettings')).startupBehavior === 'restore', { message: 'startupBehavior to be saved' });
+      await api(chrome, 'updateSettings', { startupBehavior: 'newtab' });
+    });
+
     t.section('Native bubbles and side panel');
 
     const bounds = { x: 900, y: 50, width: 30, height: 30 };
