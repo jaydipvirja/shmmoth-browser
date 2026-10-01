@@ -16,7 +16,7 @@
 'use strict';
 
 const UPDATE_PUBLIC_KEYS = [
-  // 'MCowBQYDK2VwAyEA...paste the public key printed by `npm run release:keygen` here...'
+  'MCowBQYDK2VwAyEAKxX80hFTtDlOh3kMldZ9xImrtkm68i/6Q8Wh3p22Ql4='
 ];
 
 module.exports = { UPDATE_PUBLIC_KEYS };
