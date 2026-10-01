@@ -107,6 +107,9 @@ const apiSurface = {
 
   // ─── Ad Blocker ──────────────────────────────────────────────────────────────
   getAdsBlockedCount: () => ipcRenderer.invoke('adblocker:getCount'),
+  getAdBlockSite:     () => ipcRenderer.invoke('adblocker:getSite'),
+  setAdBlockSite:     (paused) => ipcRenderer.invoke('adblocker:setSite', paused === true),
+  reloadAdBlockPage:  () => ipcRenderer.invoke('adblocker:reloadPage'),
 
   // ─── Cache ───────────────────────────────────────────────────────────────────
   clearCache: () => ipcRenderer.invoke('cache:clear'),
@@ -215,6 +218,10 @@ const apiSurface = {
   installUpdate:            ()                           => ipcRenderer.invoke('updater:install'),
   getUpdateStatus:          ()                           => ipcRenderer.invoke('updater:getStatus'),
   downloadLatestInstaller:  ()                           => ipcRenderer.invoke('updater:downloadLatestInstaller'),
+
+  // ─── Secure DNS (DNS-over-HTTPS) ────────────────────────────────────────────
+  getSecureDns:             ()                           => ipcRenderer.invoke('dns:get'),
+  setSecureDns:             (choice)                     => ipcRenderer.invoke('dns:set', choice),
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };
 

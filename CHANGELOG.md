@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### New
+- **Secure DNS (DNS-over-HTTPS), AdGuard DNS by default** (Settings → Network & Proxy). Website-name lookups are encrypted, and AdGuard also refuses to resolve known ad, tracker and malware domains. If AdGuard cannot be reached the browser quietly falls back to your normal DNS (optional *never fall back* switch). Choose AdGuard Family / Non-filtering, your own DNS-over-HTTPS address, or the system DNS (no secure DNS).
+- **Ad blocker on/off, per site**: the shield button now has *Ad & Tracker Blocking* (everywhere) and *On this site* (pause the blocker only for the site you are on). Both reload the page so the change shows at once.
+
+### Fixes
+- Switching the ad blocker off now also switches off the built-in YouTube ad skipping, which used to keep running.
+- Switching the ad blocker off twice in a row no longer raises an error.
+
 ## 1.1.0
 
 A large security and reliability release. **Updates are now signed**: from this version on the browser installs an update only if it carries a valid signature from the publisher's key.

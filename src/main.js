@@ -37,6 +37,7 @@ const { MTC_PAGE_CSP }                                    = require('./security/
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
 const { urlsFromArgv }                                    = require('./utils/launchArgs');
 const { shouldShowErrorPage, buildErrorPageUrl, displayUrl } = require('./utils/errorPage');
+const secureDns = require('./services/secureDns');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
@@ -178,6 +179,7 @@ class ShmmothBrowserApp {
     // 1. Storage
     this.storage = new StorageService();
     this.sessionStore = new SessionStore(app.getPath('userData'));
+    this.applySecureDns();
 
     // Standardise User-Agent to match official Google Chrome early (before any windows or tabs are created)
     const rawUa = session.defaultSession.getUserAgent();
@@ -312,6 +314,37 @@ class ShmmothBrowserApp {
     app.on('before-quit', () => this._finalizeSession());
 
     log.info('SHMMOTH Browser initialisation complete');
+  }
+
+  // ─── Secure DNS ──────────────────────────────────────────────────────────
+
+  /** Applies the saved DNS-over-HTTPS choice (app.configureHostResolver must run after 'ready'; init() calls this first). */
+  applySecureDns() {
+    const { provider, options } = secureDns.buildHostResolverConfig(this.storage.getSettings());
+    try {
+      app.configureHostResolver(options);
+      // answers cached from the previous resolver (e.g. the system's) would otherwise live on for a while
+      Promise.all(this._browsingSessions().map((s) => s.clearHostResolverCache())).catch(() => {});
+      log.info('Secure DNS configured', { provider, mode: options.secureDnsMode, servers: options.secureDnsServers });
+    } catch (err) {
+      log.warn('Could not configure secure DNS', { error: err.message });
+    }
+    return provider;
+  }
+
+  /** What the Settings page shows. */
+  getSecureDnsState() {
+    const s = this.storage.getSettings();
+    const provider = secureDns.normalizeProvider(s.secureDnsProvider);
+    const effective = secureDns.buildHostResolverConfig(s);
+    return {
+      provider,
+      effectiveProvider: effective.provider,
+      customUrl: typeof s.secureDnsCustomUrl === 'string' ? s.secureDnsCustomUrl : '',
+      strict: s.secureDnsStrict === true,
+      servers: effective.options.secureDnsServers,
+      providers: Object.values(secureDns.PROVIDERS).map((p) => ({ id: p.id, label: p.label, description: p.description }))
+    };
   }
 
   // ─── Session restore ─────────────────────────────────────────────────────
@@ -741,7 +774,7 @@ class ShmmothBrowserApp {
     if (!parentWin || parentWin.isDestroyed()) return false;
 
     const width = 300;
-    const height = 260;
+    const height = 330;
     const winBounds = parentWin.getBounds();
 
     let x, y;
@@ -2607,6 +2640,10 @@ class ShmmothBrowserApp {
 
   _applyYouTubeOptimizer(wc, currentUrl) {
     if (!currentUrl || !currentUrl.includes('youtube.com')) return;
+    // part of the ad blocker: it has to stop when the user switches the blocker off (everywhere, or for this site)
+    try {
+      if (this.adBlocker && !this.adBlocker.isActiveFor(new URL(currentUrl).hostname)) return;
+    } catch (_) { return; }
 
     wc.insertCSS(`
       ytd-banner-promo-renderer, ytd-ad-slot-renderer,
@@ -3131,6 +3168,9 @@ class ShmmothBrowserApp {
         throw new Error('settings:update requires a plain object');
       }
       const updated = this.storage.updateSettings(delta);
+      if (delta.adBlockerAllowlist !== undefined && this.adBlocker) {
+        this.adBlocker.reloadAllowlist();
+      }
       if (delta.adBlockerEnabled !== undefined && this.adBlocker) {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
@@ -3998,6 +4038,66 @@ class ShmmothBrowserApp {
         log.error('Failed to download latest installer', { error: err.message });
         return { success: false, error: err.message };
       }
+    }));
+
+    // ── Ad blocker on/off for the site in the active tab (shield bubble) ──
+    // The site is always taken from the active tab here, never from the renderer's message, so a page cannot name another site.
+    const shieldTarget = (event) => {
+      const bubble = event && event.sender ? BrowserWindow.fromWebContents(event.sender) : null;
+      const parent = bubble && typeof bubble.getParentWindow === 'function' ? bubble.getParentWindow() : null;
+      const incognito = Boolean(parent && this.incognitoWindow && parent === this.incognitoWindow);
+      const tabId = incognito ? this.activeIncognitoTabId : this.activeTabId;
+      const tab = this.tabs[tabId];
+      let host = '';
+      try {
+        const u = new URL(tab ? displayUrl(tab) : '');
+        if (u.protocol === 'http:' || u.protocol === 'https:') host = AdBlockerService.normalizeHost(u.hostname);
+      } catch (_) { /* internal page or no tab */ }
+      return { tabId, host };
+    };
+
+    ipcMain.handle('adblocker:getSite', secureHandlerRaw((event) => {
+      const { host } = shieldTarget(event);
+      return {
+        host,
+        canPause: Boolean(host && this.adBlocker),
+        paused: Boolean(host && this.adBlocker && this.adBlocker.isSitePaused(host)),
+        enabled: Boolean(this.adBlocker && this.adBlocker.isEnabled)
+      };
+    }));
+
+    // reload the page the shield bubble belongs to (after the master switch changed)
+    ipcMain.handle('adblocker:reloadPage', secureHandlerRaw((event) => {
+      const { tabId } = shieldTarget(event);
+      if (tabId && this.tabs[tabId]) this.reloadTab(tabId);
+      return true;
+    }));
+
+    ipcMain.handle('adblocker:setSite', secureHandlerRaw((event, paused) => {
+      const { tabId, host } = shieldTarget(event);
+      if (!host || !this.adBlocker) return { success: false, error: 'The ad blocker can only be paused for a website.' };
+      this.adBlocker.setSitePaused(host, paused === true);
+      this.reloadTab(tabId);                                  // so the page the user is looking at reflects the change
+      return { success: true, host, paused: this.adBlocker.isSitePaused(host) };
+    }));
+
+    // ── Secure DNS (DNS-over-HTTPS) ──
+    ipcMain.handle('dns:get', secureHandlerRaw(() => this.getSecureDnsState()));
+
+    ipcMain.handle('dns:set', secureHandlerRaw((_, choice) => {
+      if (!choice || typeof choice !== 'object' || Array.isArray(choice)) throw new Error('dns:set requires an object');
+      const provider = secureDns.normalizeProvider(choice.provider);
+      const update = { secureDnsProvider: provider, secureDnsStrict: choice.strict === true };
+      if (provider === 'custom') {
+        const v = secureDns.validateDohUrl(choice.customUrl);
+        if (!v.ok) return { success: false, error: v.reason, state: this.getSecureDnsState() };      // nothing is saved or applied
+        update.secureDnsCustomUrl = v.url;
+      }
+      this.storage.updateSettings(update);
+      this.applySecureDns();
+      const state = this.getSecureDnsState();
+      this.broadcastSettingsUpdated(this.storage.getSettings());
+      return { success: true, state };
     }));
 
     log.info('IPC handlers registered');

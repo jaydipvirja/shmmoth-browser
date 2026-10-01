@@ -149,6 +149,59 @@ function showToast(msg = 'Settings Saved!') {
   }, 2000);
 }
 
+// ─── Secure DNS (DNS-over-HTTPS) ────────────────────────────────────────────
+const selectDnsProvider = document.getElementById('select-dns-provider');
+const dnsCustomRow = document.getElementById('dns-custom-row');
+const inputDnsCustom = document.getElementById('input-dns-custom');
+const toggleDnsStrict = document.getElementById('toggle-dns-strict');
+const dnsStatus = document.getElementById('dns-status');
+const dnsProviderDesc = document.getElementById('dns-provider-desc');
+
+function renderSecureDns(state) {
+  if (!state || !selectDnsProvider) return;
+  if (selectDnsProvider.options.length === 0) {
+    for (const p of state.providers) {
+      const opt = document.createElement('option');
+      opt.value = p.id;
+      opt.textContent = p.label;
+      opt.dataset.description = p.description;
+      selectDnsProvider.appendChild(opt);
+    }
+  }
+  selectDnsProvider.value = state.provider;
+  inputDnsCustom.value = state.customUrl || '';
+  toggleDnsStrict.checked = Boolean(state.strict);
+  dnsCustomRow.classList.toggle('hidden', state.provider !== 'custom');
+  const chosen = state.providers.find((p) => p.id === state.provider);
+  dnsProviderDesc.textContent = chosen ? chosen.description : '';
+  dnsStatus.textContent = state.effectiveProvider === 'system'
+    ? 'Currently: your system\'s normal DNS.'
+    : `Currently encrypted via ${state.servers[0]}${state.strict ? ' (no fallback)' : ' (falls back to normal DNS if unreachable)'}.`;
+  toggleDnsStrict.disabled = state.effectiveProvider === 'system';
+}
+
+async function saveSecureDns() {
+  const res = await window.mtcAPI.setSecureDns({
+    provider: selectDnsProvider.value,
+    customUrl: inputDnsCustom.value,
+    strict: toggleDnsStrict.checked
+  });
+  renderSecureDns(res.state);
+  if (res.success) showToast('Secure DNS saved');
+  else { dnsStatus.textContent = res.error || 'That setting could not be applied.'; showToast(res.error || 'Secure DNS not changed'); }
+}
+
+if (selectDnsProvider && window.mtcAPI && window.mtcAPI.getSecureDns) {
+  window.mtcAPI.getSecureDns().then(renderSecureDns).catch(() => {});
+  selectDnsProvider.addEventListener('change', () => {
+    dnsCustomRow.classList.toggle('hidden', selectDnsProvider.value !== 'custom');
+    if (selectDnsProvider.value !== 'custom') saveSecureDns();
+    else inputDnsCustom.focus();
+  });
+  inputDnsCustom.addEventListener('change', saveSecureDns);
+  toggleDnsStrict.addEventListener('change', saveSecureDns);
+}
+
 // Load Settings
 async function initSettings() {
   if (window.mtcAPI && window.mtcAPI.getSettings) {

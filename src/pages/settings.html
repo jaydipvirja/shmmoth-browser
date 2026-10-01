@@ -243,6 +243,47 @@
           <p>Configure how SHMMOTH Browser routes web requests. Supports Direct, System Default, or Manual Proxy.</p>
         </div>
 
+        <div class="card" id="secure-dns-card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="select-dns-provider">Secure DNS (DNS-over-HTTPS)</label>
+              <span class="setting-desc" id="dns-provider-desc">Encrypts the lookups that turn website names into addresses.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-dns-provider" class="select-dropdown"></select>
+            </div>
+          </div>
+
+          <div id="dns-custom-row" class="hidden">
+            <div class="divider"></div>
+            <div class="setting-row">
+              <div class="setting-info">
+                <label class="setting-label" for="input-dns-custom">DNS-over-HTTPS address</label>
+                <span class="setting-desc">For example https://dns.example.com/dns-query</span>
+              </div>
+              <div class="setting-control" style="flex:1; max-width:340px;">
+                <input type="text" id="input-dns-custom" class="text-input" placeholder="https://…/dns-query" spellcheck="false" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-dns-strict">Never fall back to normal DNS</label>
+              <span class="setting-desc">If the secure server cannot be reached, pages will not load instead of using your network's DNS. Leave off unless you need it.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-dns-strict">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+          <p class="setting-desc" id="dns-status" style="margin-top:10px;"></p>
+          <p class="setting-desc" style="margin-top:6px;">The DNS provider sees which website names you look up. With a proxy configured below, the proxy looks up the names itself.</p>
+        </div>
+
         <div class="card">
           <div class="setting-row">
             <div class="setting-info">

@@ -241,6 +241,17 @@
           <span class="slider"></span>
         </label>
       </div>
+
+      <div class="toggle-card" id="site-card" style="margin-top:8px;">
+        <div class="toggle-text" style="min-width:0;">
+          <strong>On this site</strong>
+          <span id="site-status-sub" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">—</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-site" checked disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <div class="bubble-footer">
@@ -255,6 +266,8 @@
     const api = window.mtcAPI || window.shmmothAPI;
     const shieldCount = document.getElementById('shield-count');
     const toggleShield = document.getElementById('toggle-shield');
+    const toggleSite = document.getElementById('toggle-site');
+    const siteStatus = document.getElementById('site-status-sub');
     const statusSub = document.getElementById('shield-status-sub');
     const btnSettings = document.getElementById('btn-settings');
     const btnClose = document.getElementById('btn-close');
@@ -272,8 +285,31 @@
           toggleShield.checked = enabled;
           updateStatusText(enabled);
         }
+        await refreshSite();
       } catch (e) {
         console.error('Shield bubble error', e);
+      }
+    }
+
+    // The "On this site" switch: the site is the one in the active tab (decided in the main process).
+    async function refreshSite() {
+      if (!api || !api.getAdBlockSite) return;
+      try {
+        const site = await api.getAdBlockSite();
+        if (!site.canPause) {
+          toggleSite.disabled = true;
+          toggleSite.checked = Boolean(site.enabled);
+          siteStatus.textContent = 'Only available on websites';
+          siteStatus.style.color = '#94a3b8';
+          return;
+        }
+        toggleSite.checked = site.enabled && !site.paused;
+        toggleSite.disabled = !site.enabled;                       // the master switch decides when it is off
+        siteStatus.textContent = !site.enabled ? site.host + ' — blocker is off everywhere'
+          : site.paused ? site.host + ' — paused' : site.host + ' — blocking';
+        siteStatus.style.color = !site.enabled || site.paused ? '#f87171' : '#34d399';
+      } catch (e) {
+        console.error('Shield bubble site error', e);
       }
     }
 
@@ -292,6 +328,18 @@
       updateStatusText(isEnabled);
       if (api && api.updateSettings) {
         await api.updateSettings({ adBlockerEnabled: isEnabled });
+      }
+      if (api && api.reloadAdBlockPage) await api.reloadAdBlockPage();   // so the page behind this bubble shows the change
+      await refreshSite();
+    });
+
+    toggleSite.addEventListener('change', async () => {
+      const wantBlocking = toggleSite.checked;
+      toggleSite.disabled = true;
+      try {
+        if (api && api.setAdBlockSite) await api.setAdBlockSite(!wantBlocking);   // the active tab reloads
+      } finally {
+        await refreshSite();
       }
     });
 
