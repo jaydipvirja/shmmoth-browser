@@ -1,4 +1,4 @@
-// MTC BROWSER - Settings Controller
+// SHMMOTH BROWSER - Settings Controller
 
 let currentSettings = {};
 
@@ -23,15 +23,12 @@ navLinks.forEach(link => {
 
 // UI Elements
 const selectSearchEngine = document.getElementById('select-search-engine');
+const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
 const badgeBlockedCount = document.getElementById('badge-blocked-count');
 const btnOpenClearData = document.getElementById('btn-open-clear-data');
 const btnOpenCookiesModal = document.getElementById('btn-open-cookies-modal');
-const toggleAiSidebar = document.getElementById('toggle-ai-sidebar');
-const selectAiProvider = document.getElementById('select-ai-provider');
-const rowCustomAi = document.getElementById('row-custom-ai');
-const inputCustomAi = document.getElementById('input-custom-ai');
 const toggleRamSaver = document.getElementById('toggle-ram-saver');
 const selectRamTimeout = document.getElementById('select-ram-timeout');
 const selectTheme = document.getElementById('select-theme');
@@ -160,21 +157,13 @@ async function initSettings() {
       
       // Populate fields
       selectSearchEngine.value = currentSettings.searchEngine || 'google';
+      selectStartup.value = currentSettings.startupBehavior === 'restore' ? 'restore' : 'newtab';
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
-      toggleAiSidebar.checked = currentSettings.aiSidebarEnabled ?? true;
-      selectAiProvider.value = currentSettings.aiProvider || 'gemini';
-      inputCustomAi.value = currentSettings.aiCustomUrl || 'https://gemini.google.com';
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       selectTheme.value = currentSettings.theme || 'dark';
       document.body.classList.toggle('theme-light', (currentSettings.theme === 'light'));
-
-      if (selectAiProvider.value === 'custom') {
-        rowCustomAi.style.display = 'flex';
-      } else {
-        rowCustomAi.style.display = 'none';
-      }
 
       // Live ad blocked count
       const blockedCount = await window.mtcAPI.getAdsBlockedCount();
@@ -221,36 +210,16 @@ selectSearchEngine.addEventListener('change', () => {
   saveSettingChange({ searchEngine: selectSearchEngine.value });
 });
 
+selectStartup.addEventListener('change', () => {
+  saveSettingChange({ startupBehavior: selectStartup.value === 'restore' ? 'restore' : 'newtab' });
+});
+
 toggleBookmarksBar.addEventListener('change', () => {
   saveSettingChange({ showBookmarksBar: toggleBookmarksBar.checked });
 });
 
 toggleAdblocker.addEventListener('change', () => {
   saveSettingChange({ adBlockerEnabled: toggleAdblocker.checked });
-});
-
-toggleAiSidebar.addEventListener('change', () => {
-  saveSettingChange({ aiSidebarEnabled: toggleAiSidebar.checked });
-});
-
-selectAiProvider.addEventListener('change', () => {
-  const prov = selectAiProvider.value;
-  rowCustomAi.style.display = (prov === 'custom') ? 'flex' : 'none';
-  
-  let targetUrl = 'https://gemini.google.com';
-  if (prov === 'chatgpt') targetUrl = 'https://chatgpt.com';
-  else if (prov === 'custom') targetUrl = inputCustomAi.value;
-
-  saveSettingChange({
-    aiProvider: prov,
-    aiCustomUrl: targetUrl
-  });
-});
-
-inputCustomAi.addEventListener('change', () => {
-  if (selectAiProvider.value === 'custom') {
-    saveSettingChange({ aiCustomUrl: inputCustomAi.value.trim() });
-  }
 });
 
 toggleRamSaver.addEventListener('change', () => {
@@ -800,7 +769,11 @@ function setupPasswordsController() {
         const updates = { origin, username };
         if (password) updates.password = password;
         if (window.mtcAPI && window.mtcAPI.updatePassword) {
-          await window.mtcAPI.updatePassword(id, updates);
+          const res = await window.mtcAPI.updatePassword(id, updates);
+          if (!res || !res.success) {
+            alert('Could not update the password: ' + ((res && res.error) || 'unknown error'));
+            return;
+          }
           showToast('Password updated!');
         }
       } else {
@@ -809,7 +782,11 @@ function setupPasswordsController() {
           return;
         }
         if (window.mtcAPI && window.mtcAPI.savePassword) {
-          await window.mtcAPI.savePassword({ origin, username, password });
+          const res = await window.mtcAPI.savePassword({ origin, username, password });
+          if (!res || !res.success) {
+            alert('Could not save the password: ' + ((res && res.error) || 'unknown error'));
+            return;
+          }
           showToast('Password saved securely!');
         }
       }
@@ -1135,18 +1112,13 @@ function setupProxyController() {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from safe-html.js (loaded before this script)
 
 // ─── Hash Navigation (e.g. #privacy) ────────────────────────────────────────
 function handleHash() {
   const hash = (window.location.hash || '').replace('#', '');
   if (hash) {
-    const targetLink = document.querySelector(`.nav-item[data-tab="${hash}"]`);
+    const targetLink = document.querySelector(`.nav-item[data-tab="${CSS.escape(hash)}"]`);
     if (targetLink) targetLink.click();
   }
 }
@@ -1167,10 +1139,8 @@ btnResetDefaults.addEventListener('click', async () => {
       adBlockerEnabled: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
-      aiSidebarEnabled: true,
-      aiProvider: 'gemini',
-      aiCustomUrl: 'https://gemini.google.com',
       theme: 'dark',
+      startupBehavior: 'newtab',
       showBookmarksBar: true
     };
     await saveSettingChange(defaults);
@@ -1205,8 +1175,12 @@ function setupAutoUpdateController() {
 
   if (!btnCheckUpdates || !window.mtcAPI) return;
 
+  const RELEASES_PAGE = 'https://github.com/jaydipvirja/shmmoth-browser/releases/latest';
+  let lastManualDownloadUrl = RELEASES_PAGE;
+
   function renderStatus(status) {
     if (!status) return;
+    if (status.manualDownloadUrl) lastManualDownloadUrl = status.manualDownloadUrl;
 
     const currentVer = status.currentVersion || '1.0.0';
     if (aboutBrowserVersion) aboutBrowserVersion.textContent = currentVer;
@@ -1229,9 +1203,16 @@ function setupAutoUpdateController() {
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = `Update available: v${status.availableVersion || ''}`;
-        if (updateStatusDesc) updateStatusDesc.textContent = 'Downloading update in background...';
-        if (btnCheckUpdates) btnCheckUpdates.disabled = true;
-        if (updateProgressContainer) updateProgressContainer.classList.remove('hidden');
+        if (status.autoInstall === false) {
+          // Cannot be installed automatically (unsigned release / signing not configured): point to the releases page
+          if (updateStatusDesc) updateStatusDesc.textContent = status.message || 'Download the new version from the releases page.';
+          if (btnCheckUpdates) { btnCheckUpdates.disabled = false; btnCheckUpdates.classList.remove('hidden'); }
+          if (updateProgressContainer) updateProgressContainer.classList.add('hidden');
+        } else {
+          if (updateStatusDesc) updateStatusDesc.textContent = 'Downloading update in background...';
+          if (btnCheckUpdates) btnCheckUpdates.disabled = true;
+          if (updateProgressContainer) updateProgressContainer.classList.remove('hidden');
+        }
         break;
 
       case 'downloading':
@@ -1347,7 +1328,8 @@ function setupAutoUpdateController() {
   const btnManualDownload = document.getElementById('btn-manual-download');
   if (btnManualDownload) {
     btnManualDownload.addEventListener('click', () => {
-      const url = 'https://github.com/jaydipvirja/shmmoth-browser/releases/download/v1.0.10/SHMMOTH-Browser-Setup-1.0.10.exe';
+      // Opens the releases page (always the newest release) instead of a hard-coded old installer
+      const url = lastManualDownloadUrl || RELEASES_PAGE;
       if (window.mtcAPI && window.mtcAPI.createTab) {
         window.mtcAPI.createTab(url);
       } else {

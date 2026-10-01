@@ -1,4 +1,4 @@
-# MTC Browser — Storage
+# SHMMOTH Browser — Storage
 
 ## Current Implementation
 
@@ -16,11 +16,9 @@ Single JSON file: `%APPDATA%/mtc-browser/mtc-data.json`
     "adBlockerEnabled": true,
     "ramSaverEnabled": true,
     "ramSaverTimeoutMinutes": 15,
-    "aiSidebarEnabled": true,
-    "aiProvider": "gemini",
-    "aiCustomUrl": "https://gemini.google.com",
     "theme": "dark",
     "homepage": "mtc://newtab",
+    "startupBehavior": "newtab",
     "showBookmarksBar": true
   },
   "bookmarks": [{ "id": "bm_1", "title": "", "url": "", "favicon": "", "createdAt": 0 }],
@@ -58,24 +56,52 @@ const shmmothData = this.storage.get('shmmoth', {});
 this.storage.set('shmmoth', { ...shmmothData, lastTask: taskId });
 ```
 
+## Other files in the profile folder
+
+| File | Content |
+|---|---|
+| `adblock-engine.bin` | the compiled ad/tracker filter engine (cache; safe to delete, it is rebuilt from the downloaded lists) |
+
+History is written to `mtc-data.json` at most every ~2 s (page loads and title updates are coalesced) and immediately when the window closes or the app quits; bookmarks, settings and notes are still written at once. A history entry is created when a page commits and receives its title and icon when the page reports them.
+
+## Session (`shmmoth-session.json`)
+
+The open **normal** tabs (address, title, icon, pinned) and the selected one, rewritten within a second of every tab change (`services/sessionStore.js`, atomic like the other files, with a `.bak`). Incognito tabs, `file://`, `javascript:`, `data:` and unknown `mtc://` addresses are never written, and the file is validated again when read. It is only *used* when Settings → On Start-up is "Continue where I left off" (`startupBehavior: "restore"`); the default is the new tab page. Restored background tabs are created without loading and load when first selected, so restoring 40 tabs does not start 40 page loads.
+
 ## Sensitive Data (NOT stored here)
 
 | Data | Storage Method |
 |---|---|
-| Passwords | NEVER stored |
+| Passwords | `shmmoth-vault.json`, each password encrypted with Electron `safeStorage` (Windows DPAPI); if OS encryption is unavailable passwords are **refused**, never stored with a weak key |
 | API keys | Main process memory only |
-| Auth tokens | `getSensitive()` / `setSensitive()` → Electron `safeStorage` (Phase 2) |
+| Auth tokens | `getSensitive()` / `setSensitive()` → Electron `safeStorage` (not yet implemented) |
 | Session cookies | Chromium session layer (not in our JSON) |
+
+## Crash safety (`src/utils/atomicJson.js`)
+
+All JSON data files (`mtc-data.json`, `shmmoth-vault.json`, `shmmoth-autofill.json`, `shmmoth-proxy.json`, the extension registry) are written with `writeJsonAtomic()`:
+
+1. serialise → temp file (`<file>.tmp-<pid>`), `fsync`
+2. refresh `<file>.bak` from the current file **only if the current file still parses** (storage: at most once a minute; vault: every write)
+3. `rename` the temp file over the real one (atomic)
+
+and read with `readJsonRecovering()`:
+
+| Situation | Result |
+|---|---|
+| file missing | fresh defaults |
+| file damaged (bad JSON / wrong shape) | damaged file is **moved** to `<file>.corrupt-<timestamp>` (last 3 kept), `<file>.bak` is restored if usable, otherwise defaults |
+| file exists but cannot be read (locked / permissions) | `persistBlocked` — the service runs in memory and never overwrites the file |
+
+A damaged file is therefore never silently replaced by empty data. If you ever see a `*.corrupt-*` file next to your data, the app recovered from the backup (`.bak`, at most ~1 minute old for bookmarks/history) and kept the damaged copy for inspection.
 
 ## Known Limitations
 
-- Synchronous `fs.writeFileSync` — blocking on every mutation
-- No atomic write (crash mid-write can corrupt the file)
+- Synchronous (but atomic) file I/O on every mutation (~3 ms for a 2,000-entry history)
 - No database — not suitable for large datasets (>10K history items)
 - No migration system for schema changes
 
 ## Roadmap
 
-- Phase 2: Add atomic write (temp file + rename)
-- Phase 2: Add `safeStorage` for encrypted sensitive fields
+- Phase 3: debounce/coalesce history writes
 - Phase 3: Consider SQLite for history/downloads if volume grows

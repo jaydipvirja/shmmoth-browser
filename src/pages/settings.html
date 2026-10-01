@@ -5,9 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="fonts.css">
 </head>
 <body>
   <div class="settings-layout">
@@ -29,7 +27,6 @@
         <a href="#network" class="nav-item" data-tab="network">🌐 Network & Proxy</a>
         <a href="#downloads" class="nav-item" data-tab="downloads">📥 Downloads</a>
         <a href="mtc://extensions" class="nav-item">🧩 Extensions</a>
-        <a href="#ai" class="nav-item" data-tab="ai">✨ AI Assistant</a>
         <a href="#performance" class="nav-item" data-tab="performance">⚡ Performance & RAM</a>
         <a href="#appearance" class="nav-item" data-tab="appearance">🎨 Appearance</a>
         <a href="#about" class="nav-item" data-tab="about">ℹ️ About SHMMOTH</a>
@@ -61,6 +58,21 @@
                 <option value="duckduckgo">DuckDuckGo (Privacy Focused)</option>
                 <option value="bing">Microsoft Bing</option>
                 <option value="yahoo">Yahoo Search</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">On Start-up</label>
+              <span class="setting-desc">What to open when the browser starts. Incognito tabs are never restored.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-startup" class="select-dropdown">
+                <option value="newtab" selected>Open the new tab page</option>
+                <option value="restore">Continue where I left off</option>
               </select>
             </div>
           </div>
@@ -402,54 +414,6 @@
         </div>
       </section>
 
-      <!-- AI Assistant -->
-      <section id="tab-ai" class="tab-pane">
-        <div class="section-title">
-          <h2>AI Assistant Sidebar</h2>
-          <p>Access your favorite AI companion in a sliding side panel while you browse.</p>
-        </div>
-
-        <div class="card">
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Enable AI Sidebar</label>
-              <span class="setting-desc">Show the ✨ AI Assistant button in the top toolbar.</span>
-            </div>
-            <div class="setting-control">
-              <label class="toggle-switch">
-                <input type="checkbox" id="toggle-ai-sidebar" checked>
-                <span class="slider"></span>
-              </label>
-            </div>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="setting-row">
-            <div class="setting-info">
-              <label class="setting-label">Preferred AI Provider</label>
-              <span class="setting-desc">Choose which AI service opens when the sidebar is activated.</span>
-            </div>
-            <div class="setting-control">
-              <select id="select-ai-provider" class="select-dropdown">
-                <option value="gemini" selected>Google Gemini (gemini.google.com)</option>
-                <option value="chatgpt">OpenAI ChatGPT (chatgpt.com)</option>
-                <option value="custom">Custom AI Web App URL</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="setting-row" id="row-custom-ai" style="display:none; margin-top:12px;">
-            <div class="setting-info">
-              <label class="setting-label">Custom AI URL</label>
-            </div>
-            <div class="setting-control" style="flex:1; max-width:320px;">
-              <input type="text" id="input-custom-ai" class="text-input" placeholder="https://..." value="https://gemini.google.com">
-            </div>
-          </div>
-        </div>
-      </section>
-
       <!-- Performance & RAM -->
       <section id="tab-performance" class="tab-pane">
         <div class="section-title">
@@ -494,7 +458,7 @@
       <section id="tab-appearance" class="tab-pane">
         <div class="section-title">
           <h2>Appearance & Theme</h2>
-          <p>Customize the visual styling of MTC BROWSER.</p>
+          <p>Customize the visual styling of SHMMOTH Browser.</p>
         </div>
 
         <div class="card">
@@ -517,7 +481,7 @@
       <!-- About SHMMOTH -->
       <section id="tab-about" class="tab-pane">
         <div class="section-title">
-          <h2>About SHMMOTH BROWSER</h2>
+          <h2><img class="about-logo" src="logo.svg" alt="" width="40" height="40">About SHMMOTH BROWSER</h2>
           <p>Personal Chromium Desktop Browser Information.</p>
         </div>
 
@@ -535,7 +499,7 @@
             <div class="update-actions">
               <button id="btn-check-updates" class="btn-primary">Check for updates</button>
               <button id="btn-relaunch-update" class="btn-success hidden">Relaunch to update</button>
-              <button id="btn-manual-download" class="btn-secondary" title="Download Setup Installer directly">📥 Download v1.0.10 Installer</button>
+              <button id="btn-manual-download" class="btn-secondary" title="Open the releases page to download the latest installer">📥 Open download page</button>
             </div>
           </div>
           <div id="update-progress-container" class="update-progress-container hidden">
@@ -803,6 +767,7 @@
     </div>
   </div>
 
+  <script src="safe-html.js"></script>
   <script src="settings.js"></script>
 </body>
 </html>

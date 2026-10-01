@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Quick Notes - MTC BROWSER</title>
+  <title>Quick Notes - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
   <style>
     body {
@@ -98,7 +98,7 @@
   <div class="notes-header">
     <div class="notes-title">
       <span>📝</span>
-      <span>MTC Quick Scratchpad</span>
+      <span>Quick Scratchpad</span>
     </div>
     <div class="header-actions">
       <button id="btn-copy" class="action-btn" title="Copy all notes">Copy All</button>
@@ -115,63 +115,6 @@
     <span id="status" class="save-status">✓ All changes saved</span>
   </div>
 
-  <script>
-    const textarea = document.getElementById('notes-content');
-    const status = document.getElementById('status');
-    const stats = document.getElementById('stats');
-    const btnCopy = document.getElementById('btn-copy');
-    const btnClear = document.getElementById('btn-clear');
-
-    let debounceTimer = null;
-
-    function updateStats() {
-      const text = textarea.value.trim();
-      const chars = textarea.value.length;
-      const words = text ? text.split(/\s+/).length : 0;
-      stats.textContent = `${words} words | ${chars} chars`;
-    }
-
-    async function loadNotes() {
-      if (window.mtcAPI && window.mtcAPI.getNotes) {
-        const content = await window.mtcAPI.getNotes();
-        textarea.value = content || '';
-        updateStats();
-      }
-    }
-
-    textarea.addEventListener('input', () => {
-      status.textContent = 'Saving...';
-      status.style.color = '#f59e0b';
-      updateStats();
-
-      clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        if (window.mtcAPI && window.mtcAPI.saveNotes) {
-          await window.mtcAPI.saveNotes(textarea.value);
-          status.textContent = '✓ All changes saved';
-          status.style.color = '#10b981';
-        }
-      }, 500);
-    });
-
-    btnCopy.addEventListener('click', () => {
-      navigator.clipboard.writeText(textarea.value);
-      const prev = btnCopy.textContent;
-      btnCopy.textContent = 'Copied!';
-      setTimeout(() => btnCopy.textContent = prev, 1500);
-    });
-
-    btnClear.addEventListener('click', async () => {
-      if (confirm('Clear all notes?')) {
-        textarea.value = '';
-        updateStats();
-        if (window.mtcAPI && window.mtcAPI.saveNotes) {
-          await window.mtcAPI.saveNotes('');
-        }
-      }
-    });
-
-    loadNotes();
-  </script>
+  <script src="notes.js"></script>
 </body>
 </html>

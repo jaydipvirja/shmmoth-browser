@@ -12,6 +12,10 @@ const fs   = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { storageLogger: log } = require('../utils/logger');
+const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+
+// settings/bookmarks/history change on every navigation; refresh the .bak at most once a minute
+const BACKUP_INTERVAL_MS = 60 * 1000;
 
 class StorageService {
   constructor() {
@@ -38,6 +42,7 @@ class StorageService {
         theme:                  'dark',
         homepage:               'mtc://newtab',
         showBookmarksBar:       true,
+        startupBehavior:        'newtab',      // 'newtab' | 'restore' (continue where I left off)
         downloadPath:           '',
         askWhereToSave:         false
       },
@@ -111,32 +116,57 @@ class StorageService {
   // ═══════════════════════════════════════════════════════════════════
 
   load() {
-    try {
-      if (fs.existsSync(this.storagePath)) {
-        const fileContent = fs.readFileSync(this.storagePath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
-        const merged = {
-          ...this.defaultData,
-          ...parsed,
-          settings: { ...this.defaultData.settings, ...(parsed.settings || {}) },
-          bookmarkFolders: parsed.bookmarkFolders || this.defaultData.bookmarkFolders
-        };
-        log.info('Storage loaded from disk', { path: this.storagePath });
-        return merged;
-      }
-    } catch (err) {
-      log.error('Error loading storage file, using defaults', { error: err.message });
+    const res = readJsonRecovering(this.storagePath, { validate: isPlainObject });
+    this.loadSource = res.source;
+    // When the file exists but the OS refuses to let us read it (locked/permissions) we must
+    // not start from defaults and then overwrite the user's data on the next save.
+    this.persistBlocked = res.source === 'unreadable';
+
+    if (res.source === 'unreadable') {
+      log.error('Storage file exists but cannot be read; running without persistence to protect it', {
+        path: this.storagePath, error: res.error && res.error.message
+      });
+    } else if (res.corruptPath) {
+      log.error('Storage file was damaged; the damaged copy was preserved', {
+        corruptCopy: res.corruptPath, error: res.error && res.error.message,
+        recoveredFromBackup: res.source === 'backup'
+      });
+    }
+
+    if (res.data) {
+      const parsed = res.data;
+      const merged = {
+        ...this.defaultData,
+        ...parsed,
+        settings: { ...this.defaultData.settings, ...(isPlainObject(parsed.settings) ? parsed.settings : {}) },
+        bookmarkFolders: Array.isArray(parsed.bookmarkFolders) ? parsed.bookmarkFolders : this.defaultData.bookmarkFolders
+      };
+      log.info('Storage loaded from disk', { path: this.storagePath, source: res.source });
+      return merged;
     }
     return JSON.parse(JSON.stringify(this.defaultData));
   }
 
+  /**
+   * Like save() but coalesced: history is written on every page load and title change, and each save is an
+   * fsync'ed atomic write of the whole file. Use for high-frequency, low-value changes; flush() on the way out.
+   */
+  saveSoon(delayMs = 2000) {
+    if (this._saveTimer) return;
+    this._saveTimer = setTimeout(() => this.save(), delayMs);
+    if (this._saveTimer.unref) this._saveTimer.unref();
+  }
+
+  /** Writes pending changes now (app quitting / window closing). */
+  flush() {
+    if (this._saveTimer) this.save();
+  }
+
   save() {
+    if (this._saveTimer) { clearTimeout(this._saveTimer); this._saveTimer = null; }
+    if (this.persistBlocked) return;
     try {
-      const dir = path.dirname(this.storagePath);
-      if (!fs.existsSync(dir)) {
-        fs.mkdirSync(dir, { recursive: true });
-      }
-      fs.writeFileSync(this.storagePath, JSON.stringify(this.data, null, 2), 'utf-8');
+      writeJsonAtomic(this.storagePath, this.data, { backupIntervalMs: BACKUP_INTERVAL_MS, validate: isPlainObject });
     } catch (err) {
       log.error('Error saving storage file', { error: err.message });
     }
@@ -333,7 +363,22 @@ class StorageService {
     if (this.data.history.length > 2000) {
       this.data.history = this.data.history.slice(0, 2000);
     }
-    this.save();
+    this.saveSoon();
+  }
+
+  /**
+   * The title and icon of a page are only known after it has been added to the history (the navigation event fires
+   * first), so they are filled in when they arrive. Unknown addresses are ignored.
+   */
+  updateHistoryEntry(url, { title, favicon } = {}) {
+    if (typeof url !== 'string' || !this.data.history) return false;
+    const entry = this.data.history.find(h => h.url === url.trim());
+    if (!entry) return false;
+    let changed = false;
+    if (typeof title === 'string' && title && title !== 'New Tab' && title !== entry.title) { entry.title = title.slice(0, 500); changed = true; }
+    if (typeof favicon === 'string' && favicon && favicon.length <= 2048 && favicon !== entry.favicon) { entry.favicon = favicon; changed = true; }
+    if (changed) this.saveSoon();
+    return changed;
   }
 
   deleteHistoryItem(id) {

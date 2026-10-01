@@ -1,5 +1,5 @@
 /**
- * MTC BROWSER — SECURITY TEST SUITE
+ * SHMMOTH BROWSER — SECURITY TEST SUITE
  * Phase 1 verification tests
  *
  * Run with: node tests/security.test.js
@@ -59,13 +59,14 @@ Module._load = function(request, ...args) {
 
 const ipcSecurity = require('../src/security/ipcSecurity');
 const urlPolicy   = require('../src/security/urlPolicy');
+const { BROWSER_CHROME_URL } = require('../src/security/trustedPages');
 const { Logger, redact } = require('../src/utils/logger');
 const BrowserAction = require('../src/agent/BrowserAction');
 
 // ─── Test Suite ───────────────────────────────────────────────────────────────
 
 console.log('\n══════════════════════════════════════════');
-console.log('  MTC Browser — Phase 1 Security Tests   ');
+console.log('  SHMMOTH Browser — Phase 1 Security Tests   ');
 console.log('══════════════════════════════════════════\n');
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -77,9 +78,14 @@ test('Trusted origin: mtc:// is accepted', () => {
   ipcSecurity.validateTrustedSender(fakeEvent); // must not throw
 });
 
-test('Trusted origin: file:// is accepted', () => {
-  const fakeEvent = { senderFrame: { url: 'file:///path/to/renderer/index.html' } };
+test('Trusted origin: the app\'s own browser chrome (file://) is accepted', () => {
+  const fakeEvent = { senderFrame: { url: BROWSER_CHROME_URL } };
   ipcSecurity.validateTrustedSender(fakeEvent);
+});
+
+test('Untrusted origin: an arbitrary local file:// document is rejected', () => {
+  const fakeEvent = { senderFrame: { url: 'file:///C:/Users/me/Downloads/invoice.html' } };
+  assertThrows(() => ipcSecurity.validateTrustedSender(fakeEvent), 'UNTRUSTED_ORIGIN');
 });
 
 test('Untrusted origin: https:// is rejected', () => {
@@ -104,7 +110,8 @@ test('Untrusted origin: attacker spoofing mtc in subdomain is rejected', () => {
 
 test('isTrustedOrigin: returns correct values', () => {
   assert(ipcSecurity.isTrustedOrigin('mtc://newtab') === true);
-  assert(ipcSecurity.isTrustedOrigin('file:///x') === true);
+  assert(ipcSecurity.isTrustedOrigin('file:///x') === false);
+  assert(ipcSecurity.isTrustedOrigin(BROWSER_CHROME_URL) === true);
   assert(ipcSecurity.isTrustedOrigin('https://google.com') === false);
   assert(ipcSecurity.isTrustedOrigin('') === false);
   assert(ipcSecurity.isTrustedOrigin(null) === false);
@@ -136,8 +143,9 @@ test('classify: mtc:// → TRUSTED_INTERNAL', () => {
   assert(urlPolicy.classify('mtc://newtab') === urlPolicy.UrlCategory.TRUSTED_INTERNAL);
 });
 
-test('classify: file:// → TRUSTED_INTERNAL', () => {
-  assert(urlPolicy.classify('file:///path') === urlPolicy.UrlCategory.TRUSTED_INTERNAL);
+test('classify: app-shipped file:// chrome → TRUSTED_INTERNAL, other file:// → LOCAL_FILE', () => {
+  assert(urlPolicy.classify(BROWSER_CHROME_URL) === urlPolicy.UrlCategory.TRUSTED_INTERNAL);
+  assert(urlPolicy.classify('file:///path') === urlPolicy.UrlCategory.LOCAL_FILE);
 });
 
 test('classify: https:// → UNKNOWN_EXTERNAL', () => {
@@ -175,7 +183,7 @@ test('checkNavigation: internal page can navigate to mtc://', () => {
 });
 
 test('checkNavigation: file:// chrome can navigate to mtc://', () => {
-  const result = urlPolicy.checkNavigation('file:///renderer/index.html', 'mtc://newtab');
+  const result = urlPolicy.checkNavigation(BROWSER_CHROME_URL, 'mtc://newtab');
   assert(result.allowed === true);
 });
 

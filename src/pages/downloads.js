@@ -103,12 +103,7 @@ function getProgressPercent(record) {
   return Math.min(100, Math.round((record.received / record.total) * 100));
 }
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from safe-html.js (loaded before this script)
 
 /**
  * Updates the network status bar showing detected hardware network interfaces.

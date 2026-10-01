@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Aw, Snap! - SHMMOTH BROWSER</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="fonts.css">
   <style>
     * {
       box-sizing: border-box;
@@ -110,34 +108,6 @@
     </div>
   </div>
 
-  <script>
-    const urlParams = new URLSearchParams(window.location.search);
-    const reason = urlParams.get('reason') || 'crashed';
-    const targetUrl = urlParams.get('url') || '';
-    const tabId = urlParams.get('tabId') || '';
-
-    const codeEl = document.getElementById('crash-code');
-    if (codeEl) {
-      codeEl.textContent = `Error code: STATUS_${reason.toUpperCase().replace(/-/g, '_')}`;
-    }
-
-    document.getElementById('btn-reload').addEventListener('click', () => {
-      if (window.mtcAPI && window.mtcAPI.reloadTab) {
-        window.mtcAPI.reloadTab();
-      } else if (targetUrl) {
-        window.location.href = targetUrl;
-      } else {
-        window.location.reload();
-      }
-    });
-
-    document.getElementById('btn-newtab').addEventListener('click', () => {
-      if (window.mtcAPI && window.mtcAPI.createTab) {
-        window.mtcAPI.createTab('mtc://newtab');
-      } else {
-        window.location.href = 'mtc://newtab';
-      }
-    });
-  </script>
+  <script src="crash.js"></script>
 </body>
 </html>

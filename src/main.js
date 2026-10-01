@@ -27,18 +27,29 @@ const { AutofillService } = require('./services/autofillService');
 const { ProxyManager }    = require('./services/proxyManager');
 const ExtensionManager    = require('./services/extensionManager');
 const UpdateManager       = require('./services/updateManager');
+const { SessionStore, buildSnapshot } = require('./services/sessionStore');
 
 
 const { secureHandlerRaw, validateUrl, sanitizeString } = require('./security/ipcSecurity');
 const { checkNavigation, isPopupBlocked, isSafeToLoad }  = require('./security/urlPolicy');
+const { isTrustedInternalUrl, BROWSER_CHROME_URL }        = require('./security/trustedPages');
+const { MTC_PAGE_CSP }                                    = require('./security/csp');
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
+const { urlsFromArgv }                                    = require('./utils/launchArgs');
+const { shouldShowErrorPage, buildErrorPageUrl, displayUrl } = require('./utils/errorPage');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
-app.userAgentFallback = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+// The UA / Client-Hints strings we present must match the Chromium that is actually running; a
+// hard-coded version drifts apart from the engine on every Electron upgrade (and looks inconsistent
+// to anti-bot checks). Always derive it from the runtime.
+const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
+const CHROME_REDUCED = `Chrome/${CHROME_MAJOR}.0.0.0`;
+const DESKTOP_UA_FALLBACK = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Safari/537.36`;
+app.userAgentFallback = DESKTOP_UA_FALLBACK;
 
 // Dedicated Google Authentication User-Agent to pass BotGuard web attestation on accounts.google.com
-const GOOGLE_AUTH_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
+const GOOGLE_AUTH_UA = `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Mobile Safari/537.36`;
 
 function isGoogleAuthUrl(url) {
   if (typeof url !== 'string') return false;
@@ -67,20 +78,15 @@ const ZOOM_LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5,
 
 /**
  * Returns the correct preload path for a given URL.
- * Internal pages (mtc://, file://) → full API preload.
- * Everything else → empty/minimal external preload.
+ * Trusted internal pages (mtc:// and the exact app-shipped file:// documents)
+ * → full API preload. Everything else, including arbitrary local files, →
+ * empty/minimal external preload.
  *
  * @param {string} url
  * @returns {string} absolute path to preload file
  */
 function selectPreload(url) {
-  if (
-    typeof url === 'string' &&
-    (url.startsWith('mtc://') || url.startsWith('file://'))
-  ) {
-    return PRELOAD_INTERNAL;
-  }
-  return PRELOAD_EXTERNAL;
+  return isTrustedInternalUrl(url) ? PRELOAD_INTERNAL : PRELOAD_EXTERNAL;
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -152,6 +158,15 @@ class ShmmothBrowserApp {
     this._cachedHeaderHeight = 114;
     this._resizeTimeout = null;
     this.cleanUa = '';
+
+    // Web addresses given on the command line, waiting for the browser window to be ready
+    this.launchUrls = [];
+
+    // Session restore: tabs are written to disk shortly after every change, but only once start-up has finished
+    // creating its tabs (otherwise the half-built tab list would overwrite the session that is about to be restored)
+    this.sessionStore = null;
+    this._sessionReady = false;
+    this._sessionTimer = null;
   }
 
   // ─── Initialisation ─────────────────────────────────────────────────────────
@@ -162,6 +177,7 @@ class ShmmothBrowserApp {
 
     // 1. Storage
     this.storage = new StorageService();
+    this.sessionStore = new SessionStore(app.getPath('userData'));
 
     // Standardise User-Agent to match official Google Chrome early (before any windows or tabs are created)
     const rawUa = session.defaultSession.getUserAgent();
@@ -169,7 +185,7 @@ class ShmmothBrowserApp {
       .replace(/Electron\/\S+\s?/, '')
       .replace(/mtc-browser\/\S+\s?/, '')
       .replace(/shmmoth-browser\/\S+\s?/, '')
-      .trim() || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
+      .trim() || DESKTOP_UA_FALLBACK;
 
     app.userAgentFallback = this.cleanUa;
     session.defaultSession.setUserAgent(this.cleanUa);
@@ -194,6 +210,21 @@ class ShmmothBrowserApp {
 
     // 6. Wire DownloadManager to sessions (with multi-target broadcasting and dialog support)
     this.downloads = new DownloadManager(this.storage, {
+      isProxyActive: () => this.isProxyActive(),
+      confirmOpenDangerous: async ({ filename }) => {
+        const win = this.mainWindow && !this.mainWindow.isDestroyed() ? this.mainWindow : null;
+        const res = await dialog.showMessageBox(...(win ? [win] : []), {
+          type: 'warning',
+          title: 'Open this file?',
+          message: `"${filename}" can run programs on your computer.`,
+          detail: 'Only open it if you downloaded it on purpose from a website you trust. Otherwise choose Cancel and delete it.',
+          buttons: ['Cancel', 'Open anyway'],
+          defaultId: 0,
+          cancelId: 0,
+          noLink: true
+        });
+        return res.response === 1;
+      },
       promptSaveDialog: async ({ filename, defaultPath, webContents }) => {
         const win = (webContents && BrowserWindow.fromWebContents(webContents)) || this.mainWindow;
         if (!win || win.isDestroyed()) return { cancelled: true };
@@ -214,9 +245,13 @@ class ShmmothBrowserApp {
     }, { isIncognito: true });
 
     // 7. RAM Saver
+    const browser = this;
     this.ramSaver = new RamSaverService(this.storage, {
       tabs: this.tabs,
-      activeTabId: this.activeTabId,
+      // getters: a plain `activeTabId: this.activeTabId` copied the value (null) at start-up, so the tab in use could be
+      // put to sleep after the idle time
+      get activeTabId() { return browser.activeTabId; },
+      get activeIncognitoTabId() { return browser.activeIncognitoTabId; },
       notifyTabStatus: (tabId, status) => {
         if (this.tabs[tabId]) {
           Object.assign(this.tabs[tabId], status);
@@ -225,10 +260,10 @@ class ShmmothBrowserApp {
       }
     });
 
-    // 8. Wire AdBlocker (Ghostery engine — defense in depth on top of CRX extensions)
-    this.adBlocker = new AdBlockerService(this.storage);
+    // 8. Wire AdBlocker (Ghostery engine; a short built-in list covers the first seconds and offline starts)
+    this.adBlocker = new AdBlockerService(this.storage, { cacheFile: path.join(app.getPath('userData'), 'adblock-engine.bin') });
     this.adBlocker.setupFilter(session.defaultSession).catch(err => {
-      log.warn('AdBlocker setupFilter failed (CRX extensions still active)', { error: err.message });
+      log.warn('AdBlocker setupFilter failed', { error: err.message });
     });
 
     // 9. Wire Content Permissions (Stage 5)
@@ -239,8 +274,8 @@ class ShmmothBrowserApp {
     this.autofillService = new AutofillService();
     this.proxyManager = new ProxyManager(null, this.passwordVault);
 
-    // Apply saved proxy to defaultSession
-    await this.proxyManager.applyToSession(session.defaultSession).catch(err => {
+    // Apply saved proxy to EVERY browsing session (normal + incognito) so incognito never bypasses it
+    await this.applyProxyToAllSessions().catch(err => {
       log.warn('Initial proxy setup failed', { error: err.message });
     });
 
@@ -274,7 +309,132 @@ class ShmmothBrowserApp {
       }, 15000);
     }
 
+    app.on('before-quit', () => this._finalizeSession());
+
     log.info('SHMMOTH Browser initialisation complete');
+  }
+
+  // ─── Session restore ─────────────────────────────────────────────────────
+
+  /** The first tabs of this run: the previous session ("Continue where I left off"), command-line URLs, or the new-tab page. */
+  _createStartupTabs() {
+    const launchUrls = this.launchUrls.splice(0);
+    const wantsRestore = this.storage.getSettings().startupBehavior === 'restore';
+    const saved = wantsRestore && this.sessionStore ? this.sessionStore.load() : null;
+
+    if (saved) {
+      const ids = saved.tabs.map((t, i) => this.createTab(t.url, null, t.pinned, false, false, {
+        // only the tab the user will see is loaded now; the others load when they are first selected
+        background: i !== saved.active, deferLoad: i !== saved.active, title: t.title, favicon: t.favicon
+      }));
+      log.info('Previous session restored', { tabs: ids.length });
+      // a pinned tab moves to the front, so select the tab by id rather than by position
+      const wanted = ids[saved.active];
+      if (wanted && this.tabs[wanted]) this.switchTab(wanted);
+    }
+    launchUrls.forEach((u) => this.createTab(u));
+    if (!saved && launchUrls.length === 0) this.createTab('mtc://newtab');
+
+    this._sessionReady = true;
+    this._saveSessionNow();
+  }
+
+  /** Writes the session one last time and stops further writes (window closing / app quitting). */
+  _finalizeSession() {
+    this._saveSessionNow();
+    this._sessionReady = false;
+    if (this.storage) this.storage.flush();            // coalesced history writes
+  }
+
+  /** Called on every tab change; writes at most once a second. */
+  _scheduleSessionSave() {
+    if (!this._sessionReady || this._sessionTimer) return;
+    this._sessionTimer = setTimeout(() => { this._sessionTimer = null; this._saveSessionNow(); }, 1000);
+    if (this._sessionTimer.unref) this._sessionTimer.unref();
+  }
+
+  _saveSessionNow() {
+    if (!this._sessionReady || !this.sessionStore) return;
+    if (this._sessionTimer) { clearTimeout(this._sessionTimer); this._sessionTimer = null; }
+    this.sessionStore.save(buildSnapshot(this.tabs, this.tabOrder, this.activeTabId));
+  }
+
+  // ─── Single instance ─────────────────────────────────────────────────────
+
+  /**
+   * A second launch with the same profile (double-clicked shortcut, `shmmoth.exe <url>`) must not start another
+   * process that fights over the same data files; the running browser comes to the front and opens the URLs.
+   */
+  handleSecondInstance(argv) {
+    const urls = urlsFromArgv(argv);
+    log.info('Second instance handed over to the running browser', { urls: urls.length });
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed() || Object.keys(this.tabs).length === 0) {
+      this.launchUrls.push(...urls);                       // still starting up: the first tab will pick them up
+      return;
+    }
+    if (win.isMinimized()) win.restore();
+    win.show();
+    win.focus();
+    urls.forEach((u) => this.createTab(u));
+  }
+
+  // ─── Proxy / network privacy ─────────────────────────────────────────────
+
+  /** All sessions that carry web content. A proxy must apply to every one of them. */
+  _browsingSessions() {
+    return [session.defaultSession, session.fromPartition('incognito')];
+  }
+
+  /**
+   * WebRTC can open UDP sockets that bypass an HTTP/SOCKS proxy and reveal the real IP.
+   * With a manual proxy only proxied UDP is allowed; otherwise Chromium's default is kept.
+   */
+  _webRtcPolicyForProxy() {
+    const cfg = this.proxyManager ? this.proxyManager.getConfig() : null;
+    return cfg && cfg.mode === 'manual' ? 'disable_non_proxied_udp' : 'default';
+  }
+
+  _applyWebRtcPolicy(wc) {
+    try {
+      if (wc && !wc.isDestroyed()) wc.setWebRTCIPHandlingPolicy(this._webRtcPolicyForProxy());
+    } catch (err) {
+      log.warn('Could not set WebRTC IP handling policy', { error: err.message });
+    }
+  }
+
+  /** Applies the saved proxy to the normal AND the incognito session, and refreshes WebRTC policy of open tabs. */
+  async applyProxyToAllSessions() {
+    if (!this.proxyManager) return;
+    for (const sess of this._browsingSessions()) {
+      await this.proxyManager.applyToSession(sess);
+    }
+    await this.refreshSystemProxyState();
+    for (const tab of Object.values(this.tabs)) {
+      if (tab && tab.view) this._applyWebRtcPolicy(tab.view.webContents);
+    }
+  }
+
+  /**
+   * In 'system' mode Chromium may still be using a proxy (Windows settings / PAC). Node-based code such as the
+   * Turbo downloader cannot see it, so remember whether one is in effect. Cached because callers are synchronous.
+   */
+  async refreshSystemProxyState() {
+    try {
+      const resolved = await session.defaultSession.resolveProxy('https://www.example.com/');
+      const hops = String(resolved || '').split(';').map(h => h.trim()).filter(Boolean);
+      this._systemProxyActive = hops.some(h => !/^DIRECT$/i.test(h));
+    } catch (_) {
+      this._systemProxyActive = true; // unknown → be conservative (keeps downloads on the proxied native path)
+    }
+  }
+
+  /** True when web traffic is currently routed through a proxy. */
+  isProxyActive() {
+    const cfg = this.proxyManager ? this.proxyManager.getConfig() : null;
+    if (!cfg || cfg.mode === 'direct') return false;
+    if (cfg.mode === 'manual') return Boolean(cfg.rules && cfg.rules.host);
+    return Boolean(this._systemProxyActive);
   }
 
   // ─── Chrome Extension Management (Stage 7) ───────────────────────────────
@@ -282,20 +442,17 @@ class ShmmothBrowserApp {
   async loadExtensions() {
     if (!this.extensionManager) return;
 
-    // Ensure built-in ad blocker extensions are registered in the manager
-    const builtIns = [
-      { name: 'uBlock Origin', path: path.join(__dirname, '..', 'extensions', 'uBlock0.chromium') }
-    ];
-
-    for (const b of builtIns) {
-      if (fs.existsSync(b.path)) {
+    // Older versions bundled uBlock Origin under <app>/extensions/ and registered it on every start. It never
+    // loaded from an installed (asar) build and blocks nothing under Electron's extension support — the Ghostery
+    // engine in AdBlockerService does the blocking — so it is no longer shipped. Forget the stale registry entry.
+    for (const [id, record] of Object.entries(this.extensionManager.extensions)) {
+      const dir = String(record && record.path || '').replace(/\\/g, '/');
+      if (/\/extensions\/uBlock0\.chromium\/?$/.test(dir) && !fs.existsSync(record.path)) {
         try {
-          const id = this.extensionManager.generateExtensionId(b.path);
-          if (!this.extensionManager.extensions[id]) {
-            await this.extensionManager.installUnpacked(b.path, { enabled: true });
-          }
+          await this.extensionManager.removeExtension(id);
+          log.info('Removed the registry entry of the retired bundled uBlock Origin', { id });
         } catch (err) {
-          log.warn(`Could not register built-in extension: ${b.name}`, { error: err.message });
+          log.warn('Could not remove the retired uBlock Origin entry', { id, error: err.message });
         }
       }
     }
@@ -357,7 +514,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_EXTERNAL
       }
     });
@@ -439,7 +596,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -532,7 +689,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -614,7 +771,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -680,7 +837,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -723,10 +880,11 @@ class ShmmothBrowserApp {
       '.js':   'application/javascript; charset=utf-8',
       '.json': 'application/json; charset=utf-8',
       '.png':  'image/png',
-      '.svg':  'image/svg+xml'
+      '.svg':  'image/svg+xml',
+      '.woff2': 'font/woff2'
     };
 
-    protocol.handle('mtc', (request) => {
+    const handleMtc = (request) => {
       try {
         const parsed   = new URL(request.url);
         let pageName   = parsed.hostname;
@@ -745,7 +903,9 @@ class ShmmothBrowserApp {
           const content     = fs.readFileSync(targetFile);
           const ext         = path.extname(targetFile).toLowerCase();
           const contentType = mimeTypes[ext] || 'text/html; charset=utf-8';
-          return new Response(content, { headers: { 'Content-Type': contentType } });
+          const headers = { 'Content-Type': contentType };
+          if (ext === '.html') headers['Content-Security-Policy'] = MTC_PAGE_CSP;
+          return new Response(content, { headers });
         }
 
         return new Response('Page Not Found', { status: 404 });
@@ -753,7 +913,12 @@ class ShmmothBrowserApp {
         log.error('Error handling mtc protocol request', { error: err.message });
         return new Response('Error loading internal page', { status: 500 });
       }
-    });
+    };
+
+    // A protocol handler belongs to one session. Incognito tabs run in their own partition, and without a handler
+    // there their new-tab page, Settings and error pages stayed blank.
+    protocol.handle('mtc', handleMtc);
+    session.fromPartition('incognito').protocol.handle('mtc', handleMtc);
 
     log.info('mtc:// protocol handler registered');
   }
@@ -776,7 +941,7 @@ class ShmmothBrowserApp {
         preload:          PRELOAD_INTERNAL,
         contextIsolation: true,
         nodeIntegration:  false,
-        sandbox:          false
+        sandbox:          true
       }
     });
 
@@ -784,7 +949,7 @@ class ShmmothBrowserApp {
 
     this.mainWindow.webContents.on('did-finish-load', () => {
       if (Object.keys(this.tabs).length === 0) {
-        this.createTab('mtc://newtab');
+        this._createStartupTabs();
       } else {
         this.broadcastTabsUpdate();
         this.updateViewBounds();
@@ -814,6 +979,8 @@ class ShmmothBrowserApp {
       broadcastWindowState(this.mainWindow.isMaximized());
       setTimeout(() => this.updateViewBounds(this.mainWindow), 50);
     });
+    // The tab list is final the moment the window starts closing; tearing the tabs down must not rewrite the session
+    this.mainWindow.on('close',      () => this._finalizeSession());
     this.mainWindow.on('closed',     () => { this.mainWindow = null; });
 
     log.info('Main window created');
@@ -842,7 +1009,7 @@ class ShmmothBrowserApp {
         preload:          PRELOAD_INTERNAL,
         contextIsolation: true,
         nodeIntegration:  false,
-        sandbox:          false
+        sandbox:          true
       }
     });
 
@@ -1019,7 +1186,7 @@ class ShmmothBrowserApp {
         if (tab && tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
           try {
             const url = tab.url || tab.view.webContents.getURL() || '';
-            if (url.startsWith('mtc://') || url.startsWith('file://')) {
+            if (isTrustedInternalUrl(url)) {
               tab.view.webContents.send('updater:status', status);
             }
           } catch (_) {}
@@ -1051,12 +1218,12 @@ class ShmmothBrowserApp {
 
       if (isAuthUrl) {
         headers['User-Agent'] = GOOGLE_AUTH_UA;
-        headers['sec-ch-ua'] = '"Chromium";v="130", "Google Chrome";v="130", "Not?A_Brand";v="99"';
+        headers['sec-ch-ua'] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not?A_Brand";v="99"`;
         headers['sec-ch-ua-mobile'] = '?1';
         headers['sec-ch-ua-platform'] = '"Android"';
       } else {
-        const ua = this.cleanUa || app.userAgentFallback || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || '130';
+        const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
+        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
 
         headers['User-Agent'] = ua;
         headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
@@ -1074,8 +1241,10 @@ class ShmmothBrowserApp {
     if (!targetSession) return;
 
     targetSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-      // Internal schemes (mtc://, file://) are trusted for non-destructive permissions
-      if (requestingOrigin && (requestingOrigin.startsWith('mtc://') || requestingOrigin.startsWith('file://'))) {
+      // Our own pages (mtc:// and the exact app-shipped documents) are trusted.
+      // Arbitrary local files are NOT: their origin is just "file://".
+      const checkUrl = (details && details.requestingUrl) || requestingOrigin;
+      if (isTrustedInternalUrl(checkUrl)) {
         return true;
       }
 
@@ -1105,8 +1274,8 @@ class ShmmothBrowserApp {
         origin = requestingUrl || 'unknown';
       }
 
-      // Internal schemes are auto-granted
-      if (origin.startsWith('mtc://') || origin.startsWith('file://')) {
+      // Our own pages are auto-granted; arbitrary local files go through the normal prompt
+      if (isTrustedInternalUrl(requestingUrl)) {
         return callback(true);
       }
 
@@ -1247,17 +1416,20 @@ class ShmmothBrowserApp {
 
   // ─── Tab Management (Stage 1 Core) ───────────────────────────────────────
 
-  createTab(initialUrl = 'mtc://newtab', insertAfterTabId = null, isPinned = false, isIncognito = false, isPopupTab = false) {
+  createTab(initialUrl = 'mtc://newtab', insertAfterTabId = null, isPinned = false, isIncognito = false, isPopupTab = false, options = {}) {
     const tabId = 'tab_' + this.tabCounter++;
     const preloadPath = selectPreload(initialUrl);
 
+    // Every renderer runs inside the Chromium OS sandbox: a compromised tab (e.g. a Blink/V8 exploit)
+    // cannot touch the filesystem or spawn processes directly. This is why the preloads may only use
+    // the small Electron subset available to sandboxed preloads (see tests/p0-sandbox.test.js).
     const webPreferences = {
       preload:          preloadPath,
       contextIsolation: true,
       nodeIntegration:  false,
       plugins:          true,
       webSecurity:      true,
-      sandbox:          false
+      sandbox:          true
     };
 
     if (isIncognito) {
@@ -1291,8 +1463,14 @@ class ShmmothBrowserApp {
       crashReason:    null,
       isUnresponsive: false,
       isHtmlFullScreen: false,
-      lastValidUrl:   initialUrl
+      lastValidUrl:   initialUrl,
+      pendingLoadUrl: null,           // set for a restored background tab until it is first selected
+      failedUrl:      null            // the address behind the error page this tab currently shows
     };
+    if (options.deferLoad) tabData.pendingLoadUrl = initialUrl;
+    // a restored tab shows its saved title / icon straight away (the page replaces them as soon as it reports its own)
+    if (typeof options.title === 'string' && options.title) tabData.title = options.title;
+    if (typeof options.favicon === 'string') tabData.favicon = options.favicon;
 
     this.tabs[tabId] = tabData;
 
@@ -1314,16 +1492,19 @@ class ShmmothBrowserApp {
     this._reorderPinnedFirst(isIncognito);
 
     const wc = view.webContents;
+    this._applyWebRtcPolicy(wc);
 
     // ── Title + Favicon updates ──
     wc.on('page-title-updated', (_, title) => {
       tabData.title = title || 'New Tab';
+      if (!tabData.isIncognito && title) this.storage.updateHistoryEntry(tabData.url, { title });
       this.broadcastTabsUpdate(tabData.isIncognito);
     });
 
     wc.on('page-favicon-updated', (_, favicons) => {
       if (favicons && favicons.length > 0) {
         tabData.favicon = favicons[0];
+        if (!tabData.isIncognito) this.storage.updateHistoryEntry(tabData.url, { favicon: favicons[0] });
         this.broadcastTabsUpdate(tabData.isIncognito);
       }
     });
@@ -1347,12 +1528,17 @@ class ShmmothBrowserApp {
       }
     });
 
-    wc.on('did-fail-load', (_, errorCode) => {
+    wc.on('did-fail-load', (_, errorCode, errorDescription, validatedURL, isMainFrame) => {
       tabData.isLoading = false;
       this.broadcastTabsUpdate(tabData.isIncognito);
       const activeId = tabData.isIncognito ? this.activeIncognitoTabId : this.activeTabId;
       if (activeId === tabId) {
         this.updateNavigationState(tabData.isIncognito);
+      }
+
+      // Electron leaves a tab whose page could not be loaded blank: show a proper error page instead
+      if (shouldShowErrorPage({ errorCode, validatedURL, isMainFrame })) {
+        this._showErrorPage(tabData, errorCode, errorDescription, validatedURL);
       }
 
       // If a popup/new tab aborted because it converted into a download (-3 ERR_ABORTED),
@@ -1393,7 +1579,9 @@ class ShmmothBrowserApp {
     wc.on('did-navigate', (_, navUrl) => {
       updateTabUa(navUrl);
       tabData.url = navUrl;
-      if (navUrl && !navUrl.startsWith('mtc://crash')) {
+      const isErrorPage = Boolean(navUrl) && navUrl.startsWith('mtc://error');
+      if (!isErrorPage) tabData.failedUrl = null;              // a real page loaded: forget the address that failed before
+      if (navUrl && !navUrl.startsWith('mtc://crash') && !isErrorPage) {
         tabData.lastValidUrl = navUrl;
         tabData.isCrashed = false;
         tabData.crashReason = null;
@@ -1402,8 +1590,10 @@ class ShmmothBrowserApp {
       tabData.canGoBack = wc.navigationHistory ? wc.navigationHistory.canGoBack() : wc.canGoBack();
       tabData.canGoForward = wc.navigationHistory ? wc.navigationHistory.canGoForward() : wc.canGoForward();
       // Zero history recorded for incognito tabs (Stage 4)
-      if (!tabData.isIncognito) {
-        this.storage.addHistory({ title: tabData.title, url: navUrl, favicon: tabData.favicon });
+      if (!tabData.isIncognito && !isErrorPage) {
+        // tabData.title / favicon still belong to the PREVIOUS page here; the real ones are filled in by the
+        // page-title-updated / page-favicon-updated handlers above
+        this.storage.addHistory({ title: '', url: navUrl, favicon: '' });
       }
       this.broadcastTabsUpdate(tabData.isIncognito);
       const activeId = tabData.isIncognito ? this.activeIncognitoTabId : this.activeTabId;
@@ -1542,14 +1732,19 @@ class ShmmothBrowserApp {
     });
 
     // ── Credential Capture & Autofill (Stage 6) ──
-    wc.on('console-message', (event, level, message) => {
+    // Electron >= 35 passes one `details` object (details.message); the positional (level, message, …)
+    // arguments are deprecated and slated for removal, but older runtimes only provide those.
+    // (Declared with a single parameter on purpose: Electron prints a deprecation warning for listeners that
+    //  declare the positional arguments.)
+    const browserApp = this;
+    wc.on('console-message', function onConsoleMessage(event) {
+      const message = (event && typeof event.message === 'string') ? event.message : arguments[2];
       if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_SUBMIT__:')) {
-        event.preventDefault();
         try {
           const payload = JSON.parse(message.slice(25));
           if (payload && payload.username && payload.password && tabData.url) {
             const origin = new URL(tabData.url).origin;
-            this.offerPasswordSave(tabId, origin, payload.username, payload.password);
+            browserApp.offerPasswordSave(tabId, origin, payload.username, payload.password);
           }
         } catch (_) {}
       }
@@ -1587,7 +1782,8 @@ class ShmmothBrowserApp {
 
     // ── Popup Policy ──
     wc.setWindowOpenHandler(({ url, disposition }) => {
-      if (isPopupBlocked(url)) {
+      // Web content must not be able to open mtc:// pages or local files
+      if (isPopupBlocked(url, tabData.url)) {
         securityLogger.security(`Popup blocked`, { url: url.slice(0, 120) });
         return { action: 'deny' };
       }
@@ -1622,6 +1818,7 @@ class ShmmothBrowserApp {
               preload: PRELOAD_EXTERNAL,
               contextIsolation: true,
               nodeIntegration: false,
+              sandbox: true,
               partition: tabData.isIncognito ? 'incognito' : undefined
             }
           }
@@ -1635,6 +1832,7 @@ class ShmmothBrowserApp {
     // When an allowed popup window is created (such as Google OAuth login window)
     wc.on('did-create-window', (childWin, { url: childUrl }) => {
       if (!childWin || !childWin.webContents) return;
+      this._applyWebRtcPolicy(childWin.webContents);
       if (isGoogleAuthUrl(childUrl)) {
         childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
       }
@@ -1774,11 +1972,12 @@ class ShmmothBrowserApp {
       }
     });
 
-    // Load initial URL
-    wc.loadURL(initialUrl);
+    // Load initial URL (a restored background tab waits until it is selected)
+    if (!tabData.pendingLoadUrl) wc.loadURL(initialUrl);
 
-    this.switchTab(tabId);
-    log.info(`Tab created: ${tabId}`, { url: initialUrl, isPinned, isIncognito });
+    if (options.background) this.broadcastTabsUpdate(isIncognito);
+    else this.switchTab(tabId);
+    log.info(`Tab created: ${tabId}`, { url: initialUrl, isPinned, isIncognito, deferred: Boolean(tabData.pendingLoadUrl) });
     return tabId;
   }
 
@@ -1840,6 +2039,7 @@ class ShmmothBrowserApp {
     }
 
     currentTab.lastActiveTime = Date.now();
+    this._loadPendingUrl(currentTab);
 
     if (currentTab.isSleeping && this.ramSaver && !isIncognito) {
       this.ramSaver.wakeTab(tabId, currentTab);
@@ -1858,6 +2058,29 @@ class ShmmothBrowserApp {
         const factor = currentTab.view.webContents.getZoomFactor();
         targetWin.webContents.send('zoom:changed', { tabId, zoomFactor: factor });
       } catch (_) {}
+    }
+  }
+
+  /** Replaces a blank, failed page with mtc://error (the failed address stays what the address bar shows). */
+  _showErrorPage(tab, errorCode, errorDescription, failedUrl) {
+    if (!tab || !tab.view) return;
+    log.warn(`Page failed to load in ${tab.id}`, { errorCode, errorDescription, url: String(failedUrl).slice(0, 200) });
+    tab.failedUrl = failedUrl;
+    // not inside the did-fail-load event itself: starting a navigation from there can race with the failed one
+    setImmediate(() => {
+      const wc = tab.view && tab.view.webContents;
+      if (!this.tabs[tab.id] || !wc || wc.isDestroyed()) return;
+      wc.loadURL(buildErrorPageUrl(errorCode, errorDescription, failedUrl)).catch(() => {});
+    });
+  }
+
+  /** A restored background tab has not loaded its page yet; do it now (selected, reloaded or navigated). */
+  _loadPendingUrl(tab) {
+    if (!tab || !tab.pendingLoadUrl) return;
+    const url = tab.pendingLoadUrl;
+    tab.pendingLoadUrl = null;
+    if (tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
+      tab.view.webContents.loadURL(url).catch(() => {});
     }
   }
 
@@ -1881,8 +2104,9 @@ class ShmmothBrowserApp {
     }
 
     // Track closed tab for Reopen Closed Tab (Ctrl+Shift+T) ONLY for standard tabs
-    if (!isIncognito && tabData.url && !tabData.url.startsWith('mtc://newtab') && !tabData.url.startsWith('about:blank')) {
-      this.closedTabs.push({ url: tabData.url, title: tabData.title || tabData.url });
+    const closedUrl = displayUrl(tabData);
+    if (!isIncognito && closedUrl && !closedUrl.startsWith('mtc://newtab') && !closedUrl.startsWith('about:blank')) {
+      this.closedTabs.push({ url: closedUrl, title: tabData.title || closedUrl });
       if (this.closedTabs.length > 25) {
         this.closedTabs.shift();
       }
@@ -1924,7 +2148,7 @@ class ShmmothBrowserApp {
   duplicateTab(tabId) {
     const tab = this.tabs[tabId || this.activeTabId];
     if (!tab) return null;
-    return this.createTab(tab.url, tab.id, tab.isPinned, tab.isIncognito);
+    return this.createTab(displayUrl(tab), tab.id, tab.isPinned, tab.isIncognito);
   }
 
   togglePinTab(tabId) {
@@ -2015,8 +2239,24 @@ class ShmmothBrowserApp {
     }
   }
 
+  reloadTab(tabId) {
+    const tab = this.tabs[tabId || this.activeTabId];
+    if (!tab || !tab.view) return;
+    if (tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }      // restored tab that never loaded: "reload" = load
+    if (tab.failedUrl && tab.url && tab.url.startsWith('mtc://error')) { tab.view.webContents.loadURL(tab.failedUrl); return; }
+    if (tab.isCrashed || (tab.url && tab.url.startsWith('mtc://crash'))) {
+      tab.isCrashed = false;
+      const target = tab.lastValidUrl && !tab.lastValidUrl.startsWith('mtc://crash') ? tab.lastValidUrl : 'mtc://newtab';
+      tab.view.webContents.loadURL(target);
+      return;
+    }
+    tab.view.webContents.reload();
+  }
+
   reloadTabIgnoringCache(tabId) {
     const tab = this.tabs[tabId || this.activeTabId];
+    if (tab && tab.pendingLoadUrl) { this._loadPendingUrl(tab); return; }
+    if (tab && tab.view && tab.failedUrl && tab.url && tab.url.startsWith('mtc://error')) { tab.view.webContents.loadURL(tab.failedUrl); return; }
     if (tab && tab.view && tab.view.webContents) {
       tab.view.webContents.reloadIgnoringCache();
     }
@@ -2188,13 +2428,13 @@ class ShmmothBrowserApp {
           preload:          sidePanelPreload,
           contextIsolation: true,
           nodeIntegration:  false,
-          sandbox:          false
+          sandbox:          true
         }
       });
       this.sidePanelView._currentPreload = sidePanelPreload;
 
       this.sidePanelView.webContents.setWindowOpenHandler(({ url }) => {
-        if (isPopupBlocked(url)) return { action: 'deny' };
+        if (isPopupBlocked(url, targetUrl)) return { action: 'deny' };
         this.createTab(url);
         return { action: 'deny' };
       });
@@ -2223,6 +2463,7 @@ class ShmmothBrowserApp {
   // ─── Broadcast Helpers ───────────────────────────────────────────────────
 
   broadcastTabsUpdate(isIncognito = false) {
+    if (!isIncognito) this._scheduleSessionSave();
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     if (!targetWin || !targetWin.webContents || targetWin.isDestroyed()) return;
 
@@ -2236,7 +2477,8 @@ class ShmmothBrowserApp {
         return {
           id:           t.id,
           title:        t.title,
-          url:          t.url,
+          url:          displayUrl(t),
+          hasError:     Boolean(t.failedUrl && t.url && t.url.startsWith('mtc://error')),
           favicon:      t.favicon,
           isAudible:    t.isAudible,
           isMuted:      t.isMuted,
@@ -2265,7 +2507,7 @@ class ShmmothBrowserApp {
         canGoBack:    canBack,
         canGoForward: canFwd,
         isLoading:    Boolean(activeTab.isLoading),
-        url:          activeTab.url
+        url:          displayUrl(activeTab)
       });
     }
   }
@@ -2542,7 +2784,7 @@ class ShmmothBrowserApp {
       webPreferences: {
         contextIsolation: true,
         nodeIntegration: false,
-        sandbox: false,
+        sandbox: true,
         preload: PRELOAD_INTERNAL
       }
     });
@@ -2570,6 +2812,14 @@ class ShmmothBrowserApp {
   offerPasswordSave(tabId, origin, username, password) {
     if (!origin || !username || !password) return;
     if (this.passwordVault && this.passwordVault.isNeverSaveOrigin(origin)) return;
+    // Don't offer a "Save password?" bubble that cannot succeed (no OS-level encryption available)
+    if (this.passwordVault && !this.passwordVault.canEncrypt()) {
+      if (!this._warnedNoVaultEncryption) {
+        this._warnedNoVaultEncryption = true;
+        log.warn('Password save prompts disabled: OS-level encryption (safeStorage) is unavailable');
+      }
+      return;
+    }
 
     const promptId = 'pwd_prompt_' + (++this.passwordPromptCounter);
     this.pendingPasswordPrompts[promptId] = {
@@ -2604,12 +2854,17 @@ class ShmmothBrowserApp {
     delete this.pendingPasswordPrompts[promptId];
 
     if (action === 'save') {
-      const saved = this.passwordVault.saveCredential({
-        origin: prompt.origin,
-        username: prompt.username,
-        password: prompt.password
-      });
-      return { success: true, saved: true, id: saved.id };
+      try {
+        const saved = this.passwordVault.saveCredential({
+          origin: prompt.origin,
+          username: prompt.username,
+          password: prompt.password
+        });
+        return { success: true, saved: true, id: saved.id };
+      } catch (err) {
+        log.error('Saving password failed', { code: err.code, error: err.message });
+        return { success: false, error: err.message, code: err.code };
+      }
     } else if (action === 'never') {
       this.passwordVault.neverSaveOrigin(prompt.origin);
       return { success: true, never: true };
@@ -2747,11 +3002,12 @@ class ShmmothBrowserApp {
           return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
         }
         // IPC navigations are initiated by browser chrome UI
-        const result  = checkNavigation('file:///renderer/index.html', safeUrl);
+        const result  = checkNavigation(BROWSER_CHROME_URL, safeUrl);
         if (!result.allowed) {
           securityLogger.security(`IPC tab:navigate blocked`, { reason: result.reason });
           return { success: false, error: result.reason };
         }
+        tab.pendingLoadUrl = null;
         tab.view.webContents.loadURL(safeUrl);
       }
     }));
@@ -2764,7 +3020,7 @@ class ShmmothBrowserApp {
           return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
         }
         // IPC navigations are initiated by browser chrome UI
-        const result  = checkNavigation('file:///renderer/index.html', safeUrl);
+        const result  = checkNavigation(BROWSER_CHROME_URL, safeUrl);
         if (!result.allowed) {
           securityLogger.security(`IPC tab:navigateCurrent blocked`, { reason: result.reason });
           return;
@@ -2774,16 +3030,7 @@ class ShmmothBrowserApp {
     }));
 
     ipcMain.handle('tab:reload', secureHandlerRaw((_, tabId) => {
-      const tab = this.tabs[tabId || this.activeTabId];
-      if (tab && tab.view) {
-        if (tab.isCrashed || (tab.url && tab.url.startsWith('mtc://crash'))) {
-          tab.isCrashed = false;
-          const target = tab.lastValidUrl && !tab.lastValidUrl.startsWith('mtc://crash') ? tab.lastValidUrl : 'mtc://newtab';
-          tab.view.webContents.loadURL(target);
-          return;
-        }
-        tab.view.webContents.reload();
-      }
+      this.reloadTab(tabId);
     }));
 
     ipcMain.handle('tab:goBack', secureHandlerRaw((_, tabId) => {
@@ -3366,19 +3613,27 @@ class ShmmothBrowserApp {
       if (!safeOrigin || !safeUser || !safePass) {
         return { success: false, error: 'Origin, username, and password are required' };
       }
-      const saved = this.passwordVault.saveCredential({
-        origin: safeOrigin,
-        username: safeUser,
-        password: safePass,
-      });
-      return { success: true, credential: saved };
+      try {
+        const saved = this.passwordVault.saveCredential({
+          origin: safeOrigin,
+          username: safeUser,
+          password: safePass,
+        });
+        return { success: true, credential: saved };
+      } catch (err) {
+        return { success: false, error: err.message, code: err.code };
+      }
     }));
 
     ipcMain.handle('passwords:update', secureHandlerRaw(async (event, id, updates) => {
       if (!this.passwordVault) return { success: false, error: 'Password vault unavailable' };
       const safeId = sanitizeString(id || '', 64, 'id');
-      const updated = this.passwordVault.updateCredential(safeId, updates);
-      return { success: Boolean(updated), credential: updated };
+      try {
+        const updated = this.passwordVault.updateCredential(safeId, updates);
+        return { success: Boolean(updated), credential: updated };
+      } catch (err) {
+        return { success: false, error: err.message, code: err.code };
+      }
     }));
 
     ipcMain.handle('passwords:delete', secureHandlerRaw(async (event, id) => {
@@ -3477,7 +3732,7 @@ class ShmmothBrowserApp {
       if (!this.proxyManager) return { success: false, error: 'Proxy manager unavailable' };
       try {
         const publicCfg = this.proxyManager.setConfig(config);
-        await this.proxyManager.applyToSession(session.defaultSession);
+        await this.applyProxyToAllSessions();
         return { success: true, config: publicCfg };
       } catch (err) {
         return { success: false, error: err.message };
@@ -3496,7 +3751,8 @@ class ShmmothBrowserApp {
 
     ipcMain.handle('proxy:reset', secureHandlerRaw(async () => {
       if (!this.proxyManager) return { success: false };
-      const res = await this.proxyManager.resetToSystem(session.defaultSession);
+      const res = await this.proxyManager.resetToSystem();
+      await this.applyProxyToAllSessions();
       return { success: true, config: res };
     }));
 
@@ -3739,7 +3995,14 @@ process.on('unhandledRejection', (reason) => {
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 const shmmothApp = new ShmmothBrowserApp();
-shmmothApp.init().catch(err => {
-  console.error('[FATAL] SHMMOTH Browser failed to initialise:', err);
+if (!app.requestSingleInstanceLock()) {
+  log.info('SHMMOTH Browser is already running with this profile — handing over and exiting');
   app.quit();
-});
+} else {
+  shmmothApp.launchUrls = urlsFromArgv(process.argv);
+  app.on('second-instance', (_event, argv) => shmmothApp.handleSecondInstance(argv));
+  shmmothApp.init().catch(err => {
+    console.error('[FATAL] SHMMOTH Browser failed to initialise:', err);
+    app.quit();
+  });
+}

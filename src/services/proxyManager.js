@@ -19,6 +19,7 @@ const path   = require('path');
 const net    = require('net');
 const { app } = require('electron');
 const { mainLogger: log } = require('../utils/logger');
+const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 
 class ProxyManager {
   /**
@@ -53,9 +54,13 @@ class ProxyManager {
 
   load() {
     try {
-      if (fs.existsSync(this.storagePath)) {
-        const raw = fs.readFileSync(this.storagePath, 'utf8');
-        const parsed = JSON.parse(raw);
+      const res = readJsonRecovering(this.storagePath, { validate: isPlainObject });
+      this.persistBlocked = res.source === 'unreadable';
+      if (res.corruptPath) {
+        log.error('Proxy config was damaged; the damaged copy was preserved', { corruptCopy: res.corruptPath, recoveredFromBackup: res.source === 'backup' });
+      }
+      if (res.data) {
+        const parsed = res.data;
         if (parsed && typeof parsed === 'object') {
           if (['system', 'direct', 'manual'].includes(parsed.mode)) {
             this.config.mode = parsed.mode;
@@ -84,9 +89,7 @@ class ProxyManager {
 
   save() {
     try {
-      const dir = path.dirname(this.storagePath);
-      if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-
+      if (this.persistBlocked) throw new Error('Proxy config file is unreadable; refusing to overwrite it');
       const data = {
         version: 1,
         mode: this.config.mode,
@@ -94,9 +97,7 @@ class ProxyManager {
         updatedAt: new Date().toISOString(),
       };
 
-      const tmpPath = this.storagePath + '.tmp';
-      fs.writeFileSync(tmpPath, JSON.stringify(data, null, 2), 'utf8');
-      fs.renameSync(tmpPath, this.storagePath);
+      writeJsonAtomic(this.storagePath, data, { validate: isPlainObject });
       log.info('Proxy configuration saved to disk', { mode: this.config.mode });
     } catch (err) {
       log.error('Failed to save proxy config to disk', { error: err.message });

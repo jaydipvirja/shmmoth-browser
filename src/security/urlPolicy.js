@@ -1,13 +1,14 @@
 /**
  * URL SECURITY POLICY — urlPolicy.js
  *
- * Centralised URL classification and navigation policy enforcement for MTC Browser.
+ * Centralised URL classification and navigation policy enforcement for SHMMOTH Browser.
  * All navigation requests (user input, redirects, popups, new windows) should
  * be run through this module before being acted upon.
  *
  * URL CATEGORIES:
  *
- *   TRUSTED_INTERNAL    — mtc:// scheme pages (served locally, controlled by app)
+ *   TRUSTED_INTERNAL    — mtc:// pages and the exact HTML files shipped with the app
+ *   LOCAL_FILE          — any other file:// URL (viewable, but treated as untrusted web content)
  *   TRUSTED_EXTERNAL    — Known safe HTTPS sites with no special restrictions
  *   UNKNOWN_EXTERNAL    — Arbitrary HTTPS/HTTP URLs from the open web
  *   DANGEROUS           — URLs that must never be loaded:
@@ -30,10 +31,13 @@
 
 'use strict';
 
+const { isTrustedInternalUrl, BROWSER_CHROME_URL } = require('./trustedPages');
+
 // ─── Category constants ───────────────────────────────────────────────────────
 
 const UrlCategory = Object.freeze({
   TRUSTED_INTERNAL:  'TRUSTED_INTERNAL',
+  LOCAL_FILE:        'LOCAL_FILE',
   TRUSTED_EXTERNAL:  'TRUSTED_EXTERNAL',
   UNKNOWN_EXTERNAL:  'UNKNOWN_EXTERNAL',
   DANGEROUS:         'DANGEROUS',
@@ -96,9 +100,10 @@ function classify(url) {
     return UrlCategory.TRUSTED_INTERNAL;
   }
 
-  // Local file serving for renderer (file:// is trusted only from app context)
-  if (trimmed.startsWith('file://')) {
-    return UrlCategory.TRUSTED_INTERNAL;
+  // file:// — only the exact documents shipped with the app are trusted.
+  // Everything else (downloaded .html, UNC shares, …) is ordinary untrusted content.
+  if (/^file:/i.test(trimmed)) {
+    return isTrustedInternalUrl(trimmed) ? UrlCategory.TRUSTED_INTERNAL : UrlCategory.LOCAL_FILE;
   }
 
   // blob: — treated as unknown external (not dangerous but not trusted)
@@ -146,27 +151,32 @@ function isKnownInternalPage(url) {
 }
 
 /**
- * Returns true if an internal page (mtc://) navigation is allowed given
- * the current frame's URL. External pages must not be able to navigate
- * the browser into internal routes.
+ * Returns true if navigating from `fromUrl` to `toUrl` is allowed with regard to
+ * privileged destinations. Web content must not be able to reach internal
+ * routes or local files.
  *
  * Rules:
- *   - mtc:// → mtc://   : allowed (internal navigating to internal)
- *   - file:// → mtc://   : allowed (browser chrome navigating to internal)
- *   - https:// → mtc://  : BLOCKED (external page trying to reach internal)
- *   - http://  → mtc://  : BLOCKED
+ *   - → mtc://   : only from a trusted internal page / the browser chrome
+ *   - → file://  : from a trusted internal page / the browser chrome, or from
+ *                  another local file (browsing a local folder of documents)
+ *   - https:// → mtc:// or file:// : BLOCKED
+ *   - http://  → mtc:// or file:// : BLOCKED
+ *   - anything else → allowed here (scheme safety is checked separately)
  *
  * @param {string} fromUrl — current frame URL
  * @param {string} toUrl   — destination URL
  * @returns {boolean}
  */
 function isInternalNavigationAllowedFrom(fromUrl, toUrl) {
-  if (!toUrl.startsWith('mtc://') && !toUrl.startsWith('file://')) {
+  const toMtc  = /^mtc:/i.test(toUrl);
+  const toFile = /^file:/i.test(toUrl);
+  if (!toMtc && !toFile) {
     return true; // Navigating to external — always allow (safety checked separately)
   }
-  // Destination is internal — check source is also trusted
   if (typeof fromUrl !== 'string') return false;
-  return fromUrl.startsWith('mtc://') || fromUrl.startsWith('file://');
+  if (isTrustedInternalUrl(fromUrl)) return true;
+  // Local documents may link to sibling local documents, but never to mtc://
+  return toFile && /^file:/i.test(fromUrl);
 }
 
 /**
@@ -181,10 +191,10 @@ function checkNavigation(fromUrl, toUrl) {
     return { allowed: false, reason: `Dangerous URL scheme blocked: ${toUrl.slice(0, 64)}` };
   }
 
-  if (toUrl.startsWith('mtc://') && !isInternalNavigationAllowedFrom(fromUrl, toUrl)) {
+  if (!isInternalNavigationAllowedFrom(fromUrl, toUrl)) {
     return {
       allowed: false,
-      reason: `External page attempted navigation to internal route: ${toUrl.slice(0, 64)}`,
+      reason: `External page attempted navigation to internal or local route: ${toUrl.slice(0, 64)}`,
     };
   }
 
@@ -229,12 +239,18 @@ const POPUP_AD_PATTERNS = [
  * or new window from an external page context.
  *
  * @param {string} url
+ * @param {string} [openerUrl] URL of the page calling window.open(); when given,
+ *        popups that would reach internal/local routes from web content are blocked.
  * @returns {boolean}
  */
-function isPopupBlocked(url) {
+function isPopupBlocked(url, openerUrl) {
   if (typeof url !== 'string' || !url.trim()) return true;
   const cat = classify(url);
   if (cat === UrlCategory.DANGEROUS) return true;
+
+  if (openerUrl !== undefined && !isInternalNavigationAllowedFrom(openerUrl, url.trim())) {
+    return true;
+  }
 
   // Block known ad networks and clickjackers from opening popups/tabs
   for (const pattern of POPUP_AD_PATTERNS) {
@@ -261,4 +277,5 @@ module.exports = {
   isInternalNavigationAllowedFrom,
   checkNavigation,
   isPopupBlocked,
+  BROWSER_CHROME_URL,
 };

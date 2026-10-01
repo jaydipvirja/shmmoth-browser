@@ -27,6 +27,9 @@ const os = require('os');
 const path = require('path');
 const { URL } = require('url');
 
+// Fallback UA for downloads started without browser headers: match the running Chromium
+const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
+
 /**
  * Follows HTTP redirects to get final headers or stream.
  * Supports socket binding to specific localAddress (network interface).
@@ -45,7 +48,7 @@ function requestWithRedirects(targetUrl, options = {}, maxRedirects = 5) {
       path: parsed.pathname + parsed.search,
       method: options.method || 'GET',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+        'User-Agent': `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${CHROME_MAJOR}.0.0.0 Safari/537.36`,
         'Accept': '*/*',
         ...(options.headers || {})
       }

@@ -70,7 +70,7 @@ async function runAllTests() {
   // ────────────────────────────────────────────────────────────────────────────
 
   await test('PasswordVault encrypts and decrypts passwords faithfully', () => {
-    const vault = new PasswordVault(vaultPath);
+    const vault = new PasswordVault(vaultPath, { allowInsecureFallback: true });
     const plaintext = 'SecretP@ssw0rd!2026';
     const ciphertext = vault.encryptPassword(plaintext);
 
@@ -83,7 +83,7 @@ async function runAllTests() {
   });
 
   await test('PasswordVault never persists plaintext passwords to disk', () => {
-    const vault = new PasswordVault(vaultPath);
+    const vault = new PasswordVault(vaultPath, { allowInsecureFallback: true });
     const plain = 'SuperSecretUserPassword123#';
     vault.saveCredential({
       origin: 'https://bank.example.com',
@@ -100,7 +100,7 @@ async function runAllTests() {
   });
 
   await test('PasswordVault CRUD operations & Redaction', () => {
-    const vault = new PasswordVault(vaultPath);
+    const vault = new PasswordVault(vaultPath, { allowInsecureFallback: true });
 
     // 1. Save
     const cred = vault.saveCredential({
@@ -141,14 +141,14 @@ async function runAllTests() {
   });
 
   await test('PasswordVault Never-Save Origins List', () => {
-    const vault = new PasswordVault(vaultPath);
+    const vault = new PasswordVault(vaultPath, { allowInsecureFallback: true });
     assert(!vault.isNeverSaveOrigin('https://internal.corp'), 'Initially should not be in never save list');
 
     vault.neverSaveOrigin('https://internal.corp');
     assert(vault.isNeverSaveOrigin('https://internal.corp') === true, 'Should now be recognized in never save list');
 
     // Verify persistence across reload
-    const reloaded = new PasswordVault(vaultPath);
+    const reloaded = new PasswordVault(vaultPath, { allowInsecureFallback: true });
     assert(reloaded.isNeverSaveOrigin('https://internal.corp') === true, 'Never-save list must persist to disk');
   });
 
@@ -226,7 +226,7 @@ async function runAllTests() {
   // ────────────────────────────────────────────────────────────────────────────
 
   await test('ProxyManager configuration modes & validation', () => {
-    const vault = new PasswordVault(vaultPath);
+    const vault = new PasswordVault(vaultPath, { allowInsecureFallback: true });
     const proxy = new ProxyManager(proxyPath, vault);
 
     // Default configuration

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page can't be loaded - SHMMOTH BROWSER</title>
+  <link rel="stylesheet" href="fonts.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #0f172a;
+      color: #f1f5f9;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .card {
+      max-width: 580px;
+      width: 100%;
+      background: #1e293b;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 36px;
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+    }
+    .icon { font-size: 44px; margin-bottom: 16px; display: inline-block; }
+    h1 { font-size: 24px; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
+    .address {
+      font-size: 13.5px; color: #94a3b8; margin-bottom: 18px;
+      word-break: break-all; user-select: text;
+    }
+    .address b { color: #cbd5e1; font-weight: 600; }
+    .desc { font-size: 14.5px; line-height: 1.6; color: #94a3b8; margin-bottom: 14px; }
+    ul.hints { margin: 0 0 22px 20px; font-size: 14px; line-height: 1.7; color: #94a3b8; }
+    .code {
+      display: inline-block; font-size: 12px; font-family: monospace; color: #64748b;
+      background: #0f172a; padding: 4px 10px; border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 24px; user-select: text;
+    }
+    .actions { display: flex; gap: 12px; }
+    button {
+      border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer;
+      font-family: inherit; transition: background 0.2s;
+    }
+    .btn-primary { background: #2563eb; color: #ffffff; font-weight: 600; }
+    .btn-primary:hover { background: #3b82f6; }
+    .btn-secondary { background: #334155; color: #e2e8f0; font-weight: 500; }
+    .btn-secondary:hover { background: #475569; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div id="icon" class="icon">🌐</div>
+    <h1 id="title">This page can't be loaded</h1>
+    <p class="address" id="address"></p>
+    <p class="desc" id="desc"></p>
+    <ul class="hints" id="hints"></ul>
+    <div id="code" class="code"></div>
+    <div class="actions">
+      <button id="btn-retry" class="btn-primary">Try again</button>
+      <button id="btn-back" class="btn-secondary">Go back</button>
+    </div>
+  </div>
+
+  <script src="error.js"></script>
+</body>
+</html>

@@ -26,6 +26,9 @@
 
 const { webFrame } = require('electron');
 
+// Only used if navigator.userAgent has no Chrome/<major> token; normally the UA already carries the engine version.
+const FALLBACK_CHROME_MAJOR = String((typeof process !== 'undefined' && process.versions && process.versions.chrome) || '130').split('.')[0];
+
 // Align navigator.userAgentData with genuine Google Chrome in the webpage's main world
 // This ensures Google Account login (botguard / GlifWebSignIn) does not detect embedded Chromium.
 try {
@@ -35,7 +38,7 @@ try {
         if (navigator.userAgentData) {
           const ua = navigator.userAgent || '';
           const isAndroid = ua.includes('Android');
-          const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '130';
+          const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '${FALLBACK_CHROME_MAJOR}';
           const chromeBrands = [
             { brand: 'Chromium', version: chromeVersion },
             { brand: 'Google Chrome', version: chromeVersion },

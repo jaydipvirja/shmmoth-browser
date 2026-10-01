@@ -1,4 +1,4 @@
-// MTC BROWSER - New Tab Dashboard Logic
+// SHMMOTH BROWSER - New Tab Dashboard Logic
 
 // Update Clock & Greeting
 function updateClock() {
@@ -19,7 +19,7 @@ function updateClock() {
   const h = now.getHours();
   if (h >= 12 && h < 17) greeting = "Good Afternoon";
   else if (h >= 17 && h < 21) greeting = "Good Evening";
-  else if (h >= 21 || h < 5) greeting = "Welcome to MTC Browser";
+  else if (h >= 21 || h < 5) greeting = "Welcome to SHMMOTH Browser";
 
   document.getElementById('live-greeting').textContent = `${greeting}, Boss`;
 }
@@ -56,8 +56,8 @@ function renderShortcuts() {
     const card = document.createElement('div');
     card.className = 'shortcut-card';
     card.innerHTML = `
-      <span class="card-icon">${item.icon || '🌐'}</span>
-      <span class="card-label">${item.title}</span>
+      <span class="card-icon">${escapeHtml(item.icon || '🌐')}</span>
+      <span class="card-label">${escapeHtml(item.title)}</span>
       <button class="delete-shortcut-btn" title="Delete">✕</button>
     `;
 

@@ -6,9 +6,10 @@
  * to ensure only trusted internal browser frames can invoke them.
  *
  * SECURITY MODEL:
- *   - Only frames whose URL begins with 'mtc://' or 'file://' are trusted.
- *   - The browser chrome (BrowserWindow) loads via file:// → trusted.
- *   - Internal pages (mtc://newtab, mtc://settings, etc.) → trusted.
+ *   - Only frames served by our mtc:// handler, or one of the EXACT html files
+ *     shipped with the app (browser chrome + native bubbles, see
+ *     trustedPages.js), are trusted.
+ *   - Any other file:// URL (a downloaded .html, a UNC share, …) is NOT trusted.
  *   - External web pages (https://, http://) → NEVER trusted.
  *   - If origin cannot be determined → rejected.
  *
@@ -21,14 +22,7 @@
 
 'use strict';
 
-const { URL } = require('url');
-
-// ─── Trusted origin prefixes ─────────────────────────────────────────────────
-
-const TRUSTED_PREFIXES = [
-  'mtc://',
-  'file://',
-];
+const { isTrustedInternalUrl } = require('./trustedPages');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -52,13 +46,14 @@ function getSenderUrl(event) {
 }
 
 /**
- * Returns true if the given URL is a trusted internal origin.
+ * Returns true if the given URL is a trusted internal origin
+ * (mtc://… or one of the exact app-shipped file:// documents).
  * @param {string|null} senderUrl
  * @returns {boolean}
  */
 function isTrustedOrigin(senderUrl) {
   if (!senderUrl) return false;
-  return TRUSTED_PREFIXES.some(prefix => senderUrl.startsWith(prefix));
+  return isTrustedInternalUrl(senderUrl);
 }
 
 // ─── Exported guards ─────────────────────────────────────────────────────────

@@ -1,0 +1,97 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast checks: unit tests (Electron mocked) and a dependency audit.
+  unit:
+    name: Unit tests + npm audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # Fails when a published advisory affects Electron or another dependency — the signal to upgrade (docs/upgrading-electron.md)
+      - run: npm audit --audit-level=high
+
+  # The real app, driven by Playwright, on Linux under Xvfb.
+  e2e-linux:
+    name: E2E (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # GitHub's Ubuntu images restrict unprivileged user namespaces, which Chromium's sandbox needs
+      E2E_NO_SANDBOX: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install Xvfb
+        run: sudo apt-get update && sudo apt-get install -y xvfb
+      - run: npm ci
+      - run: npm run test:e2e
+
+  # The shipped configuration: build it as users get it and read the Electron fuses back from the binary
+  # (the E2E builds differ in one fuse, because Playwright needs --inspect).
+  packaged-fuses:
+    name: Production build + Electron fuses
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --dir --publish never
+      - run: node scripts/check-fuses.js dist/linux-unpacked/mtc-browser
+
+  # Windows is the real target platform, so these two jobs are required like the Linux ones.
+  e2e-windows:
+    name: E2E (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      # run the E2E suite even when a unit test failed, so one run shows every Windows problem
+      - run: npm run test:e2e
+        if: ${{ !cancelled() }}
+
+  # Same security/UI scenarios against an electron-builder --dir build (app.asar, app.isPackaged, real OS sandbox).
+  e2e-windows-packaged:
+    name: E2E (Windows, packaged build)
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run test:e2e:packaged

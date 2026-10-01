@@ -24,12 +24,7 @@ const rangeSelect          = document.getElementById('range-select');
 const btnBack              = document.getElementById('btn-back');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from safe-html.js (loaded before this script)
 
 function getDateGroupLabel(timestamp) {
   if (!timestamp) return 'Older';
@@ -93,7 +88,7 @@ function renderHistory() {
 
       let iconHtml = '🌐';
       if (item.favicon) {
-        iconHtml = `<img src="${escapeHtml(item.favicon)}" onerror="this.parentElement.textContent='🌐'"/>`;
+        iconHtml = `<img src="${escapeHtml(item.favicon)}" data-fallback="🌐"/>`;
       }
 
       row.innerHTML = `

@@ -1,4 +1,4 @@
-# 🚀 MTC BROWSER
+# 🚀 SHMMOTH BROWSER
 
 A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
 
@@ -22,27 +22,23 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
    - Websites 2x fast load thay che.
    - Settings mathi on/off kari shakay che ane blocked ads no live count joi shakay che.
 
-4. **Built-in AI Assistant Sidebar (AI સાઇડબાર)**:
-   - Toolbar ma **✨ AI** button par click karta j right-side panel open thay che.
-   - Google Gemini k ChatGPT khuli sake che bina tab change kare.
-
-5. **RAM Saver / Tab Memory Saver (ઓછું રેમ વપરાશ)**:
+4. **RAM Saver / Tab Memory Saver (ઓછું રેમ વપરાશ)**:
    - Background tabs je 15 min thi inactive hoy tene automatic sleep mode ma muki de che jethi computer slow na thay.
    - Tab par click karta j te instant wake up thai jaay che.
 
-6. **MTC Smart Dashboard (New Tab Page)**:
+5. **SHMMOTH Smart Dashboard (New Tab Page)**:
    - Live Digital Clock, Date & Greeting.
    - Google Omnisearch box.
    - Quick Speed-Dial Shortcuts (YouTube, Google, GitHub, ChatGPT, Gemini, etc.) + Add Custom Shortcut.
 
-7. **Quick Notes Scratchpad (નોટ્સ પેનલ)**:
+6. **Quick Notes Scratchpad (નોટ્સ પેનલ)**:
    - Toolbar ma **📝** button par click kari koi pan link, note k idea lakho.
    - Auto-saved to local computer.
 
-8. **Comprehensive Settings (`mtc://settings`)**:
+7. **Comprehensive Settings (`mtc://settings`)**:
    - Change Default Search Engine (Google, Bing, DuckDuckGo, Yahoo)
    - Toggle Ad-Blocker ON / OFF
-   - Toggle AI Sidebar ON / OFF & choose AI URL
+   - On Start-up: open the new tab page, or **Continue where I left off** (tabs come back after a restart or a crash; incognito tabs never do)
    - Toggle RAM Saver ON / OFF & set sleep timer
    - Change Themes (Dark Glass / Classic Light / Midnight OLED)
    - Clear Browsing History & Cache
@@ -71,3 +67,21 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
    ```powershell
    npm start
    ```
+
+---
+
+## 🧪 Tests (ટેસ્ટ)
+
+```powershell
+npm test                    # unit tests (~15 s)
+npm run test:e2e            # end-to-end tests against the real app (~30 s)
+npm run test:e2e:packaged   # same, against a packaged build
+```
+
+Details: `docs/testing.md`. Releasing signed updates: `docs/releasing.md`. Upgrading Electron: `docs/upgrading-electron.md`.
+
+---
+
+## 📄 License
+
+MIT — see [`LICENSE`](LICENSE). Third-party: the Inter font is bundled under the SIL Open Font License (`src/pages/inter-OFL.txt`); Electron/Chromium licences ship inside every build; the ad-block filter lists (EasyList, EasyPrivacy, …) are downloaded at run time, not redistributed.

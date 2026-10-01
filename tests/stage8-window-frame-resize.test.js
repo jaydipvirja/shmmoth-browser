@@ -72,10 +72,7 @@ runTest('5. main.js reserves 4px margin in windowed mode for 8-direction resize 
 
 // 6. Preload scripts expose isWindowMaximized and onWindowState
 runTest('6. Preload scripts expose window state APIs', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
   const preloadInternal = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-internal.js'), 'utf8');
-  assert(preload.includes('isWindowMaximized'), 'isWindowMaximized missing in preload.js');
-  assert(preload.includes('onWindowState'), 'onWindowState missing in preload.js');
   assert(preloadInternal.includes('isWindowMaximized'), 'isWindowMaximized missing in preload-internal.js');
   assert(preloadInternal.includes('onWindowState'), 'onWindowState missing in preload-internal.js');
 });

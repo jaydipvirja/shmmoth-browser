@@ -4,10 +4,10 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>SHMMOTH BROWSER</title>
+  <!-- Browser chrome renders tab titles / URLs from untrusted sites: forbid inline & remote script -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data: blob: http: https: file:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-src 'none'">
   <link rel="stylesheet" href="style.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../pages/fonts.css">
 </head>
 <body class="theme-dark">
   <!-- Top Browser Chrome Window Header -->
@@ -369,6 +369,7 @@
     </div>
   </div>
 
+  <script src="../pages/safe-html.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

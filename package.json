@@ -1,12 +1,20 @@
 {
   "name": "mtc-browser",
-  "version": "1.0.16",
-  "description": "MTC BROWSER - A Fast, Modern, Personal Desktop Browser powered by Chromium",
+  "version": "1.1.0",
+  "description": "SHMMOTH Browser - A Fast, Modern, Personal Desktop Browser powered by Chromium",
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "test": "node tests/run-all.js --unit",
+    "test:e2e": "node tests/run-all.js --e2e",
+    "test:e2e:packaged": "node tests/run-all.js --e2e --packaged",
+    "test:all": "node tests/run-all.js --all",
+    "release:keygen": "node scripts/release-tool.js keygen",
+    "release:sign": "node scripts/release-tool.js sign",
+    "release:verify": "node scripts/release-tool.js verify",
+    "release:check": "node scripts/release-tool.js check"
   },
   "keywords": [
     "browser",
@@ -16,19 +24,22 @@
   ],
   "author": "MTC",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
   "devDependencies": {
-    "electron": "^33.2.0",
-    "electron-builder": "^26.15.3"
+    "@electron/fuses": "^1.8.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "playwright-core": "^1.63.0"
   },
   "dependencies": {
-    "@ghostery/adblocker-electron": "^2.18.2",
-    "cross-fetch": "^4.1.0",
-    "electron-updater": "^6.8.9",
-    "sql.js": "^1.14.2"
+    "@ghostery/adblocker-electron": "^2.18.2"
   },
   "build": {
     "appId": "com.mtc.shmmothbrowser",
     "productName": "SHMMOTH Browser",
+    "copyright": "Copyright © 2026 Jaydip B. Virja",
     "directories": {
       "output": "dist"
     },
@@ -41,9 +52,15 @@
     ],
     "files": [
       "src/**/*",
-      "extensions/**/*",
       "package.json"
     ],
+    "electronFuses": {
+      "runAsNode": false,
+      "enableNodeOptionsEnvironmentVariable": false,
+      "enableNodeCliInspectArguments": false,
+      "enableEmbeddedAsarIntegrityValidation": true,
+      "onlyLoadAppFromAsar": true
+    },
     "win": {
       "target": [
         "nsis"
@@ -53,6 +70,7 @@
       "oneClick": false,
       "perMachine": false,
       "allowToChangeInstallationDirectory": true,
+      "artifactName": "SHMMOTH-Browser-Setup-${version}.${ext}",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "SHMMOTH Browser"

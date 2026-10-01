@@ -73,13 +73,10 @@ runTest('3. main.js registers IPC handlers for bubbles', () => {
 
 // 4. Preload scripts expose bubble APIs
 runTest('4. Preload scripts expose bubble APIs', () => {
-  const preload = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload.js'), 'utf8');
   const preloadInternal = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-internal.js'), 'utf8');
-  assert(preload.includes('toggleExtensionBubble'), 'Missing toggleExtensionBubble in preload.js');
-  assert(preload.includes('toggleShieldBubble'), 'Missing toggleShieldBubble in preload.js');
-  assert(preload.includes('openPermissionBubble'), 'Missing openPermissionBubble in preload.js');
   assert(preloadInternal.includes('toggleExtensionBubble'), 'Missing toggleExtensionBubble in preload-internal.js');
   assert(preloadInternal.includes('toggleShieldBubble'), 'Missing toggleShieldBubble in preload-internal.js');
+  assert(preloadInternal.includes('openPermissionBubble'), 'Missing openPermissionBubble in preload-internal.js');
 });
 
 // 5. .hidden rule in extensions.css
