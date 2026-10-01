@@ -214,6 +214,7 @@ const apiSurface = {
   checkForUpdates:          ()                           => ipcRenderer.invoke('updater:check'),
   installUpdate:            ()                           => ipcRenderer.invoke('updater:install'),
   getUpdateStatus:          ()                           => ipcRenderer.invoke('updater:getStatus'),
+  downloadLatestInstaller:  ()                           => ipcRenderer.invoke('updater:downloadLatestInstaller'),
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };
 

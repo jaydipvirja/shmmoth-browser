@@ -12,6 +12,7 @@ const btnRefresh        = document.getElementById('btn-refresh');
 const btnClearCompleted = document.getElementById('btn-clear-completed');
 const btnBack           = document.getElementById('btn-back');
 const btnOpenFolder     = document.getElementById('btn-open-folder');
+const btnDownloadInstallerSidebar = document.getElementById('btn-download-installer-sidebar');
 
 // Modal Elements
 const btnAddDownload    = document.getElementById('btn-add-download');
@@ -419,6 +420,23 @@ btnBack.addEventListener('click', () => {
     api.navigateCurrentTab('mtc://newtab');
   }
 });
+
+if (btnDownloadInstallerSidebar) {
+  btnDownloadInstallerSidebar.addEventListener('click', async () => {
+    btnDownloadInstallerSidebar.disabled = true;
+    try {
+      if (api && api.downloadLatestInstaller) {
+        await api.downloadLatestInstaller();
+      } else if (api && api.createTab) {
+        api.createTab('https://github.com/jaydipvirja/shmmoth-browser/releases/latest');
+      }
+    } catch (err) {
+      alert('Could not start installer download: ' + err.message);
+    } finally {
+      setTimeout(() => { btnDownloadInstallerSidebar.disabled = false; }, 1500);
+    }
+  });
+}
 
 // Modal Logic
 if (btnAddDownload && modalAddDl) {

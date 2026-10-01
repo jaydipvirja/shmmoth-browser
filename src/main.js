@@ -3979,6 +3979,27 @@ class ShmmothBrowserApp {
       return this.updateManager.quitAndInstall();
     }));
 
+    ipcMain.handle('updater:downloadLatestInstaller', secureHandlerRaw(async (event) => {
+      try {
+        let version = app.getVersion ? app.getVersion() : '1.1.0';
+        if (this.updateManager) {
+          const status = this.updateManager.getStatus();
+          if (status && status.availableVersion) {
+            version = status.availableVersion;
+          }
+        }
+        const url = `https://github.com/jaydipvirja/shmmoth-browser/releases/download/v${version}/SHMMOTH-Browser-Setup-${version}.exe`;
+        const isIncognito = this.isIncognitoSender(event.sender);
+        const sess = isIncognito ? session.fromPartition('incognito') : session.defaultSession;
+        sess.downloadURL(url);
+        log.info('Latest installer download started via downloadURL', { url, version });
+        return { success: true, url, version };
+      } catch (err) {
+        log.error('Failed to download latest installer', { error: err.message });
+        return { success: false, error: err.message };
+      }
+    }));
+
     log.info('IPC handlers registered');
   }
 }

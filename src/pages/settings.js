@@ -1324,6 +1324,36 @@ function setupAutoUpdateController() {
     });
   }
 
+  // Handle direct installer download button click
+  const btnDownloadInstaller = document.getElementById('btn-download-installer');
+  if (btnDownloadInstaller) {
+    btnDownloadInstaller.addEventListener('click', async () => {
+      btnDownloadInstaller.disabled = true;
+      try {
+        if (window.mtcAPI && window.mtcAPI.downloadLatestInstaller) {
+          const res = await window.mtcAPI.downloadLatestInstaller();
+          if (res && res.success) {
+            showToast('Starting installer download! Check Downloads (Ctrl+J)');
+          } else {
+            const url = lastManualDownloadUrl || RELEASES_PAGE;
+            if (window.mtcAPI.createTab) window.mtcAPI.createTab(url);
+          }
+        } else {
+          const url = lastManualDownloadUrl || RELEASES_PAGE;
+          if (window.mtcAPI && window.mtcAPI.createTab) {
+            window.mtcAPI.createTab(url);
+          } else {
+            window.open(url, '_blank');
+          }
+        }
+      } catch (err) {
+        showToast('Download error: ' + err.message);
+      } finally {
+        setTimeout(() => { btnDownloadInstaller.disabled = false; }, 1500);
+      }
+    });
+  }
+
   // Handle direct manual download button click
   const btnManualDownload = document.getElementById('btn-manual-download');
   if (btnManualDownload) {
