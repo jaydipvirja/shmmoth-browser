@@ -13,7 +13,7 @@
 
 | Context | Preload | window.mtcAPI |
 |---|---|---|
-| Browser chrome (BrowserWindow) | `preload-internal.js` | ✅ Full |
+| Browser chrome (BrowserWindow, exact app file) | `preload-internal.js` | ✅ Full |
 | `mtc://` internal pages | `preload-internal.js` | ✅ Full |
 | External web tabs (https://, http://) | `preload-external.js` | ❌ None |
 | AI side panel (Gemini, ChatGPT) | `preload-external.js` | ❌ None |
@@ -23,13 +23,16 @@
 
 All privileged `ipcMain.handle()` calls are wrapped with `secureHandlerRaw()` from `security/ipcSecurity.js`.
 
-The guard checks `event.senderFrame.url` against trusted prefixes (`mtc://`, `file://`). Any call from an external origin (`https://`, `http://`) is rejected with an `UNTRUSTED_ORIGIN` error logged at the SECURITY level.
+The guard checks `event.senderFrame.url` against `security/trustedPages.js`. A frame is trusted only if it is served by our `mtc://` handler, or is **one of the exact HTML files shipped with the app** (browser chrome `renderer/index.html` and the native bubble pages), loaded via `file://`. Any other `file://` URL — a downloaded `.html`, a file on a network share (UNC) — is ordinary untrusted content and is rejected like `https://` (`UNTRUSTED_ORIGIN`, logged at the SECURITY level).
+
+`selectPreload()` in `main.js` and the gate at the bottom of `preload-internal.js` apply the same rule, so an arbitrary local file opened in a tab never receives `window.mtcAPI`.
 
 ## URL Policy
 
 `security/urlPolicy.js` classifies all URLs into:
 
-- `TRUSTED_INTERNAL` — `mtc://`, `file://`
+- `TRUSTED_INTERNAL` — `mtc://` and the exact app-shipped `file://` documents
+- `LOCAL_FILE` — any other `file://` URL (viewable by the user, but no browser API)
 - `TRUSTED_EXTERNAL` — Standard HTTPS
 - `UNKNOWN_EXTERNAL` — HTTP, blob:
 - `DANGEROUS` — `javascript:`, `data:`, `vbscript:`
@@ -40,7 +43,16 @@ Dangerous URLs are blocked in:
 - `tab:navigate` IPC handler — before loading via IPC
 - `setWindowOpenHandler` — for popup/new-window requests
 
-External pages **cannot navigate tabs to `mtc://` internal routes** — `isInternalNavigationAllowedFrom()` enforces this.
+Web content **cannot navigate to, or `window.open()`, `mtc://` routes or `file://` URLs** — `isInternalNavigationAllowedFrom()` enforces this for navigations and `isPopupBlocked(url, openerUrl)` for popups. (A local document may still link to a sibling local document.)
+
+## HTML Injection / Content-Security-Policy
+
+Internal pages render data that originates from untrusted websites (page titles, URLs, favicon URLs, cookie names, …) while holding the privileged `window.mtcAPI`. Two independent layers protect them:
+
+1. **Escaping** — all pages and the browser chrome use the single `pages/safe-html.js` `escapeHtml()` (escapes `& < > " ' \``, so it is safe in element text *and* quoted attributes). Never re-implement it with the `textContent → innerHTML` trick, which does not escape quotes (that was the original vulnerability).
+2. **CSP** — every `mtc://` `.html` response carries `security/csp.js` (`script-src 'self'`, no inline script, no inline event-handler attributes); `renderer/index.html` has an equivalent `<meta>` policy. Consequence for contributors: no inline `<script>` and no `onerror=`/`onclick=` attributes in internal pages. For image fallbacks use `<img data-fallback="🌐">`.
+
+`tests/p0-xss-and-trusted-pages.test.js` guards both layers.
 
 ## Session & Authentication Model
 
@@ -73,6 +85,6 @@ Webpage content is **untrusted data**. Even if a page contains text that looks l
 |---|---|---|
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
 | Synchronous file I/O in StorageService.save() | Low | No atomic write; crash-safe write is a Phase 2 improvement |
-| No Content Security Policy on internal pages | Medium | Add CSP headers via protocol handler in Phase 2 |
+| ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
 | AdBlocker filter download requires internet on first run | Low | Falls back to CRX extensions if unavailable |
 | notes.html inline script has no XSS protection beyond escapeHtml | Low | Notes content is user-typed only, not web content |

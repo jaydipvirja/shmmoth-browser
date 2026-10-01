@@ -12,8 +12,8 @@
  *
  * SECURITY:
  *   This preload MUST NOT be attached to WebContentsViews that load
- *   external URLs (Google, YouTube, arbitrary websites).
- *   External pages must use preload-external.js instead.
+ *   external URLs (Google, YouTube, arbitrary websites) or arbitrary local files.
+ *   Those must use preload-external.js instead (see selectPreload() in main.js).
  */
 
 const { contextBridge, ipcRenderer } = require('electron');
@@ -217,9 +217,30 @@ const apiSurface = {
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };
 
-// Only expose internal privileged APIs to trusted internal browser pages (mtc://, file://)
-const isInternalPage = typeof window !== 'undefined' &&
-  (window.location.protocol === 'mtc:' || window.location.protocol === 'file:');
+// Only expose internal privileged APIs to trusted internal browser pages:
+//   - mtc://…                      (served by our protocol handler)
+//   - the HTML files shipped with the app, loaded through file://
+// An arbitrary local file (downloaded .html, UNC share, …) must NOT get the API.
+// This is a coarse in-renderer gate; the main process re-validates the exact file
+// (security/trustedPages.js) on every IPC call, so a spoofed path here gains nothing.
+const TRUSTED_FILE_SUFFIXES = [
+  '/renderer/index.html',
+  '/pages/download-bubble.html',
+  '/pages/extension-bubble.html',
+  '/pages/shield-bubble.html',
+  '/pages/permission-bubble.html',
+  '/pages/password-bubble.html',
+];
+
+function isTrustedInternalLocation() {
+  if (typeof window === 'undefined') return false;
+  const loc = window.location;
+  if (loc.protocol === 'mtc:') return true;
+  if (loc.protocol !== 'file:' || loc.host !== '') return false;
+  return TRUSTED_FILE_SUFFIXES.some((suffix) => loc.pathname.endsWith(suffix));
+}
+
+const isInternalPage = isTrustedInternalLocation();
 
 if (isInternalPage) {
   contextBridge.exposeInMainWorld('mtcAPI', apiSurface);

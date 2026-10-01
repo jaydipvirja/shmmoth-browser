@@ -141,7 +141,7 @@
     if (ext.icons && (ext.icons['48'] || ext.icons['32'] || ext.icons['128'] || ext.icons['16'])) {
       const iconRel = ext.icons['48'] || ext.icons['128'] || ext.icons['32'] || ext.icons['16'];
       const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-      iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" onerror="this.parentElement.innerHTML='🧩'">`;
+      iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
     }
 
     card.innerHTML = `

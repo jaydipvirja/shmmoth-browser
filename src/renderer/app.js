@@ -245,7 +245,7 @@ function renderBookmarksBar() {
     item.className = 'bookmark-item';
     let iconHtml = '⭐';
     if (bm.favicon) {
-      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" onerror="this.parentElement.textContent='⭐'"/>`;
+      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" data-fallback="⭐"/>`;
     }
     item.innerHTML = `
       <span class="bookmark-icon">${iconHtml}</span>
@@ -347,7 +347,7 @@ function renderTabs(tabs, activeId) {
       else if (tab.url && tab.url.startsWith('mtc://bookmarks')) icon = '★';
       else if (tab.url && tab.url.startsWith('mtc://downloads')) icon = '⬇️';
       else if (tab.url && tab.url.startsWith('mtc://extensions')) icon = '🧩';
-      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" onerror="this.parentElement.textContent='🌐'"/>`;
+      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" data-fallback="🌐"/>`;
 
       iconHtml = `<div class="tab-favicon">${icon}</div>`;
     }
@@ -1235,7 +1235,7 @@ function renderExtensionChrome() {
       if (ext.icons && (ext.icons['16'] || ext.icons['32'] || ext.icons['48'])) {
         const iconRel = ext.icons['16'] || ext.icons['32'] || ext.icons['48'];
         const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-        iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" onerror="this.parentElement.textContent='🧩'">`;
+        iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
       }
       btn.innerHTML = iconHtml;
 
@@ -1271,7 +1271,7 @@ function renderExtensionChrome() {
         if (ext.icons && (ext.icons['16'] || ext.icons['32'] || ext.icons['48'])) {
           const iconRel = ext.icons['16'] || ext.icons['32'] || ext.icons['48'];
           const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-          iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" onerror="this.parentElement.textContent='🧩'">`;
+          iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
         }
 
         item.innerHTML = `
@@ -2005,11 +2005,6 @@ function openExtensionsTab() {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from ../pages/safe-html.js (loaded before this script)
 
 init();

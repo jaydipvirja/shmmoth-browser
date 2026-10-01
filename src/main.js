@@ -31,6 +31,8 @@ const UpdateManager       = require('./services/updateManager');
 
 const { secureHandlerRaw, validateUrl, sanitizeString } = require('./security/ipcSecurity');
 const { checkNavigation, isPopupBlocked, isSafeToLoad }  = require('./security/urlPolicy');
+const { isTrustedInternalUrl, BROWSER_CHROME_URL }        = require('./security/trustedPages');
+const { MTC_PAGE_CSP }                                    = require('./security/csp');
 const { mainLogger: log, securityLogger }                 = require('./utils/logger');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
@@ -67,20 +69,15 @@ const ZOOM_LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5,
 
 /**
  * Returns the correct preload path for a given URL.
- * Internal pages (mtc://, file://) → full API preload.
- * Everything else → empty/minimal external preload.
+ * Trusted internal pages (mtc:// and the exact app-shipped file:// documents)
+ * → full API preload. Everything else, including arbitrary local files, →
+ * empty/minimal external preload.
  *
  * @param {string} url
  * @returns {string} absolute path to preload file
  */
 function selectPreload(url) {
-  if (
-    typeof url === 'string' &&
-    (url.startsWith('mtc://') || url.startsWith('file://'))
-  ) {
-    return PRELOAD_INTERNAL;
-  }
-  return PRELOAD_EXTERNAL;
+  return isTrustedInternalUrl(url) ? PRELOAD_INTERNAL : PRELOAD_EXTERNAL;
 }
 
 // ═════════════════════════════════════════════════════════════════════
@@ -745,7 +742,9 @@ class ShmmothBrowserApp {
           const content     = fs.readFileSync(targetFile);
           const ext         = path.extname(targetFile).toLowerCase();
           const contentType = mimeTypes[ext] || 'text/html; charset=utf-8';
-          return new Response(content, { headers: { 'Content-Type': contentType } });
+          const headers = { 'Content-Type': contentType };
+          if (ext === '.html') headers['Content-Security-Policy'] = MTC_PAGE_CSP;
+          return new Response(content, { headers });
         }
 
         return new Response('Page Not Found', { status: 404 });
@@ -1019,7 +1018,7 @@ class ShmmothBrowserApp {
         if (tab && tab.view && tab.view.webContents && !tab.view.webContents.isDestroyed()) {
           try {
             const url = tab.url || tab.view.webContents.getURL() || '';
-            if (url.startsWith('mtc://') || url.startsWith('file://')) {
+            if (isTrustedInternalUrl(url)) {
               tab.view.webContents.send('updater:status', status);
             }
           } catch (_) {}
@@ -1074,8 +1073,10 @@ class ShmmothBrowserApp {
     if (!targetSession) return;
 
     targetSession.setPermissionCheckHandler((webContents, permission, requestingOrigin, details) => {
-      // Internal schemes (mtc://, file://) are trusted for non-destructive permissions
-      if (requestingOrigin && (requestingOrigin.startsWith('mtc://') || requestingOrigin.startsWith('file://'))) {
+      // Our own pages (mtc:// and the exact app-shipped documents) are trusted.
+      // Arbitrary local files are NOT: their origin is just "file://".
+      const checkUrl = (details && details.requestingUrl) || requestingOrigin;
+      if (isTrustedInternalUrl(checkUrl)) {
         return true;
       }
 
@@ -1105,8 +1106,8 @@ class ShmmothBrowserApp {
         origin = requestingUrl || 'unknown';
       }
 
-      // Internal schemes are auto-granted
-      if (origin.startsWith('mtc://') || origin.startsWith('file://')) {
+      // Our own pages are auto-granted; arbitrary local files go through the normal prompt
+      if (isTrustedInternalUrl(requestingUrl)) {
         return callback(true);
       }
 
@@ -1587,7 +1588,8 @@ class ShmmothBrowserApp {
 
     // ── Popup Policy ──
     wc.setWindowOpenHandler(({ url, disposition }) => {
-      if (isPopupBlocked(url)) {
+      // Web content must not be able to open mtc:// pages or local files
+      if (isPopupBlocked(url, tabData.url)) {
         securityLogger.security(`Popup blocked`, { url: url.slice(0, 120) });
         return { action: 'deny' };
       }
@@ -2194,7 +2196,7 @@ class ShmmothBrowserApp {
       this.sidePanelView._currentPreload = sidePanelPreload;
 
       this.sidePanelView.webContents.setWindowOpenHandler(({ url }) => {
-        if (isPopupBlocked(url)) return { action: 'deny' };
+        if (isPopupBlocked(url, targetUrl)) return { action: 'deny' };
         this.createTab(url);
         return { action: 'deny' };
       });
@@ -2747,7 +2749,7 @@ class ShmmothBrowserApp {
           return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
         }
         // IPC navigations are initiated by browser chrome UI
-        const result  = checkNavigation('file:///renderer/index.html', safeUrl);
+        const result  = checkNavigation(BROWSER_CHROME_URL, safeUrl);
         if (!result.allowed) {
           securityLogger.security(`IPC tab:navigate blocked`, { reason: result.reason });
           return { success: false, error: result.reason };
@@ -2764,7 +2766,7 @@ class ShmmothBrowserApp {
           return this.createTab(safeUrl, tab.id, false, tab.isIncognito);
         }
         // IPC navigations are initiated by browser chrome UI
-        const result  = checkNavigation('file:///renderer/index.html', safeUrl);
+        const result  = checkNavigation(BROWSER_CHROME_URL, safeUrl);
         if (!result.allowed) {
           securityLogger.security(`IPC tab:navigateCurrent blocked`, { reason: result.reason });
           return;

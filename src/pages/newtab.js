@@ -56,8 +56,8 @@ function renderShortcuts() {
     const card = document.createElement('div');
     card.className = 'shortcut-card';
     card.innerHTML = `
-      <span class="card-icon">${item.icon || '🌐'}</span>
-      <span class="card-label">${item.title}</span>
+      <span class="card-icon">${escapeHtml(item.icon || '🌐')}</span>
+      <span class="card-label">${escapeHtml(item.title)}</span>
       <button class="delete-shortcut-btn" title="Delete">✕</button>
     `;
 

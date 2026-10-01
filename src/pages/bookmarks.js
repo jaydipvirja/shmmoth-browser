@@ -36,12 +36,7 @@ const btnCancelFolderModal   = document.getElementById('btn-cancel-folder-modal'
 const btnSaveFolderModal     = document.getElementById('btn-save-folder-modal');
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from safe-html.js (loaded before this script)
 
 // ─── Load Data ──────────────────────────────────────────────────────────────
 async function loadData() {
@@ -160,7 +155,7 @@ function renderBookmarks() {
 
     let iconHtml = '⭐';
     if (bm.favicon) {
-      iconHtml = `<img src="${escapeHtml(bm.favicon)}" onerror="this.parentElement.textContent='⭐'"/>`;
+      iconHtml = `<img src="${escapeHtml(bm.favicon)}" data-fallback="⭐"/>`;
     }
 
     const folderTag = escapeHtml(bm.folder || 'Bookmarks Bar');

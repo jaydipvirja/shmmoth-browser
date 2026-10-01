@@ -1135,18 +1135,13 @@ function setupProxyController() {
   }
 }
 
-function escapeHtml(text) {
-  if (!text) return '';
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+// escapeHtml() comes from safe-html.js (loaded before this script)
 
 // ─── Hash Navigation (e.g. #privacy) ────────────────────────────────────────
 function handleHash() {
   const hash = (window.location.hash || '').replace('#', '');
   if (hash) {
-    const targetLink = document.querySelector(`.nav-item[data-tab="${hash}"]`);
+    const targetLink = document.querySelector(`.nav-item[data-tab="${CSS.escape(hash)}"]`);
     if (targetLink) targetLink.click();
   }
 }
