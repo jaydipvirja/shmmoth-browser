@@ -64,7 +64,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
+      # run the E2E suite even when a unit test failed, so one run shows every Windows problem
       - run: npm run test:e2e
+        if: ${{ !cancelled() }}
 
   # Same security/UI scenarios against an electron-builder --dir build (app.asar, app.isPackaged, real OS sandbox).
   e2e-windows-packaged:

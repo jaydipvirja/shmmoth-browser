@@ -94,7 +94,14 @@ runSuite('SHMMOTH Browser — E2E 02: security', async (t) => {
       const probe = `document.body.insertAdjacentHTML('beforeend', '<img src="x:bad" onerror="window.__inlineRan=true">'); new Promise(r => setTimeout(() => r(window.__inlineRan === true), 400))`;
       assertEqual(await chrome.evaluate(probe), false, 'chrome window ran an inline handler');
       assertEqual(await evalIn(app, 'mtc://history', probe), false, 'mtc:// page ran an inline handler');
-      assert((await cspViolations(app)).length >= 2, 'the CSP should have reported the blocked handlers');
+      // console messages reach the main process asynchronously (noticeably slower on a busy Windows runner)
+      const reported = await waitFor(async () => {
+        const v = (await cspViolations(app)).filter((m) => /inline event handler/i.test(m));
+        return v.length >= 2 ? v : null;
+      }, { timeout: 10000, message: 'the CSP to report the blocked handlers of both pages' }).catch(async (err) => {
+        throw new Error(`${err.message}; saw: ${JSON.stringify(await cspViolations(app))}`);
+      });
+      assert(reported.length >= 2, 'the CSP should have reported the blocked handlers');
     });
 
     t.section('Renderer sandbox and isolation');

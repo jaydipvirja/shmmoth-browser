@@ -1,0 +1,12 @@
+# Keep checkouts byte-identical on every OS: the tests read source files with regexes and the signed-update /
+# CSP code hashes content, so a Windows runner must not turn them into CRLF.
+* text=auto eol=lf
+
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+*.png binary
+*.ico binary
+*.icns binary
+*.woff2 binary
+*.sig binary

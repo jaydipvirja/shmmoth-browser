@@ -200,15 +200,17 @@ async function openTab(ctx, url, { page = ctx.chrome, waitPrefix } = {}) {
 
 /** Main-process monitors: CSP violations and hosts contacted. Install right after launch. */
 async function installMonitors(app) {
-  await app.evaluate(({ app, session }) => {
+  await app.evaluate(({ app, session, webContents }) => {
     global.__csp = [];
     global.__hosts = [];
-    app.on('web-contents-created', (e, wc) => {
+    const watch = (wc) => {
       wc.on('console-message', function onMessage(details) {
         const m = details && typeof details.message === 'string' ? details.message : '';
         if (/Content Security Policy/i.test(m)) global.__csp.push(m.slice(0, 200));
       });
-    });
+    };
+    webContents.getAllWebContents().forEach(watch);       // the chrome window already exists
+    app.on('web-contents-created', (e, wc) => watch(wc));
     for (const s of [session.defaultSession, session.fromPartition('incognito')]) {
       const note = (d) => { try { global.__hosts.push(new URL(d.url).host); } catch (_) { /* ignore */ } };
       s.webRequest.onCompleted({ urls: ['*://*/*'] }, note);
