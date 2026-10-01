@@ -1,0 +1,74 @@
+name: Release (draft)
+
+# Pushing a tag like v1.1.0 builds the Windows installer, smoke-tests it and puts it in a DRAFT GitHub release.
+# Nothing is public and no browser can see a draft. The installer is NOT signed here: the update-signing key lives only
+# on the publisher's PC (docs/releasing.md). After this job: download the installer from the draft, run
+# `npm run release:sign -- <installer>`, upload the .sig to the draft, publish it.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: write      # create the draft release (this workflow only)
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build installer and create draft release
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+
+      # Refuses to build a release that could never accept a signed update (no key compiled in), whose version does not
+      # match the tag, or that has no changelog entry / icon.
+      - name: Is the source ready to release?
+        run: node scripts/release-tool.js check --tag ${{ github.ref_name }}
+
+      - run: npm test
+
+      - name: Build the installer (production configuration)
+        run: npx electron-builder --win nsis --x64 --publish never
+
+      - name: Install it silently, start it once, check it, uninstall
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          node scripts/smoke-installer.js "dist/SHMMOTH-Browser-Setup-${VERSION}.exe"
+
+      - name: Checksum, release notes
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          FILE="SHMMOTH-Browser-Setup-${VERSION}.exe"
+          HASH=$(sha256sum "dist/${FILE}" | cut -d' ' -f1)
+          echo "${HASH}  ${FILE}" > dist/SHA256SUMS.txt
+          node scripts/release-tool.js notes "${VERSION}" > dist/release-notes.md
+          {
+            echo "### ${FILE}"
+            echo
+            echo "SHA-256: \`${HASH}\`"
+            echo
+            echo "Before signing on your PC, check that the file you downloaded from the draft has exactly this SHA-256 (\`certutil -hashfile ${FILE} SHA256\`). Then: \`npm run release:sign -- ${FILE}\`, upload \`${FILE}.sig\` to the draft and publish it."
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Create the draft release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          gh release create "${{ github.ref_name }}" \
+            "dist/SHMMOTH-Browser-Setup-${VERSION}.exe" "dist/SHA256SUMS.txt" \
+            --draft --verify-tag \
+            --title "SHMMOTH Browser ${VERSION}" \
+            --notes-file dist/release-notes.md

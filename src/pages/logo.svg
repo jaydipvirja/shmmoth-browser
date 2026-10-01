@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="SHMMOTH Browser">
+  <title>SHMMOTH Browser</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="0.55" stop-color="#16348f"/>
+      <stop offset="1" stop-color="#2563eb"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.28" cy="0.2" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="140" x2="0" y2="870">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.38" stop-color="#ffffff"/>
+      <stop offset="0.62" stop-color="#7dd3fc"/>
+      <stop offset="1" stop-color="#22d3ee"/>
+    </linearGradient>
+    <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
+      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect width="1024" height="1024" rx="232" fill="url(#tile)"/>
+  <rect width="1024" height="1024" rx="232" fill="url(#glow)"/>
+  <path d="M 700 345 C 700 255 620 205 512 205 C 400 205 325 262 325 345 C 325 425 395 458 512 490 C 629 522 699 555 699 645 C 699 735 622 800 512 800 C 400 800 325 745 325 680"
+        fill="none" stroke="url(#ink)" stroke-width="132" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)"/>
+</svg>

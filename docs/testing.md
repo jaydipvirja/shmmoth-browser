@@ -46,7 +46,7 @@ runSuite('My feature', async (t) => {
 
 ## CI
 
-`.github/workflows/ci.yml`: unit tests + `npm audit --audit-level=high`, E2E on Linux, E2E on Windows, packaged E2E on Windows and a Linux build of the **production** configuration whose Electron fuses are read back with `scripts/check-fuses.js` all run on every push and pull request. Make the five jobs required status checks in the repository's branch protection settings so a red job blocks merging. `.github/dependabot.yml` opens weekly PRs for npm packages (Electron grouped with electron-builder and Playwright) and monthly ones for GitHub Actions.
+`.github/workflows/ci.yml`: unit tests + `npm audit --audit-level=high`, E2E on Linux, E2E on Windows, packaged E2E on Windows and a Linux build of the **production** configuration whose Electron fuses are read back with `scripts/check-fuses.js` all run on every push and pull request. Make the five jobs required status checks in the repository's branch protection settings so a red job blocks merging. `.github/workflows/release.yml` is separate: a `vX.Y.Z` tag builds the production installer, smoke-tests it (`scripts/smoke-installer.js`: silent install, fuses, first start) and creates a *draft* release (see `releasing.md`). `.github/dependabot.yml` opens weekly PRs for npm packages (Electron grouped with electron-builder and Playwright) and monthly ones for GitHub Actions.
 
 ## Not automated
 

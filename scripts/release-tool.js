@@ -8,6 +8,8 @@
  *   npm run release:keygen                       one-time: create the signing key pair
  *   npm run release:sign   -- <installer.exe>    after building: writes <installer.exe>.sig
  *   npm run release:verify -- <installer.exe>    check an installer + its .sig against the keys in the app
+ *   npm run release:check  [-- --tag v1.2.3]     is the source ready to be released? (keys, version, changelog, icon)
+ *   node scripts/release-tool.js notes <version> print that version's section of CHANGELOG.md (release notes)
  *
  * The PRIVATE key (release-signing-key.pem) must never be committed or uploaded to GitHub.
  */
@@ -26,6 +28,48 @@ const INSTALLER_NAME = /^SHMMOTH-Browser-Setup-\d+\.\d+\.\d+\.exe$/;
 
 function fail(msg) { console.error('\n✖ ' + msg + '\n'); process.exit(1); }
 function flag(args, name) { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; }
+
+const VERSION = /^\d+\.\d+\.\d+$/;
+
+/** True for the base64 SPKI DER of an Ed25519 public key (what keygen prints and updateKeys.js lists). */
+function isValidPublicKey(b64) {
+  try {
+    const key = crypto.createPublicKey({ key: Buffer.from(String(b64), 'base64'), format: 'der', type: 'spki' });
+    return key.asymmetricKeyType === 'ed25519';
+  } catch (_) {
+    return false;
+  }
+}
+
+/** The text under "## <version>" in CHANGELOG.md, up to the next "## " heading; null when there is none. */
+function extractNotes(changelog, version) {
+  const lines = String(changelog || '').split(/\r?\n/);
+  const start = lines.findIndex((l) => new RegExp(`^##\\s+\\[?v?${version.replace(/\./g, '\\.')}\\]?(\\s|$)`).test(l));
+  if (start < 0) return null;
+  let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l));
+  if (end < 0) end = lines.length;
+  const body = lines.slice(start + 1, end).join('\n').trim();
+  return body || null;
+}
+
+/**
+ * Everything that would make a release useless or dangerous, found before anything is built:
+ * - no (valid) trusted signing key compiled in: users who install this build could never accept a signed update again
+ * - version / tag mismatch, or a version the updater would not accept
+ */
+function checkRelease({ version, tag, keys, changelog, files }) {
+  const problems = [];
+  if (!VERSION.test(String(version))) problems.push(`package.json version "${version}" is not a plain x.y.z version (the updater ignores anything else)`);
+  if (tag !== undefined && tag !== `v${version}`) problems.push(`the tag "${tag}" does not match package.json version "${version}" (expected "v${version}")`);
+  if (!Array.isArray(keys) || keys.length === 0) {
+    problems.push('src/services/updateKeys.js lists no update-signing public key. A build without one can never install a signed update — run "npm run release:keygen" on your PC and paste the PUBLIC key in');
+  } else {
+    keys.forEach((k, i) => { if (!isValidPublicKey(k)) problems.push(`update key #${i + 1} in updateKeys.js is not a valid Ed25519 public key (base64 SPKI)`); });
+  }
+  if (VERSION.test(String(version)) && !extractNotes(changelog, version)) problems.push(`CHANGELOG.md has no "## ${version}" section with release notes`);
+  for (const f of ['build/icon.ico', 'build/icon.png']) if (!(files || []).includes(f)) problems.push(`${f} is missing (app icon)`);
+  return { ok: problems.length === 0, problems };
+}
 
 function publicKeyBase64FromPrivatePem(pem) {
   return crypto.createPublicKey(crypto.createPrivateKey(pem)).export({ type: 'spki', format: 'der' }).toString('base64');
@@ -92,8 +136,36 @@ async function main() {
     return;
   }
 
-  console.log('Usage:\n  release-tool keygen [--out file]\n  release-tool sign <installer.exe> [--key file]\n  release-tool verify <installer.exe> [--sig file] [--pubkey base64]');
+  if (cmd === 'check') {
+    const root = path.join(__dirname, '..');
+    const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
+    const changelogPath = path.join(root, 'CHANGELOG.md');
+    const res = checkRelease({
+      version: pkg.version,
+      tag: flag(args, '--tag'),
+      keys: UPDATE_PUBLIC_KEYS,
+      changelog: fs.existsSync(changelogPath) ? fs.readFileSync(changelogPath, 'utf8') : '',
+      files: ['build/icon.ico', 'build/icon.png'].filter((f) => fs.existsSync(path.join(root, f)))
+    });
+    if (!res.ok) fail('Not ready to release:\n  - ' + res.problems.join('\n  - '));
+    console.log(`\n✔ Ready to release ${pkg.version} (${UPDATE_PUBLIC_KEYS.length} update key${UPDATE_PUBLIC_KEYS.length === 1 ? '' : 's'}, changelog, icon)\n`);
+    return;
+  }
+
+  if (cmd === 'notes') {
+    const version = args[0];
+    if (!version || !VERSION.test(version)) fail('Usage: release-tool notes <x.y.z>');
+    const file = path.join(__dirname, '..', 'CHANGELOG.md');
+    const notes = fs.existsSync(file) ? extractNotes(fs.readFileSync(file, 'utf8'), version) : null;
+    if (!notes) fail(`CHANGELOG.md has no "## ${version}" section`);
+    process.stdout.write(notes + '\n');
+    return;
+  }
+
+  console.log('Usage:\n  release-tool keygen [--out file]\n  release-tool sign <installer.exe> [--key file]\n  release-tool verify <installer.exe> [--sig file] [--pubkey base64]\n  release-tool check [--tag vX.Y.Z]\n  release-tool notes <x.y.z>');
   process.exit(cmd ? 1 : 0);
 }
 
-main().catch(err => fail(err.message));
+module.exports = { isValidPublicKey, extractNotes, checkRelease };
+
+if (require.main === module) main().catch(err => fail(err.message));
