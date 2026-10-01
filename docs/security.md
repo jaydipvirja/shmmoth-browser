@@ -114,6 +114,19 @@ Opening a download whose type runs code (`.exe .msi .bat .cmd .scr .js .vbs .ps1
 - **No third-party fonts.** Inter is bundled (`pages/fonts.css`, SIL OFL licence in `pages/inter-OFL.txt`); the pages no longer contact Google Fonts and the CSP only allows `'self'` fonts.
 - **Ad blocker.** One filter engine is shared by the normal and incognito session; the on/off setting applies to both. The filter lists are downloaded with Electron's `net.fetch`, so they follow the browser's proxy and trust the operating system's certificate store, and the compiled engine is cached in `adblock-engine.bin` (refreshed after 24 h; if a refresh fails the previous copy keeps being used). A short built-in list of the biggest ad networks is armed from the first request.
 
+## Permissions pages get without asking
+
+`security/permissionPolicy.js`: `fullscreen`, `pointerLock` and `clipboard-sanitized-write` (writing text / images to the clipboard, which Chromium only allows while the user is interacting with the page). The permission *check* handler answers "no" to anything it does not know, so a permission missing from this list silently breaks the web feature behind it — `clipboard-sanitized-write` was missing and every "Copy link" / "Copy video URL" button failed with "Write permission denied" (E2E 12 guards it). `clipboard-read`, camera / microphone, location, notifications etc. stay behind the per-site prompt.
+
+## Secure DNS (DNS-over-HTTPS)
+
+`services/secureDns.js` + `app.configureHostResolver()` (called first thing in `init()`, re-applied when the setting changes). Default provider **AdGuard DNS** (`https://dns.adguard-dns.com/dns-query`): lookups are encrypted and known ad / tracker / malware domains are not resolved. Modes: *automatic* (default — try DoH, fall back to the system DNS when the server cannot be reached, so a blocked resolver never stops browsing) and *strict* (`secure`, never falls back). Other choices: AdGuard Family, AdGuard Non-filtering, a custom `https://…` address (validated: https only, no credentials / fragment / whitespace; an invalid saved address degrades to the system DNS, never to a guessed server), or *System default* (off). The setting is global (normal and incognito). Privacy trade-off: the DNS provider learns which host names you look up; with a proxy the proxy resolves the names itself. The legacy host `dns.adguard.com` is not used — AdGuard's current hosts are `*.adguard-dns.com`.
+
+## Ad blocker switches
+
+- **Master switch** (shield bubble or Settings → Ad-Blocker & Privacy): applies to the normal and the incognito session, stops the built-in YouTube ad skipping too, and the page behind the bubble reloads.
+- **On this site**: pauses the blocker for the host of the active tab (and its subdomains; `www.` is ignored). The host is always taken from the active tab in the main process, never from the renderer's message; only `http(s)` pages can be paused; at most 500 sites; the list is saved as `adBlockerAllowlist`. Implementation: thin wrappers around the engine's `webRequest` listeners (requests *and* response headers) that skip paused pages, also for the built-in fallback list.
+
 ## Process hardening
 
 - **Electron fuses** (`package.json → build.electronFuses`, flipped by electron-builder and read back from the binary by `scripts/check-fuses.js`): `ELECTRON_RUN_AS_NODE`, `NODE_OPTIONS` / `NODE_EXTRA_CA_CERTS` and `--inspect` are ignored, and the app is loaded only from `app.asar` with its integrity validated (Windows/macOS). Without these, the signed `SHMMOTH Browser.exe` can be turned into a general-purpose Node interpreter by an environment variable, or have its code swapped out of an unpacked `app` folder. Consequence: `NODE_EXTRA_CA_CERTS` is not honoured in a shipped build; network code that must trust a corporate root CA therefore uses Electron's `net` (system certificate store), as the ad-block list download does.

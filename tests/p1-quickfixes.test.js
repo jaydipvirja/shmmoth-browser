@@ -215,6 +215,32 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     assert(um.includes("/^v?(\\d{1,4})\\.(\\d{1,4})\\.(\\d{1,4})$/.exec(String(release.tag_name"), 'release tag validation not found in updateManager');
   });
 
+  console.log('\n📋 5. Clipboard permission and the video context menu');
+  const { isAlwaysAllowedPermission, ALWAYS_ALLOWED } = require('../src/security/permissionPolicy');
+  await test('pages may write to the clipboard (Copy link / Copy video URL) and use fullscreen / pointer lock without a prompt', async () => {
+    for (const p of ['clipboard-sanitized-write', 'fullscreen', 'pointerLock']) assert(isAlwaysAllowedPermission(p), p);
+  });
+  await test('everything sensitive still needs the site-permission flow (reading the clipboard, camera, location, notifications …)', async () => {
+    for (const p of ['clipboard-read', 'media', 'mediaKeySystem', 'geolocation', 'notifications', 'midi', 'midiSysex', 'openExternal', 'display-capture', 'hid', 'serial', 'usb', 'idle-detection', 'top-level-storage-access', '', undefined, null, 5, {}, 'Fullscreen']) {
+      assert(!isAlwaysAllowedPermission(p), String(p));
+    }
+    assert(ALWAYS_ALLOWED.length === 3 && Object.isFrozen(ALWAYS_ALLOWED), 'the allow-list must stay tiny and read-only');
+  });
+  await test('both the permission CHECK and the permission REQUEST handler use the policy (a page asks one or the other)', async () => {
+    const checkH = mainJs.slice(mainJs.indexOf('setPermissionCheckHandler'), mainJs.indexOf('setPermissionRequestHandler'));
+    const requestH = mainJs.slice(mainJs.indexOf('setPermissionRequestHandler'), mainJs.indexOf('setPermissionRequestHandler') + 2500);
+    assert(/isAlwaysAllowedPermission\(permission\)\) \{\s*return true;/.test(checkH), 'check handler');
+    assert(/isAlwaysAllowedPermission\(permission\)\) \{\s*return callback\(true\);/.test(requestH), 'request handler');
+  });
+  await test('the browser\'s menu on a video: media items for video and audio, built from numbers only (nothing from the page is put into the script)', async () => {
+    const m = mainJs.slice(mainJs.indexOf("// 2b. Video / audio items"), mainJs.indexOf('// 3. Selection / Text search items'));
+    assert(/params\.mediaType === 'video' \|\| params\.mediaType === 'audio'/.test(m));
+    for (const label of ['Loop', 'Show controls', 'Picture in picture', "`Save ${kind} as...`", "`Copy ${kind} address`", "`Open ${kind} in new tab`"]) assert(m.includes(label), label);
+    assert(/Math\.round\(Number\(params\.x\) \|\| 0\)/.test(m) && /Math\.round\(Number\(params\.y\) \|\| 0\)/.test(m), 'coordinates must be numbers');
+    assert(!/\$\{params\.srcURL\}|\$\{mediaUrl\}/.test(m.slice(m.indexOf('withMedia = '), m.indexOf('const mediaUrl'))), 'the address must not be interpolated into the script');
+    assert(/\^https\?:/.test(m), 'only http(s) addresses may be saved / copied / opened (not blob:)');
+  });
+
   console.log('\n══════════════════════════════════════════════════════');
   console.log(`  Results: ${passed} passed, ${failed} failed`);
   console.log('══════════════════════════════════════════════════════\n');

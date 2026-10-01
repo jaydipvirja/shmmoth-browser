@@ -19,6 +19,10 @@ Single JSON file: `%APPDATA%/mtc-browser/mtc-data.json`
     "theme": "dark",
     "homepage": "mtc://newtab",
     "startupBehavior": "newtab",
+    "adBlockerAllowlist": [],
+    "secureDnsProvider": "adguard",
+    "secureDnsCustomUrl": "",
+    "secureDnsStrict": false,
     "showBookmarksBar": true
   },
   "bookmarks": [{ "id": "bm_1", "title": "", "url": "", "favicon": "", "createdAt": 0 }],

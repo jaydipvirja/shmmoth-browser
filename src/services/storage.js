@@ -37,6 +37,10 @@ class StorageService {
           yahoo:      'https://search.yahoo.com/search?p='
         },
         adBlockerEnabled:       true,
+        adBlockerAllowlist:     [],            // sites where the ad blocker is paused (host names)
+        secureDnsProvider:      'adguard',     // see services/secureDns.js
+        secureDnsCustomUrl:     '',
+        secureDnsStrict:        false,
         ramSaverEnabled:        true,
         ramSaverTimeoutMinutes: 15,
         theme:                  'dark',

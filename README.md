@@ -37,7 +37,8 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
 
 7. **Comprehensive Settings (`mtc://settings`)**:
    - Change Default Search Engine (Google, Bing, DuckDuckGo, Yahoo)
-   - Toggle Ad-Blocker ON / OFF
+   - Toggle Ad-Blocker ON / OFF (everywhere, or just for the site you are on, from the shield button)
+   - Secure DNS (DNS-over-HTTPS): AdGuard DNS by default, or your own
    - On Start-up: open the new tab page, or **Continue where I left off** (tabs come back after a restart or a crash; incognito tabs never do)
    - Toggle RAM Saver ON / OFF & set sleep timer
    - Change Themes (Dark Glass / Classic Light / Midnight OLED)

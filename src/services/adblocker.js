@@ -4,6 +4,15 @@ const fs   = require('fs');
 const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const MAX_PAUSED_SITES = 500;
+const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
+
+/** Lower-case host name without a leading "www." or trailing dot; '' when it is not a plain host name / IPv4 address. */
+function normalizeHost(input) {
+  if (typeof input !== 'string') return '';
+  const h = input.trim().toLowerCase().replace(/\.$/, '').replace(/^www\./, '');
+  return HOST.test(h) ? h : '';
+}
 
 /**
  * Lists are fetched with Electron's net.fetch: unlike Node's http it follows the browser's proxy setting and trusts the
@@ -25,6 +34,9 @@ class AdBlockerService {
     this.cacheFile = options.cacheFile || null;
     this._fetch = options.fetch || electronFetch;
     this.cacheTtlMs = options.ttlMs || CACHE_TTL_MS;
+    // Sites where the user paused the blocker ("Ad blocker on this site: off"). Matches the host and its subdomains.
+    this._paused = new Set();
+    this.reloadAllowlist();
     this.blockedCount = 0;
     this.isEnabled = this.storage.getSettings().adBlockerEnabled ?? true;
     this.blocker = null;
@@ -33,6 +45,89 @@ class AdBlockerService {
     // was overwritten when the incognito window opened, so toggling the setting only affected
     // incognito and the normal session could never be switched off again.
     this.sessions = new Set();
+  }
+
+  // ─── Per-site pause ───────────────────────────────────────────────────────
+
+  /** (Re)reads the paused sites from the saved settings, dropping anything that is not a plain host name. */
+  reloadAllowlist() {
+    const saved = this.storage.getSettings().adBlockerAllowlist;
+    const list = Array.isArray(saved) ? saved : [];
+    this._paused = new Set(list.map(normalizeHost).filter(Boolean).slice(0, MAX_PAUSED_SITES));
+  }
+
+  getPausedSites() {
+    return Array.from(this._paused).sort();
+  }
+
+  /** True when the blocker is paused for this host or one of its parent domains (www.a.example.com → example.com). */
+  isSitePaused(host) {
+    let h = normalizeHost(host);
+    if (!h || this._paused.size === 0) return false;
+    for (;;) {
+      if (this._paused.has(h)) return true;
+      const dot = h.indexOf('.');
+      if (dot < 0) return false;
+      h = h.slice(dot + 1);
+    }
+  }
+
+  /** Is blocking in force for pages of this host? (the master switch AND not paused for the site) */
+  isActiveFor(host) {
+    return this.isEnabled && !this.isSitePaused(host);
+  }
+
+  /**
+   * Pauses (or resumes) the blocker for a site. Resuming a site also removes the parent domain that covered it, so
+   * "turn it back on here" always works. @returns {boolean} true when the list changed
+   */
+  setSitePaused(host, paused) {
+    const h = normalizeHost(host);
+    if (!h) return false;
+    if (paused) {
+      if (this.isSitePaused(h) || this._paused.size >= MAX_PAUSED_SITES) return false;
+      this._paused.add(h);
+    } else {
+      let changed = false;
+      for (const entry of Array.from(this._paused)) {
+        if (h === entry || h.endsWith('.' + entry)) { this._paused.delete(entry); changed = true; }
+      }
+      if (!changed) return false;
+    }
+    this.storage.updateSettings({ adBlockerAllowlist: this.getPausedSites() });
+    return true;
+  }
+
+  /** The address of the page a request belongs to: the tab that issued it, else the referrer. */
+  _pageHost(details) {
+    try {
+      const wc = details && details.webContents;
+      const url = (wc && !(wc.isDestroyed && wc.isDestroyed()) && wc.getURL && wc.getURL()) || (details && details.referrer) || '';
+      return url ? new URL(url).hostname : '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  _pausedFor(details) {
+    return this._paused.size > 0 && this.isSitePaused(this._pageHost(details));
+  }
+
+  /**
+   * Turns the engine on for a session. The engine registers its own webRequest listeners; they are replaced by thin
+   * wrappers that let requests of paused sites through untouched and hand everything else to the engine.
+   */
+  _enableEngine(sessionInstance) {
+    const context = this.blocker.enableBlockingInSession(sessionInstance);
+    if (!context || this.blocker.config.loadNetworkFilters === false) return;
+    const filter = { urls: ['<all_urls>'] };
+    if (typeof context.onBeforeRequest === 'function') {
+      sessionInstance.webRequest.onBeforeRequest(filter, Object.assign(
+        (details, callback) => (this._pausedFor(details) ? callback({}) : context.onBeforeRequest(details, callback)), { engine: true }));
+    }
+    if (typeof context.onHeadersReceived === 'function') {
+      sessionInstance.webRequest.onHeadersReceived(filter, (details, callback) => (this._pausedFor(details) ? callback({}) : context.onHeadersReceived(details, callback)));
+    }
   }
 
   /** True when a cached engine exists but is older than the time-to-live. */
@@ -96,7 +191,7 @@ class AdBlockerService {
       this.blocker = await this._loadBlocker();
 
       if (this.isEnabled) {
-        this.blocker.enableBlockingInSession(sessionInstance);
+        this._enableEngine(sessionInstance);
         console.log('Ad-Blocker successfully activated for a session.');
       }
     } catch (err) {
@@ -120,7 +215,7 @@ class AdBlockerService {
     ];
 
     sessionInstance.webRequest.onBeforeRequest({ urls: ['*://*/*'] }, (details, callback) => {
-      if (!this.isEnabled) {
+      if (!this.isEnabled || this._pausedFor(details)) {
         callback({ cancel: false });
         return;
       }
@@ -156,9 +251,9 @@ class AdBlockerService {
     if (this.blocker) {
       for (const sess of this.sessions) {
         if (enabled) {
-          this.blocker.enableBlockingInSession(sess);
-        } else {
-          this.blocker.disableBlockingInSession(sess);
+          this._enableEngine(sess);
+        } else if (typeof this.blocker.isBlockingEnabled !== 'function' || this.blocker.isBlockingEnabled(sess)) {
+          this.blocker.disableBlockingInSession(sess);          // (throws for a session that was never enabled)
         }
       }
     }
@@ -169,4 +264,5 @@ class AdBlockerService {
   }
 }
 
+AdBlockerService.normalizeHost = normalizeHost;
 module.exports = AdBlockerService;
