@@ -169,6 +169,9 @@ const apiSurface = {
   getActivePasswordPrompt:    ()                           => ipcRenderer.invoke('passwords:getActivePrompt'),
   closePasswordBubble:        ()                           => ipcRenderer.invoke('passwords:closeBubble'),
   onPasswordOfferSave:        (callback)                   => ipcRenderer.on('password:offerSave', (_, data) => callback(data)),
+  getPasswordAutofillChooser: ()                           => ipcRenderer.invoke('passwordAutofill:getChooser'),
+  choosePasswordAutofill:     (promptId, credentialId)     => ipcRenderer.invoke('passwordAutofill:choose', promptId, credentialId),
+  dismissPasswordAutofill:    ()                           => ipcRenderer.invoke('passwordAutofill:dismiss'),
 
   // ─── Form Autofill (Stage 6) ──────────────────────────────────────────────────
   getAutofillProfiles:        ()                           => ipcRenderer.invoke('autofill:getProfiles'),
@@ -238,6 +241,7 @@ const TRUSTED_FILE_SUFFIXES = [
   '/pages/shield-bubble.html',
   '/pages/permission-bubble.html',
   '/pages/password-bubble.html',
+  '/pages/autofill-bubble.html',
 ];
 
 function isTrustedInternalLocation() {

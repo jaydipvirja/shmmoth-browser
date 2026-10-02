@@ -32,7 +32,7 @@ const UNIT_EXCLUDE = new Set(['google-login-verification.test.js']);
 // E2E suites that make sense against a packaged build (05 drives the raw Electron binary with a fixture app)
 // the one fuse the test build turns back on (see the build step below)
 const TEST_BUILD_FUSE_OVERRIDE = 'true';
-const PACKAGED_E2E = /^(0[1-46789]|1[0-4])-/;
+const PACKAGED_E2E = /^(0[1-46789]|1[0-5])-/;
 
 const unitTests = fs.readdirSync(__dirname).filter((f) => f.endsWith('.test.js') && !UNIT_EXCLUDE.has(f)).sort();
 const e2eTests = fs.readdirSync(path.join(__dirname, 'e2e')).filter((f) => f.endsWith('.e2e.js')).sort()
