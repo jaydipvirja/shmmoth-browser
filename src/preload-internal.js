@@ -165,6 +165,7 @@ const apiSurface = {
   deletePassword:             (id)                         => ipcRenderer.invoke('passwords:delete', id),
   clearAllPasswords:          ()                           => ipcRenderer.invoke('passwords:clearAll'),
   revealPassword:             (id)                         => ipcRenderer.invoke('passwords:reveal', id),
+  copyPassword:               (id)                         => ipcRenderer.invoke('passwords:copy', id),
   respondPasswordSavePrompt:  (promptId, action)           => ipcRenderer.invoke('passwords:respondPrompt', promptId, action),
   getActivePasswordPrompt:    ()                           => ipcRenderer.invoke('passwords:getActivePrompt'),
   closePasswordBubble:        ()                           => ipcRenderer.invoke('passwords:closeBubble'),

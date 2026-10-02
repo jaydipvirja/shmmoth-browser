@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.8
+
+### Passwords — a saved password no longer comes out on a single click
+- **Showing a password (👁️) or copying it (📋 Pass) first asks in a window of the browser itself** ("Show the saved password for “alice” on https://example.com?"), outside any web page, with *Cancel* as the default. Before, one click showed it — to anyone at the keyboard, and to any script that might ever run in an internal page.
+- **A shown password hides itself after 15 seconds**, when you leave or switch away from the Settings page, and when the list is redrawn. It is no longer kept in the page in between.
+- **Copy never passes the password through the page.** It goes from the vault straight to the clipboard, and the browser **empties the clipboard after 30 seconds** (only if it still holds that password — something you copied meanwhile stays) and when the browser quits. Before, the page wrote it to the clipboard and it stayed there for ever.
+- **Only Settings can ask**; the browser's toolbar window or any other internal page gets a refusal. At most 5 requests per 30 seconds and one question at a time, so nothing can bury the screen in dialogs or try passwords one after another. User names that come from web pages are shown as plain one-line text in the question.
+- Honest limit: this is a confirmation, not a login — anyone who can press *Show* on your unlocked browser can still see the passwords. Asking for the Windows PIN / Windows Hello needs a native component and is planned.
+
 ## 1.1.7
 
 Includes everything from 1.1.6 below (1.1.6 itself was never published).

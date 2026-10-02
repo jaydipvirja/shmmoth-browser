@@ -758,8 +758,16 @@ async function loadPasswords() {
   }
 }
 
+/** The hide functions of the passwords currently on screen (see renderPasswords). */
+const shownPasswordHiders = new Set();
+function hideAllShownPasswords() { for (const hide of Array.from(shownPasswordHiders)) hide(); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) hideAllShownPasswords(); });
+window.addEventListener('blur', hideAllShownPasswords);
+window.addEventListener('pagehide', hideAllShownPasswords);
+
 function renderPasswords() {
   if (!passwordsList) return;
+  hideAllShownPasswords();
   passwordsList.innerHTML = '';
 
   const q = (passwordsSearchInput ? passwordsSearchInput.value : '').trim().toLowerCase();
@@ -803,25 +811,31 @@ function renderPasswords() {
     const btnEdit = row.querySelector('.btn-edit-pw');
     const btnDelete = row.querySelector('.btn-delete-pw');
 
-    let revealedPlaintext = null;
+    // The browser asks the user in a native window before it hands out a password (see services/passwordGate.js).
+    // A shown password is only in the page while it is on screen: it hides itself after 15 s, when the page is left
+    // or hidden, and when the list is redrawn; nothing is kept in a variable.
+    let hideTimer = null;
+    const hide = () => {
+      clearTimeout(hideTimer);
+      hideTimer = null;
+      valDisplay.textContent = '••••••••';
+      valDisplay.dataset.revealed = 'false';
+      btnReveal.textContent = '👁️';
+      shownPasswordHiders.delete(hide);
+    };
 
     btnReveal.addEventListener('click', async () => {
-      if (valDisplay.dataset.revealed === 'true') {
-        valDisplay.textContent = '••••••••';
-        valDisplay.dataset.revealed = 'false';
-        btnReveal.textContent = '👁️';
-      } else {
-        if (!revealedPlaintext && window.mtcAPI && window.mtcAPI.revealPassword) {
-          const res = await window.mtcAPI.revealPassword(item.id);
-          if (res && res.success) {
-            revealedPlaintext = res.password;
-          }
-        }
-        if (revealedPlaintext !== null) {
-          valDisplay.textContent = revealedPlaintext;
-          valDisplay.dataset.revealed = 'true';
-          btnReveal.textContent = '🔒';
-        }
+      if (valDisplay.dataset.revealed === 'true') { hide(); return; }
+      if (!window.mtcAPI || !window.mtcAPI.revealPassword) return;
+      const res = await window.mtcAPI.revealPassword(item.id);
+      if (res && res.success) {
+        valDisplay.textContent = res.password;
+        valDisplay.dataset.revealed = 'true';
+        btnReveal.textContent = '🔒';
+        shownPasswordHiders.add(hide);
+        hideTimer = setTimeout(hide, Number(res.hideAfterMs) > 0 ? Number(res.hideAfterMs) : 15000);
+      } else if (res && !res.cancelled) {
+        showToast(res.error || 'The password could not be shown');
       }
     });
 
@@ -831,17 +845,12 @@ function renderPasswords() {
       });
     });
 
+    // The password goes from the vault to the clipboard inside the browser; this page never receives it.
     btnCopyPass.addEventListener('click', async () => {
-      let pass = revealedPlaintext;
-      if (!pass && window.mtcAPI && window.mtcAPI.revealPassword) {
-        const res = await window.mtcAPI.revealPassword(item.id);
-        if (res && res.success) pass = res.password;
-      }
-      if (pass) {
-        navigator.clipboard.writeText(pass).then(() => {
-          showToast('Password copied to clipboard!');
-        });
-      }
+      if (!window.mtcAPI || !window.mtcAPI.copyPassword) return;
+      const res = await window.mtcAPI.copyPassword(item.id);
+      if (res && res.success) showToast(`Password copied. The clipboard is cleared in ${Math.round((res.clearAfterMs || 30000) / 1000)} seconds.`);
+      else if (res && !res.cancelled) showToast(res.error || 'The password could not be copied');
     });
 
     btnEdit.addEventListener('click', () => {
