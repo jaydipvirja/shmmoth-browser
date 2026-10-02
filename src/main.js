@@ -21,6 +21,7 @@ const fs   = require('fs');
 const StorageService   = require('./services/storage');
 const AdBlockerService = require('./services/adblocker');
 const PopupPolicy      = require('./services/popupPolicy');
+const PasswordGate     = require('./services/passwordGate');
 const RamSaverService  = require('./services/ramSaver');
 const DownloadManager  = require('./services/downloadManager');
 const { PasswordVault }   = require('./services/passwordVault');
@@ -32,7 +33,7 @@ const UpdateManager       = require('./services/updateManager');
 const { SessionStore, buildSnapshot } = require('./services/sessionStore');
 
 
-const { secureHandlerRaw, validateUrl, sanitizeString } = require('./security/ipcSecurity');
+const { secureHandlerRaw, validateUrl, sanitizeString, getSenderUrl } = require('./security/ipcSecurity');
 const { checkNavigation, isPopupBlocked, isSafeToLoad }  = require('./security/urlPolicy');
 const { isTrustedInternalUrl, BROWSER_CHROME_URL }        = require('./security/trustedPages');
 const { MTC_PAGE_CSP }                                    = require('./security/csp');
@@ -134,6 +135,7 @@ class ShmmothBrowserApp {
     // Password Manager, Autofill, and Network (Stage 6)
     this.passwordVault = null;
     this.passwordAutofill = null;
+    this.passwordGate = null;
     this.autofillService = null;
     this.proxyManager = null;
     this.pendingPasswordPrompts = {};
@@ -301,6 +303,16 @@ class ShmmothBrowserApp {
     this.passwordVault = new PasswordVault(null, {
       allowInsecureFallback: !app.isPackaged && process.env.SHMMOTH_E2E_INSECURE_VAULT === '1'
     });
+    // Showing or copying a saved password asks first, in a native window of the browser (services/passwordGate.js)
+    this.passwordGate = new PasswordGate({
+      clipboard,
+      log,
+      confirm: async ({ title, message, detail, confirmLabel, parent }) => {
+        const options = { type: 'question', title, message, detail, buttons: [confirmLabel, 'Cancel'], defaultId: 1, cancelId: 1, noLink: true };
+        const result = parent && !parent.isDestroyed() ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
+        return result.response === 0;
+      }
+    });
     this.passwordAutofill = new PasswordAutofill({
       vault: this.passwordVault,
       isEnabled: () => this.storage.getSettings().passwordAutofillEnabled !== false,
@@ -355,13 +367,15 @@ class ShmmothBrowserApp {
 
     app.on('before-quit', (event) => {
       this._finalizeSession();
+      // a copied password does not outlive the browser
+      const clipboardCleared = this.passwordGate ? this.passwordGate.clearClipboardNow().catch(() => {}) : Promise.resolve();
       if (this._dataFlushed) return;
       // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
       // (about every 30 s): what is still in the last batch would be lost, and a session that Google has already
       // renewed would come back with the old cookies and be refused ("signed out").
       event.preventDefault();
       this._dataFlushed = true;
-      Promise.race([this.flushBrowserData('quit'), new Promise((resolve) => setTimeout(resolve, 3000))])
+      Promise.race([Promise.all([this.flushBrowserData('quit'), clipboardCleared]), new Promise((resolve) => setTimeout(resolve, 3000))])
         .catch(() => {})
         .then(() => app.quit());
     });
@@ -3916,14 +3930,43 @@ class ShmmothBrowserApp {
       return { success: true };
     }));
 
-    ipcMain.handle('passwords:reveal', secureHandlerRaw(async (event, id) => {
-      if (!this.passwordVault) return { success: false, error: 'Password vault unavailable' };
-      const safeId = sanitizeString(id || '', 64, 'id');
-      const plaintext = this.passwordVault.decryptForAuthorizedUse(safeId);
-      if (plaintext === null) {
-        return { success: false, error: 'Credential not found or decryption failed' };
+    // Showing or copying a password: only from Settings → Passwords, only after the user confirmed in a native window.
+    const gateMessages = {
+      cancelled: 'Cancelled.',
+      busy: 'Another confirmation is already open.',
+      rate: 'Too many requests — wait a moment and try again.',
+      error: 'The confirmation could not be shown.'
+    };
+    const askGate = async (event, id, purpose) => {
+      if (!this.passwordVault || !this.passwordGate) return { error: { success: false, error: 'Password vault unavailable' } };
+      if (!/^mtc:\/\/settings(?:[/?#]|$)/.test(getSenderUrl(event) || '')) {
+        securityLogger.security('Password request from outside Settings refused', { from: String(getSenderUrl(event)).slice(0, 80) });
+        return { error: { success: false, error: 'Passwords can only be shown from Settings.' } };
       }
-      return { success: true, password: plaintext };
+      const safeId = sanitizeString(id || '', 64, 'id');
+      const credential = this.passwordVault.getCredentialById(safeId);
+      if (!credential) return { error: { success: false, error: 'Credential not found or decryption failed' } };
+      const parent = BrowserWindow.fromWebContents(event.sender) || this.mainWindow;
+      const gate = await this.passwordGate.authorize(purpose, credential, { parent });
+      if (!gate.ok) return { error: { success: false, cancelled: gate.reason === 'cancelled', error: gateMessages[gate.reason] || gateMessages.error } };
+      const plaintext = this.passwordVault.decryptForAuthorizedUse(safeId);
+      if (plaintext === null) return { error: { success: false, error: 'Credential not found or decryption failed' } };
+      log.info(purpose === 'copy' ? 'Saved password copied' : 'Saved password shown', { origin: credential.origin });   // never the password itself
+      return { plaintext };
+    };
+
+    ipcMain.handle('passwords:reveal', secureHandlerRaw(async (event, id) => {
+      const r = await askGate(event, id, 'show');
+      if (r.error) return r.error;
+      return { success: true, password: r.plaintext, hideAfterMs: PasswordGate.REVEAL_HIDE_MS };
+    }));
+
+    // The password goes from the vault straight to the clipboard; the page never sees it
+    ipcMain.handle('passwords:copy', secureHandlerRaw(async (event, id) => {
+      const r = await askGate(event, id, 'copy');
+      if (r.error) return r.error;
+      const ok = await this.passwordGate.copyToClipboard(r.plaintext);
+      return ok ? { success: true, clearAfterMs: PasswordGate.CLIPBOARD_CLEAR_MS } : { success: false, error: 'The password could not be copied.' };
     }));
 
     ipcMain.handle('passwords:respondPrompt', secureHandlerRaw(async (event, promptId, action) => {
