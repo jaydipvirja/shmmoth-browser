@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.1.6
+
+### Passwords — saved logins are now filled in
+- **The browser saved passwords but never put them back into a sign-in page — that is now done.** On a site you have a saved login for, clicking the user-name or password field shows a small list of the saved user names under the field. Pick one and the user name and password are filled in. (The "Autofill" tab in Settings is for addresses and contact details; this is separate.)
+- **Safe by design.** The page gets nothing until you pick an entry — it cannot see that a login is saved, and the list shows user names only. Only the one login you pick is read, and only for the exact site it was saved for (https, or localhost while developing); if the tab has moved to another address in the meantime nothing is filled. Nothing is submitted for you. Sign-up and "new password" fields, search boxes, other sites, frames inside a page and private windows are left alone.
+- Works on normal forms, on pages without a `<form>`, on fields that appear later, on sign-in forms built with React-style frameworks, and on user-name-only first steps (only the user name is filled there; the password is never sent to the page before its own step).
+- **Settings → Passwords → "Offer saved logins on sign-in pages"** switches it off.
+- Signing in with a login that is already saved exactly as typed no longer asks "Save password?" again; a changed password still does.
+
 ## 1.1.5
 
 ### Downloads

@@ -444,6 +444,25 @@ class PasswordVault {
     }
   }
 
+  /**
+   * True when this origin + user name is already saved with exactly this password — then there is nothing to offer to
+   * save (e.g. the browser just filled the login in itself).
+   */
+  matchesSaved(origin, username, password) {
+    if (typeof password !== 'string' || !password) return false;
+    const clean = this._cleanOrigin(origin);
+    const user = typeof username === 'string' ? username.trim() : '';
+    const found = this.credentials.find(c => c.origin === clean && c.username === user);
+    if (!found || !found.encryptedPassword) return false;
+    try {
+      const saved = Buffer.from(this.decryptPassword(found.encryptedPassword), 'utf8');
+      const typed = Buffer.from(password, 'utf8');
+      return saved.length === typed.length && crypto.timingSafeEqual(saved, typed);
+    } catch (_) {
+      return false;
+    }
+  }
+
   // ─── Never Save (Blacklist) ───────────────────────────────────────────────
 
   addNeverSaveOrigin(origin) {

@@ -139,6 +139,17 @@ A page that cannot be loaded shows `mtc://error` (`pages/error.html`, built by `
 
 The `mtc://` protocol handler is registered on both the normal and the `incognito` session (a handler belongs to one session; incognito tabs used to show blank internal pages).
 
+## Password autofill
+
+`services/passwordAutofill.js` fills a saved login into a sign-in form **after the user picks it**; the vault (`services/passwordVault.js`, OS-encrypted) is unchanged.
+
+- **Nothing is revealed before a click.** A detection script runs in an *isolated world* of the page (same DOM, but the page's JavaScript cannot see or call it) and is injected only on a normal-window tab whose exact origin (https, or localhost over http) has a saved login. It reports where a user-name / password field is when the user clicks or focuses it (`isTrusted` events only). The report travels on the console channel with a random per-page nonce that only the isolated world knows, so a page cannot forge it; the main process also checks that the tab is still the active one on the same origin, clamps and range-checks the numbers, and allows one chooser per 120 ms.
+- **The chooser** (`pages/autofill-bubble.html`) is a separate non-focusable window listing **user names only**. Its IPC (`passwordAutofill:*`) is accepted only from that window's own `webContents`, with the prompt id of the open chooser and a credential id that was in that list.
+- **On a click** the main process re-checks the tab (exists, not private, same `webContents`, same origin as when the list opened), decrypts that one password, and calls `fill()` in the isolated world, which re-checks `location.origin` itself, writes through the native value setter and dispatches `input` / `change`. The values are JSON-encoded into the call; they are never logged. Nothing is submitted.
+- **Left alone:** `autocomplete="new-password"` and one-time-code fields, credit-card / address fields, search boxes, text fields not near a password field, other origins, iframes (the script runs in the top frame only), private windows, pages without OS encryption.
+- Not done on purpose: filling on page load without a click. A page's own scripts (ads, trackers) can read a pre-filled password field, which is the known weakness of that approach.
+- `SHMMOTH_E2E_INSECURE_VAULT=1` (test key for Linux CI without an OS keyring) is honoured only by an unpackaged run (`!app.isPackaged`).
+
 ## Known Remaining Risks (Phase 1)
 
 | Risk | Severity | Mitigation |

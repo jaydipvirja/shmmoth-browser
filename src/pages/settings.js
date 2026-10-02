@@ -26,6 +26,7 @@ const selectSearchEngine = document.getElementById('select-search-engine');
 const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
+const togglePasswordAutofill = document.getElementById('toggle-password-autofill');
 const badgeBlockedCount = document.getElementById('badge-blocked-count');
 const btnOpenClearData = document.getElementById('btn-open-clear-data');
 const btnOpenCookiesModal = document.getElementById('btn-open-cookies-modal');
@@ -213,6 +214,7 @@ async function initSettings() {
       selectStartup.value = currentSettings.startupBehavior === 'restore' ? 'restore' : 'newtab';
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
+      if (togglePasswordAutofill) togglePasswordAutofill.checked = currentSettings.passwordAutofillEnabled !== false;
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       selectTheme.value = currentSettings.theme || 'dark';
@@ -270,6 +272,12 @@ selectStartup.addEventListener('change', () => {
 toggleBookmarksBar.addEventListener('change', () => {
   saveSettingChange({ showBookmarksBar: toggleBookmarksBar.checked });
 });
+
+if (togglePasswordAutofill) {
+  togglePasswordAutofill.addEventListener('change', () => {
+    saveSettingChange({ passwordAutofillEnabled: togglePasswordAutofill.checked });
+  });
+}
 
 toggleAdblocker.addEventListener('change', () => {
   saveSettingChange({ adBlockerEnabled: toggleAdblocker.checked });
@@ -1190,6 +1198,7 @@ btnResetDefaults.addEventListener('click', async () => {
     const defaults = {
       searchEngine: 'google',
       adBlockerEnabled: true,
+      passwordAutofillEnabled: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
       theme: 'dark',

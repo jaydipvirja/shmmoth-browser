@@ -14,7 +14,7 @@
 
 'use strict';
 
-const { app, BrowserWindow, WebContentsView, protocol, net, ipcMain, session, dialog, Menu, MenuItem, clipboard } = require('electron');
+const { app, BrowserWindow, WebContentsView, protocol, net, ipcMain, session, dialog, Menu, MenuItem, clipboard, screen } = require('electron');
 const path = require('path');
 const fs   = require('fs');
 
@@ -23,6 +23,7 @@ const AdBlockerService = require('./services/adblocker');
 const RamSaverService  = require('./services/ramSaver');
 const DownloadManager  = require('./services/downloadManager');
 const { PasswordVault }   = require('./services/passwordVault');
+const { PasswordAutofill } = require('./services/passwordAutofill');
 const { AutofillService } = require('./services/autofillService');
 const { ProxyManager }    = require('./services/proxyManager');
 const ExtensionManager    = require('./services/extensionManager');
@@ -130,6 +131,7 @@ class ShmmothBrowserApp {
 
     // Password Manager, Autofill, and Network (Stage 6)
     this.passwordVault = null;
+    this.passwordAutofill = null;
     this.autofillService = null;
     this.proxyManager = null;
     this.pendingPasswordPrompts = {};
@@ -286,7 +288,21 @@ class ShmmothBrowserApp {
     this.setupPermissions(session.defaultSession);
 
     // 10. Wire PasswordVault, AutofillService, and ProxyManager (Stage 6)
-    this.passwordVault = new PasswordVault();
+    // The OS-encrypted vault is required everywhere. Only an UNPACKAGED dev run may opt into the test key, which is
+    // what lets the end-to-end tests store a login on a Linux CI machine that has no OS keyring.
+    this.passwordVault = new PasswordVault(null, {
+      allowInsecureFallback: !app.isPackaged && process.env.SHMMOTH_E2E_INSECURE_VAULT === '1'
+    });
+    this.passwordAutofill = new PasswordAutofill({
+      vault: this.passwordVault,
+      isEnabled: () => this.storage.getSettings().passwordAutofillEnabled !== false,
+      getTab: (tabId) => this.tabs[tabId],
+      isActiveTab: (tab) => tab.id === (tab.isIncognito ? this.activeIncognitoTabId : this.activeTabId),
+      getParentWindow: (tab) => (tab.isIncognito ? this.incognitoWindow : this.mainWindow),
+      createBubble: (opts) => this.createPasswordAutofillBubble(opts),
+      getCursor: () => screen.getCursorScreenPoint(),
+      log
+    });
     this.autofillService = new AutofillService();
     this.proxyManager = new ProxyManager(null, this.passwordVault);
 
@@ -1078,6 +1094,9 @@ class ShmmothBrowserApp {
     };
 
     this.mainWindow.on('resize',     () => this.throttledUpdateViewBounds(this.mainWindow));
+    this.mainWindow.on('resize',     () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
+    this.mainWindow.on('move',       () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
+    this.mainWindow.on('minimize',   () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
     this.mainWindow.on('maximize',   () => {
       broadcastWindowState(true);
       setTimeout(() => this.updateViewBounds(), 50);
@@ -1688,6 +1707,7 @@ class ShmmothBrowserApp {
     wc.on('did-start-navigation', (_, navUrl, isInPlace, isMainFrame) => {
       if (isMainFrame) {
         updateTabUa(navUrl);
+        if (!isInPlace && this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
       }
     });
 
@@ -1899,6 +1919,7 @@ class ShmmothBrowserApp {
     const browserApp = this;
     wc.on('console-message', function onConsoleMessage(event) {
       const message = (event && typeof event.message === 'string') ? event.message : arguments[2];
+      if (browserApp.passwordAutofill && browserApp.passwordAutofill.handleConsoleMessage(tabId, message)) return;
       if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_SUBMIT__:')) {
         try {
           const payload = JSON.parse(message.slice(25));
@@ -1913,6 +1934,7 @@ class ShmmothBrowserApp {
     wc.on('dom-ready', () => {
       this._applyYouTubeOptimizer(wc, tabData.url);
       this._attachCredentialAndAutofillHooks(wc, tabData);
+      if (this.passwordAutofill) this.passwordAutofill.attach(wc, tabId, tabData);
     });
 
     wc.on('did-navigate-in-page', (_, navUrl) => {
@@ -2175,6 +2197,7 @@ class ShmmothBrowserApp {
     this.closeExtensionBubble();
     this.closeShieldBubble();
     this.closeDownloadBubble();
+    if (this.passwordAutofill) this.passwordAutofill.dismiss();
 
     const isIncognito = Boolean(currentTab.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
@@ -2251,6 +2274,7 @@ class ShmmothBrowserApp {
     this.closePermissionBubble();
     this.closeExtensionBubble();
     this.closeShieldBubble();
+    if (this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
 
     const isIncognito = Boolean(tabData.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
@@ -2965,6 +2989,30 @@ class ShmmothBrowserApp {
     return true;
   }
 
+  /** The small "use a saved login" chooser next to a sign-in field. It never takes keyboard focus from the page. */
+  createPasswordAutofillBubble({ parent, x, y, width, height }) {
+    const win = new BrowserWindow({
+      width, height, x, y,
+      parent,
+      frame: false,
+      resizable: false,
+      show: false,
+      focusable: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        preload: PRELOAD_INTERNAL
+      }
+    });
+    win.loadFile(path.join(__dirname, 'pages', 'autofill-bubble.html'));
+    return win;
+  }
+
   closePasswordBubble() {
     if (this.passwordBubbleWin && !this.passwordBubbleWin.isDestroyed()) {
       this.passwordBubbleWin.close();
@@ -2976,6 +3024,8 @@ class ShmmothBrowserApp {
   offerPasswordSave(tabId, origin, username, password) {
     if (!origin || !username || !password) return;
     if (this.passwordVault && this.passwordVault.isNeverSaveOrigin(origin)) return;
+    // Signing in with a login that is already saved exactly as typed (e.g. just filled in) is nothing to offer to save
+    if (this.passwordVault && this.passwordVault.matchesSaved(origin, username, password)) return;
     // Don't offer a "Save password?" bubble that cannot succeed (no OS-level encryption available)
     if (this.passwordVault && !this.passwordVault.canEncrypt()) {
       if (!this._warnedNoVaultEncryption) {
@@ -3841,6 +3891,25 @@ class ShmmothBrowserApp {
 
     ipcMain.handle('passwords:closeBubble', secureHandlerRaw(() => {
       this.closePasswordBubble();
+      return true;
+    }));
+
+    // ── Password autofill chooser (only the chooser window itself may talk to it) ──
+    ipcMain.handle('passwordAutofill:getChooser', secureHandlerRaw((event) => {
+      return this.passwordAutofill ? this.passwordAutofill.getChooser(event.sender) : null;
+    }));
+
+    ipcMain.handle('passwordAutofill:choose', secureHandlerRaw(async (event, promptId, credentialId) => {
+      if (!this.passwordAutofill) return { success: false, error: 'Unavailable' };
+      return this.passwordAutofill.choose(
+        sanitizeString(promptId || '', 64, 'promptId'),
+        sanitizeString(credentialId || '', 64, 'credentialId'),
+        event.sender
+      );
+    }));
+
+    ipcMain.handle('passwordAutofill:dismiss', secureHandlerRaw((event) => {
+      if (this.passwordAutofill && this.passwordAutofill._fromBubble(event.sender)) this.passwordAutofill.dismiss();
       return true;
     }));
 
