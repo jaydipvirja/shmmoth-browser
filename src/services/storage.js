@@ -39,6 +39,8 @@ class StorageService {
         adBlockerEnabled:       true,
         passwordAutofillEnabled: true,         // offer saved logins next to sign-in fields (the user picks, nothing is submitted)
         adBlockerAllowlist:     [],            // sites where the ad blocker is paused (host names)
+        adBlockerCustomFilters: '',            // the user's own filter lines ("My filters")
+        popupBlockerEnabled:    true,          // refuse ad pop-ups and pop-unders (services/popupPolicy.js)
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,

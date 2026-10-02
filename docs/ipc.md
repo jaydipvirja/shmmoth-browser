@@ -29,6 +29,7 @@
 | `window:minimize` | R → M | Minimize window |
 | `window:maximize` | R → M | Toggle maximize |
 | `window:close` | R → M | Close window |
+| `shmmoth:gesture`, `shmmoth:gesture-ready` | page frames → M | Only from `preload-gesture.js` (trusted click / key press); feeds the pop-up policy |
 
 ### Invoke/Handle (ipcMain.handle) — All wrapped with secureHandlerRaw()
 
@@ -58,6 +59,9 @@
 | `notes:get` | R → M | — | `string` |
 | `notes:save` | R → M | `content: string` | `true` |
 | `adblocker:getCount` | R → M | — | `number` |
+| `adblocker:getStatus` | R → M | — | `{ engine: 'full'|'loading'|'fallback', networkRules, cosmeticRules, customRules, scriptlets, listsLoaded, listsTotal, lists[], refreshing, updatedAt, error }` |
+| `adblocker:updateLists` | R → M | — | status (downloads every list again) |
+| `dns:test` | R → M | — | `{ verdict, message, details }` |
 | `cache:clear` | R → M | — | `true` |
 | `download:getAll` | R → M | — | `DownloadRecord[]` |
 | `download:cancel` | R → M | `id: string` | `boolean` |

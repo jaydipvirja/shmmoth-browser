@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.7
+
+Includes everything from 1.1.6 below (1.1.6 itself was never published).
+
+### Ad blocker — it now does what a real blocker does
+- **Empty ad slots, banners and overlays are hidden.** Until now only the *requests* of ads were cancelled; the boxes they were meant for stayed on the page, and the scripts that open pop-ups or show "please turn off your ad blocker" walls ran untouched. Element hiding and uBlock Origin's page scripts (the same ones uBlock Origin runs) are now switched on, for the normal and the private window. Pausing the blocker for a site (shield button) switches them off there too, and the browser's own pages are never touched.
+- **More and better lists:** EasyList, EasyPrivacy, uBlock Origin's lists, Peter Lowe's list and now **AdGuard Base and AdGuard Popups**. Every list has several addresses (GitHub, the jsDelivr CDN, the list's own server), so a network that blocks one of them no longer leaves the browser with the short emergency list. A downloaded file is only accepted if it really is a filter list (a Wi-Fi login page is not). The lists are kept on disk, so a start-up without internet still has the full protection; the compiled engine is reused instead of rebuilt (230 ms instead of 2 s), lists are refreshed in the background every day, and a browser that stays open for days keeps itself current.
+- **Pop-ups and pop-unders are refused before a tab exists.** Every `window.open()` used to open a new tab, whoever asked. Now it is refused when the address is an ad address on the lists, when a background tab opens it, when you did not click or press a key in the last 5 seconds, or when one tab opens more than 3 at once. Links you click yourself open as before; Google sign-in windows are never affected. Settings → Ad-Blocker & Privacy → "Block pop-ups and pop-unders" switches it off.
+- **Settings → Ad-Blocker & Privacy shows what is really loaded** ("Working: 144,654 blocking rules and 86,663 element-hiding rules from 16 of 16 lists", which list failed, when it was checked) and has **Update now**.
+- **My filters:** your own rules (`example.com##.banner` hides an element, `||ads.example.net^` blocks an address), applied at once.
+
+### AdGuard DNS
+- **Settings → Secure DNS → "Test secure DNS"** asks the browser's own resolver for an ad domain that every AdGuard list blocks, once through secure DNS and once through the system DNS, and says plainly whether AdGuard DNS is really in use, was quietly replaced by the network's DNS (automatic mode), is bypassed by a proxy, or the network blocks it. DNS can only stop ads that come from their own server names; ads served from the page's own address are the ad blocker's job — which the points above improve.
+
 ## 1.1.6
 
 ### Passwords — saved logins are now filled in

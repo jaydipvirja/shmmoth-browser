@@ -225,6 +225,9 @@ const apiSurface = {
   // ─── Secure DNS (DNS-over-HTTPS) ────────────────────────────────────────────
   getSecureDns:             ()                           => ipcRenderer.invoke('dns:get'),
   setSecureDns:             (choice)                     => ipcRenderer.invoke('dns:set', choice),
+  testSecureDns:            ()                           => ipcRenderer.invoke('dns:test'),
+  getAdBlockerStatus:       ()                           => ipcRenderer.invoke('adblocker:getStatus'),
+  updateAdBlockerLists:     ()                           => ipcRenderer.invoke('adblocker:updateLists'),
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };
 

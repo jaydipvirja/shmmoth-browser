@@ -21,42 +21,26 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_dns_'));
 const SRC  = path.join(__dirname, '..', 'src');
 
-// ── mocks: electron, and a Ghostery engine whose context behaves like the real one ──────────────
-const engine = { enabled: new Set(), disableCalls: 0, hits: [] };
+// ── mocks: electron, and a Ghostery engine whose context behaves like the real one (tests/fixtures/ghostery-mock.js) ──
+const gm = require('./fixtures/ghostery-mock');
 const origLoad = Module._load;
 Module._load = function (request, ...args) {
-  if (request === 'electron') return { app: { getPath: (n) => path.join(ROOT, n), quit() {} }, shell: {}, dialog: {} };
-  if (request === '@ghostery/adblocker-electron') {
-    return {
-      ElectronBlocker: {
-        fromPrebuiltAdsAndTracking: async () => ({
-          config: {},
-          on() {},
-          isBlockingEnabled: (s) => engine.enabled.has(s),
-          enableBlockingInSession(s) {
-            engine.enabled.add(s);
-            const context = {
-              onBeforeRequest: (d, cb) => { engine.hits.push('req:' + d.url); cb(/ads\./.test(d.url) ? { cancel: true } : {}); },
-              onHeadersReceived: (d, cb) => { engine.hits.push('hdr:' + d.url); cb({}); }
-            };
-            s.webRequest.onBeforeRequest({}, context.onBeforeRequest);          // what the real engine registers
-            s.webRequest.onHeadersReceived({}, context.onHeadersReceived);
-            return context;
-          },
-          disableBlockingInSession(s) {
-            engine.disableCalls++;
-            if (!engine.enabled.delete(s)) throw new Error('Trying to disable blocking which was not enabled');
-            s.webRequest.onBeforeRequest(null); s.webRequest.onHeadersReceived(null);
-          }
-        })
-      }
-    };
+  if (request === 'electron') {
+    return { app: { getPath: (n) => path.join(ROOT, n), quit() {} }, shell: {}, dialog: {}, ipcMain: { handle() {}, removeHandler() {} } };
   }
+  if (request === '@ghostery/adblocker-electron') return { ElectronBlocker: gm.ElectronBlocker, Request: gm.Request };
   return origLoad.call(this, request, ...args);
 };
 
 const StorageService   = require('../src/services/storage');
-const AdBlockerService = require('../src/services/adblocker');
+const RealAdBlockerService = require('../src/services/adblocker');
+/** The service with fake downloads and its own folder, so the engine really loads (no network, nothing in the profile). */
+function AdBlockerService(storage, opts = {}) {
+  const dir = fs.mkdtempSync(path.join(ROOT, 'eng_'));
+  return new RealAdBlockerService(storage, Object.assign({ cacheFile: path.join(dir, 'engine.bin'), fetch: gm.makeFetch(), preloadPath: () => '/preload.js' }, opts));
+}
+AdBlockerService.normalizeHost = RealAdBlockerService.normalizeHost;
+const enabledSessions = () => new Set(gm.state.blockers.flatMap((b) => Array.from(b.enabledSessions)));
 const dns = require('../src/services/secureDns');
 const mainJs = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
 
@@ -132,15 +116,16 @@ const ask = (listener, url, page) => {
 
   console.log('\n📋 2. Ad blocker: master switch');
   await test('switching off twice, or off when the engine was never started for a session, does not throw', async () => {
-    engine.enabled.clear(); engine.disableCalls = 0;
+    gm.reset();
     const ab = new AdBlockerService(newStorage('sw1', { adBlockerEnabled: false }));
     const s = fakeSession();
     await ab.setupFilter(s);                    // disabled at start: engine never enabled for s
     ab.setEnabled(false); ab.setEnabled(false);
-    assert(engine.disableCalls === 0, 'must not call disable for a session that was not enabled');
-    ab.setEnabled(true); assert(engine.enabled.has(s));
+    const disableCalls = () => gm.state.blockers.reduce((n, b) => n + (b.disableCalls || 0), 0);
+    assert(disableCalls() === 0, 'must not call disable for a session that was not enabled');
+    ab.setEnabled(true); assert(enabledSessions().has(s));
     ab.setEnabled(false); ab.setEnabled(false);
-    assert(engine.disableCalls === 1 && !engine.enabled.has(s));
+    assert(disableCalls() === 1 && !enabledSessions().has(s), 'disable calls: ' + disableCalls());
   });
   await test('the YouTube ad optimizer is part of the blocker: it stops when the blocker is off or paused for the site', async () => {
     const f = mainJs.slice(mainJs.indexOf('  _applyYouTubeOptimizer('));
@@ -181,7 +166,7 @@ const ask = (listener, url, page) => {
     assert(ab.getPausedSites().length === 500, String(ab.getPausedSites().length));
   });
   await test('requests of a paused page are let through untouched, all others still go to the engine (requests AND response headers)', async () => {
-    engine.enabled.clear(); engine.hits.length = 0;
+    gm.reset();
     const ab = new AdBlockerService(newStorage('p4'));
     ab.setSitePaused('news.example', true);
     const s = fakeSession();
@@ -191,8 +176,9 @@ const ask = (listener, url, page) => {
     assert(JSON.stringify(ask(s.before, 'https://ads.tracker.net/x.js', 'https://blog.other.org/post')) === '{"cancel":true}', 'other pages are still protected');
     assert(JSON.stringify(ask(s.before, 'https://ads.tracker.net/x.js', 'https://sub.news.example/')) === '{}', 'subdomain of a paused site');
     ask(s.headers, 'https://news.example/', 'https://news.example/'); ask(s.headers, 'https://other.org/', 'https://other.org/');
-    assert(engine.hits.filter((h) => h.startsWith('hdr:')).join() === 'hdr:https://other.org/', 'headers of the paused site must not reach the engine: ' + engine.hits.join());
-    assert(engine.hits.includes('req:https://ads.tracker.net/x.js'), 'the engine saw the unpaused requests');
+    const hits = gm.state.blockers[0].hits;
+    assert(hits.filter((h) => h.startsWith('hdr:')).join() === 'hdr:https://other.org/', 'headers of the paused site must not reach the engine: ' + hits.join());
+    assert(hits.includes('req:https://ads.tracker.net/x.js'), 'the engine saw the unpaused requests');
   });
   await test('pausing while a page is open takes effect for the very next request (no restart)', async () => {
     const ab = new AdBlockerService(newStorage('p5'));
@@ -213,7 +199,7 @@ const ask = (listener, url, page) => {
     }
   });
   await test('the built-in fallback list honours the master switch and the pause as well', async () => {
-    engine.enabled.clear();
+    gm.reset();
     const ab = new AdBlockerService(newStorage('p7'));
     const s = fakeSession(); ab.setupFallbackFilter(s);
     assert(JSON.stringify(ask(s.before, 'https://googleads.g.doubleclick.net/x', 'https://a.test/')) === '{"cancel":true}');

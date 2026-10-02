@@ -119,6 +119,48 @@
 
           <div class="setting-row">
             <div class="setting-info">
+              <label class="setting-label" for="toggle-popups">Block pop-ups and pop-unders</label>
+              <span class="setting-desc">Refuses windows that ad networks open behind your back: from ad addresses, from a background tab, without a click or key press from you, or many at once. Links you click yourself still open normally. Pausing the ad blocker for a site (shield icon) lets that site open anything.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-popups" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Filter lists</label>
+              <span class="setting-desc" id="adblock-engine-status">Checking…</span>
+              <span class="setting-desc" id="adblock-engine-failed" style="display:none;"></span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-update-filter-lists" class="btn-secondary">Update now</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="setting-info">
+              <label class="setting-label" for="input-custom-filters">My filters</label>
+              <span class="setting-desc">Your own rules, one per line. <code>example.com##.banner</code> hides an element on a site, <code>||ads.example.net^</code> blocks an address, <code>! text</code> is a comment. Applied at once to pages you open or reload.</span>
+              <textarea id="input-custom-filters" class="text-input" rows="5" spellcheck="false" style="width:100%; margin-top:8px; font-family:monospace;" placeholder="example.com##.banner"></textarea>
+              <div style="margin-top:8px; display:flex; gap:10px; align-items:center;">
+                <button id="btn-save-custom-filters" class="btn-secondary">Save my filters</button>
+                <span class="setting-desc" id="custom-filters-status"></span>
+              </div>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
               <label class="setting-label">Total Ads & Trackers Intercepted</label>
               <span class="setting-desc">Live counter of ads stopped in this session.</span>
             </div>
@@ -296,6 +338,11 @@
             </div>
           </div>
           <p class="setting-desc" id="dns-status" style="margin-top:10px;"></p>
+          <div style="margin-top:10px; display:flex; gap:10px; align-items:center;">
+            <button id="btn-test-dns" class="btn-secondary">Test secure DNS</button>
+            <span class="setting-desc" id="dns-test-hint">Checks whether the browser really gets AdGuard's answers.</span>
+          </div>
+          <p class="setting-desc" id="dns-test-result" style="margin-top:8px;"></p>
           <p class="setting-desc" style="margin-top:6px;">The DNS provider sees which website names you look up. With a proxy configured below, the proxy looks up the names itself.</p>
         </div>
 
