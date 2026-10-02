@@ -355,7 +355,7 @@ async function main() {
     assert(/passwordAutofill\.handleConsoleMessage\(tabId, message\)\) return;/.test(main), 'console messages');
     assert(/!isInPlace && this\.passwordAutofill\) this\.passwordAutofill\.forgetTab\(tabId\)/.test(main), 'navigation');
     assert(/this\.closeDownloadBubble\(\);\s*\n\s*if \(this\.passwordAutofill\) this\.passwordAutofill\.dismiss\(\)/.test(main), 'tab switch');
-    assert(/this\.passwordAutofill\.forgetTab\(tabId\);\s*\n\s*\n\s*const isIncognito = Boolean\(tabData\.isIncognito\)/.test(main), 'tab close');
+    assert(/this\.passwordAutofill\.forgetTab\(tabId\);[\s\S]{0,250}const isIncognito = Boolean\(tabData\.isIncognito\)/.test(main), 'tab close');
     assert(/mainWindow\.on\('move'/.test(main) && /mainWindow\.on\('resize',\s+\(\) => \{ if \(this\.passwordAutofill\)/.test(main), 'window move / resize');
     assert(/focusable: false/.test(main.slice(main.indexOf('createPasswordAutofillBubble'))), 'the list never takes keyboard focus from the page');
     for (const ch of ['getChooser', 'choose', 'dismiss']) assert(main.includes(`'passwordAutofill:${ch}'`), ch);

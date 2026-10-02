@@ -18,7 +18,8 @@ A Fast, Modern, and Private Personal Desktop Browser powered by Chromium.
    - Settings mathi DuckDuckGo, Bing k Yahoo pan switch kari shakay che.
 
 3. **Built-in Ad-Blocker & Tracker Protection (એડ-બ્લોકર)**:
-   - DoubleClick, AdSense, popups ane annoying ad networks ne automatic block kare che.
+   - EasyList, EasyPrivacy, uBlock Origin ane AdGuard lists thi ads block kare che, khali ad-dabba (banner) chhupave che, ane popup / pop-under ads ne tab khulta pehla j roke che.
+   - Settings ma "My filters" thi potana rules pan umeri shakay che.
    - Websites 2x fast load thay che.
    - Settings mathi on/off kari shakay che ane blocked ads no live count joi shakay che.
 

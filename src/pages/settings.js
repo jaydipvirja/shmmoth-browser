@@ -27,6 +27,15 @@ const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
 const togglePasswordAutofill = document.getElementById('toggle-password-autofill');
+const togglePopups = document.getElementById('toggle-popups');
+const adblockEngineStatus = document.getElementById('adblock-engine-status');
+const adblockEngineFailed = document.getElementById('adblock-engine-failed');
+const btnUpdateFilterLists = document.getElementById('btn-update-filter-lists');
+const inputCustomFilters = document.getElementById('input-custom-filters');
+const btnSaveCustomFilters = document.getElementById('btn-save-custom-filters');
+const customFiltersStatus = document.getElementById('custom-filters-status');
+const btnTestDns = document.getElementById('btn-test-dns');
+const dnsTestResult = document.getElementById('dns-test-result');
 const badgeBlockedCount = document.getElementById('badge-blocked-count');
 const btnOpenClearData = document.getElementById('btn-open-clear-data');
 const btnOpenCookiesModal = document.getElementById('btn-open-cookies-modal');
@@ -215,6 +224,9 @@ async function initSettings() {
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
       if (togglePasswordAutofill) togglePasswordAutofill.checked = currentSettings.passwordAutofillEnabled !== false;
+      if (togglePopups) togglePopups.checked = currentSettings.popupBlockerEnabled !== false;
+      if (inputCustomFilters) inputCustomFilters.value = typeof currentSettings.adBlockerCustomFilters === 'string' ? currentSettings.adBlockerCustomFilters : '';
+      loadAdBlockerStatus();
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       selectTheme.value = currentSettings.theme || 'dark';
@@ -272,6 +284,76 @@ selectStartup.addEventListener('change', () => {
 toggleBookmarksBar.addEventListener('change', () => {
   saveSettingChange({ showBookmarksBar: toggleBookmarksBar.checked });
 });
+
+function timeAgo(ms) {
+  if (!ms) return 'never';
+  const min = Math.round((Date.now() - ms) / 60000);
+  if (min < 1) return 'just now';
+  if (min < 60) return `${min} min ago`;
+  const h = Math.round(min / 60);
+  return h < 48 ? `${h} h ago` : `${Math.round(h / 24)} days ago`;
+}
+
+let adblockPoll = null;
+async function loadAdBlockerStatus() {
+  if (!adblockEngineStatus || !window.mtcAPI || !window.mtcAPI.getAdBlockerStatus) return;
+  let st = null;
+  try { st = await window.mtcAPI.getAdBlockerStatus(); } catch (_) { /* leave the text */ }
+  if (!st) return;
+  if (st.engine === 'full') {
+    adblockEngineStatus.textContent = `Working: ${st.networkRules.toLocaleString()} blocking rules and ${st.cosmeticRules.toLocaleString()} element-hiding rules from ${st.listsLoaded} of ${st.listsTotal} lists`
+      + (st.scriptlets ? ', with anti-popup / anti-adblock scripts' : ', without scripts (could not be downloaded)')
+      + `. Checked ${timeAgo(st.updatedAt)}${st.refreshing ? ' — updating now…' : ''}.`;
+  } else if (st.engine === 'loading' || st.refreshing) {
+    adblockEngineStatus.textContent = 'Loading the filter lists… until they are ready only a short built-in list of the biggest ad networks is active.';
+  } else {
+    adblockEngineStatus.textContent = 'The filter lists could not be loaded, so only a short built-in list of the biggest ad networks is active. '
+      + 'Check the internet connection (some networks block GitHub / jsDelivr), then press “Update now”.' + (st.error ? ` (${st.error})` : '');
+  }
+  const failed = (st.lists || []).filter((l) => !l.ok);
+  adblockEngineFailed.style.display = failed.length ? '' : 'none';
+  adblockEngineFailed.textContent = failed.length ? `Not loaded: ${failed.map((l) => l.name).join(', ')}.` : '';
+  clearTimeout(adblockPoll);
+  if (st.refreshing || st.engine === 'loading') adblockPoll = setTimeout(loadAdBlockerStatus, 3000);
+}
+
+if (btnUpdateFilterLists) {
+  btnUpdateFilterLists.addEventListener('click', async () => {
+    btnUpdateFilterLists.disabled = true;
+    adblockEngineStatus.textContent = 'Downloading the filter lists…';
+    try { await window.mtcAPI.updateAdBlockerLists(); } catch (_) { /* shown by the status below */ }
+    btnUpdateFilterLists.disabled = false;
+    loadAdBlockerStatus();
+  });
+}
+
+if (togglePopups) {
+  togglePopups.addEventListener('change', () => saveSettingChange({ popupBlockerEnabled: togglePopups.checked }));
+}
+
+if (btnSaveCustomFilters) {
+  btnSaveCustomFilters.addEventListener('click', async () => {
+    await saveSettingChange({ adBlockerCustomFilters: inputCustomFilters.value });
+    const n = inputCustomFilters.value.split(/\r?\n/).filter((l) => l.trim()).length;
+    customFiltersStatus.textContent = n ? `Saved ${n} line${n === 1 ? '' : 's'}.` : 'Saved (empty).';
+    loadAdBlockerStatus();
+  });
+}
+
+if (btnTestDns && window.mtcAPI && window.mtcAPI.testSecureDns) {
+  btnTestDns.addEventListener('click', async () => {
+    btnTestDns.disabled = true;
+    dnsTestResult.textContent = 'Testing…';
+    try {
+      const r = await window.mtcAPI.testSecureDns();
+      const d = r.details || {};
+      dnsTestResult.textContent = `${r.message}  [ad domain via secure DNS: ${d.adDomainSecure}; via system DNS: ${d.adDomainSystem}; example.com: ${d.ordinarySecure}]`;
+    } catch (err) {
+      dnsTestResult.textContent = 'The test could not run.';
+    }
+    btnTestDns.disabled = false;
+  });
+}
 
 if (togglePasswordAutofill) {
   togglePasswordAutofill.addEventListener('change', () => {
@@ -1199,6 +1281,7 @@ btnResetDefaults.addEventListener('click', async () => {
       searchEngine: 'google',
       adBlockerEnabled: true,
       passwordAutofillEnabled: true,
+      popupBlockerEnabled: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
       theme: 'dark',

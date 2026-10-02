@@ -20,6 +20,8 @@ Single JSON file: `%APPDATA%/mtc-browser/mtc-data.json`
     "homepage": "mtc://newtab",
     "startupBehavior": "newtab",
     "adBlockerAllowlist": [],
+    "adBlockerCustomFilters": "",
+    "popupBlockerEnabled": true,
     "secureDnsProvider": "adguard",
     "secureDnsCustomUrl": "",
     "secureDnsStrict": false,
@@ -64,7 +66,8 @@ this.storage.set('shmmoth', { ...shmmothData, lastTask: taskId });
 
 | File | Content |
 |---|---|
-| `adblock-engine.bin` | the compiled ad/tracker filter engine (cache; safe to delete, it is rebuilt from the downloaded lists) |
+| `adblock-engine-2.bin`, `adblock-engine-2.json` | the compiled ad/tracker filter engine and what it was built from (cache; safe to delete, it is rebuilt from the kept lists) |
+| `adblock-engine-2-lists/` | the downloaded filter lists (`<id>.txt` + `<id>.json` with the download time; safe to delete, they are downloaded again) |
 
 History is written to `mtc-data.json` at most every ~2 s (page loads and title updates are coalesced) and immediately when the window closes or the app quits; bookmarks, settings and notes are still written at once. A history entry is created when a page commits and receives its title and icon when the page reports them.
 

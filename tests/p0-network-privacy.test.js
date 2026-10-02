@@ -27,55 +27,23 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_p0_net_'));
 const SRC  = path.join(__dirname, '..', 'src');
 
-// ── Module mocks: electron + the Ghostery engine ─────────────────────────────
-const ghostery = { fetchCalls: 0, fromCache: 0, calls: [], blockers: [], gate: null, fail: false };
+// ── Module mocks: electron + the Ghostery engine (tests/fixtures/ghostery-mock.js) ──────────────────────────
+const gm = require('./fixtures/ghostery-mock');
 const Module = require('module');
 const origLoad = Module._load;
+const ipc = { handlers: {} };
 Module._load = function (request, ...args) {
   if (request === 'electron') {
     return {
       app: { getPath: (n) => path.join(ROOT, n), quit() {} },
       shell: { openPath: async () => '', showItemInFolder() {} },
-      dialog: {}
+      dialog: {},
+      ipcMain: { handle(ch, fn) { ipc.handlers[ch] = fn; }, removeHandler(ch) { delete ipc.handlers[ch]; } }
     };
   }
-  if (request === '@ghostery/adblocker-electron') {
-    return {
-      ElectronBlocker: {
-        fromPrebuiltAdsAndTracking: async (fetchImpl, caching) => {
-          ghostery.calls.push({ fetchImpl, caching });
-          // like the real engine: a readable cache wins, otherwise download and write the cache
-          if (caching) {
-            try { await caching.read(caching.path); ghostery.fromCache++; return makeBlocker(); } catch (_) { /* no cache yet */ }
-          }
-          ghostery.fetchCalls++;
-          if (ghostery.gate) await ghostery.gate;                     // simulates the slow list download
-          if (ghostery.fail) throw new Error('offline');
-          if (caching) await caching.write(caching.path, Buffer.from('compiled-engine'));
-          return makeBlocker();
-        }
-      }
-    };
-  }
+  if (request === '@ghostery/adblocker-electron') return { ElectronBlocker: gm.ElectronBlocker, Request: gm.Request };
   return origLoad.call(this, request, ...args);
 };
-function makeBlocker() {
-  const handlers = {};
-  const blocker = {
-    config: {},
-    enabledSessions: new Set(),
-    // like the real engine: registering its own webRequest listener replaces whatever was there
-    enableBlockingInSession(s) {
-      this.enabledSessions.add(s);
-      if (s.webRequest) s.webRequest.onBeforeRequest({ urls: ['<all_urls>'] }, Object.assign((d, cb) => cb({}), { engine: true }));
-    },
-    disableBlockingInSession(s) { this.enabledSessions.delete(s); if (s.webRequest) s.webRequest.onBeforeRequest(null); },
-    on(evt, cb) { handlers[evt] = cb; },
-    fire(evt) { handlers[evt] && handlers[evt](); }
-  };
-  ghostery.blockers.push(blocker);
-  return blocker;
-}
 
 const StorageService   = require('../src/services/storage');
 const DownloadManager  = require('../src/services/downloadManager');
@@ -108,8 +76,13 @@ function mockWebContents() {
 }
 /** A session whose webRequest.onBeforeRequest keeps only the latest listener, like Electron's. */
 function webRequestSession(extra = {}) {
-  const sess = { ...extra, listener: null };
-  sess.webRequest = { onBeforeRequest(filter, handler) { sess.listener = typeof filter === 'function' ? filter : (handler || null); } };
+  const sess = { ...extra, listener: null, preloads: new Map(), nextPreload: 1 };
+  sess.webRequest = {
+    onBeforeRequest(filter, handler) { sess.listener = typeof filter === 'function' ? filter : (handler || null); },
+    onHeadersReceived() {}
+  };
+  sess.registerPreloadScript = (script) => { const id = 'pre' + sess.nextPreload++; sess.preloads.set(id, script); return id; };
+  sess.unregisterPreloadScript = (id) => { sess.preloads.delete(id); };
   return sess;
 }
 function verdict(sess, url) {
@@ -215,25 +188,36 @@ function mockSession() {
   console.log('\n📋 2. AdBlockerService with several sessions');
   // ═══════════════════════════════════════════════════════════════════════════
 
+  /** A service with fake downloads and its own folders (nothing touches the network or the user's profile). */
+  let abSeq = 0;
+  const newAB = (settings = {}, opts = {}) => {
+    const dir = fs.mkdtempSync(path.join(ROOT, 'ab_'));
+    const fetchImpl = opts.fetch || gm.makeFetch();
+    const st = newStorage('abs' + (++abSeq)); if (Object.keys(settings).length) st.updateSettings(settings);
+    const ab = new AdBlockerService(st, Object.assign({ cacheFile: path.join(dir, 'engine.bin'), fetch: fetchImpl, preloadPath: () => '/preload.js' }, opts));
+    ab._dir = dir; ab._fetch = fetchImpl;
+    return ab;
+  };
+
   await test('one engine is built and shared by the normal and incognito session', async () => {
-    ghostery.fetchCalls = 0; ghostery.blockers.length = 0;
-    const ab = new AdBlockerService(newStorage('ab1'));
+    gm.reset();
+    const ab = newAB();
     const normal = webRequestSession({ name: 'normal' }), incog = webRequestSession({ name: 'incognito' });
     await ab.setupFilter(normal);
     await ab.setupFilter(incog);
-    assert(ghostery.fetchCalls === 1, 'filter lists were downloaded ' + ghostery.fetchCalls + ' times');
-    const b = ghostery.blockers[0];
+    assert(gm.state.parseCalls.length === 1, 'the engine was built ' + gm.state.parseCalls.length + ' times');
+    const b = gm.state.blockers[0];
     assert(b.enabledSessions.has(normal) && b.enabledSessions.has(incog), 'both sessions must be protected');
   });
 
   await test('REGRESSION: opening incognito no longer detaches the normal session from the setting', async () => {
-    ghostery.blockers.length = 0;
-    const ab = new AdBlockerService(newStorage('ab2'));
+    gm.reset();
+    const ab = newAB();
     const normal = webRequestSession(), incog = webRequestSession();
     await ab.setupFilter(normal);
     await ab.setupFilter(incog);          // incognito window opened
     ab.setEnabled(false);                  // user switches the ad blocker off
-    const b = ghostery.blockers[0];
+    const b = gm.state.blockers[0];
     assert(!b.enabledSessions.has(normal), 'normal session still blocking after being switched off');
     assert(!b.enabledSessions.has(incog));
     ab.setEnabled(true);
@@ -241,134 +225,191 @@ function mockSession() {
   });
 
   await test('disabled setting: sessions are registered but blocking stays off until enabled', async () => {
-    ghostery.blockers.length = 0;
-    const st = newStorage('ab3'); st.updateSettings({ adBlockerEnabled: false });
-    const ab = new AdBlockerService(st);
+    gm.reset();
+    const ab = newAB({ adBlockerEnabled: false });
     const s = webRequestSession();
     await ab.setupFilter(s);
-    assert(ghostery.blockers[0].enabledSessions.size === 0);
+    assert(gm.state.blockers[0].enabledSessions.size === 0);
     ab.setEnabled(true);
-    assert(ghostery.blockers[0].enabledSessions.has(s));
+    assert(gm.state.blockers[0].enabledSessions.has(s));
   });
 
   await test('the built-in list blocks the big ad networks immediately, before the engine has downloaded its lists', async () => {
-    ghostery.blockers.length = 0;
-    let release; ghostery.gate = new Promise((r) => { release = r; });
-    try {
-      const ab = new AdBlockerService(newStorage('ab5'));
-      const s = webRequestSession();
-      const pending = ab.setupFilter(s);
-      await new Promise((r) => setImmediate(r));
-      assert(s.listener && !s.listener.engine, 'the fallback list should already be armed');
-      assert(verdict(s, 'https://googleads.g.doubleclick.net/pagead/ads').cancel === true, 'ad network not blocked while the engine loads');
-      assert(verdict(s, 'https://example.com/index.html').cancel === false, 'normal sites must pass');
-      release(); await pending;
-      assert(s.listener && s.listener.engine === true, 'once ready, the engine takes over from the fallback');
-      assert(ab.getBlockedCount() === 1, 'blocked count ' + ab.getBlockedCount());
-    } finally { ghostery.gate = null; }
+    gm.reset();
+    let release; const gate = new Promise((r) => { release = r; });
+    const ab = newAB({}, { fetch: gm.makeFetch({ gate }) });
+    const s = webRequestSession();
+    const pending = ab.setupFilter(s);
+    await new Promise((r) => setImmediate(r));
+    assert(s.listener && !s.listener.engine, 'the fallback list should already be armed');
+    assert(verdict(s, 'https://googleads.g.doubleclick.net/pagead/ads').cancel === true, 'ad network not blocked while the engine loads');
+    assert(verdict(s, 'https://example.com/index.html').cancel === false, 'normal sites must pass');
+    release(); await pending;
+    assert(s.listener && s.listener.engine === true, 'once ready, the engine takes over from the fallback');
+    assert(ab.getBlockedCount() === 1, 'blocked count ' + ab.getBlockedCount());
   });
 
   await test('offline start: the engine cannot load, the built-in list keeps protecting the session', async () => {
-    ghostery.blockers.length = 0; ghostery.fail = true;
+    gm.reset();
     const origErr = console.error; console.error = () => {};
     try {
-      const ab = new AdBlockerService(newStorage('ab6'));
+      const ab = newAB({}, { fetch: gm.makeFetch({ failFor: () => true }) });
       const s = webRequestSession();
       await ab.setupFilter(s);
       assert(s.listener && !s.listener.engine && verdict(s, 'https://adservice.google.com/x').cancel === true);
-    } finally { ghostery.fail = false; console.error = origErr; }
+      assert(ab.getStatus().engine === 'fallback', ab.getStatus().engine);
+    } finally { console.error = origErr; }
   });
 
   await test('switching the blocker off lets the built-in list through too', async () => {
-    ghostery.blockers.length = 0; ghostery.fail = true;
+    gm.reset();
     const origErr = console.error; console.error = () => {};
     try {
-      const ab = new AdBlockerService(newStorage('ab7'));
+      const ab = newAB({}, { fetch: gm.makeFetch({ failFor: () => true }) });
       const s = webRequestSession();
       await ab.setupFilter(s);
       ab.setEnabled(false);
       assert(verdict(s, 'https://googleads.g.doubleclick.net/x').cancel === false, 'still blocking while switched off');
       ab.setEnabled(true);
       assert(verdict(s, 'https://googleads.g.doubleclick.net/x').cancel === true);
-    } finally { ghostery.fail = false; console.error = origErr; }
+    } finally { console.error = origErr; }
   });
 
   // ── compiled-engine cache ──
-  const cacheDir = fs.mkdtempSync(path.join(ROOT, 'abcache_'));
-  const reset = () => { ghostery.fetchCalls = 0; ghostery.fromCache = 0; ghostery.calls.length = 0; ghostery.blockers.length = 0; ghostery.fail = false; };
-  const age = (file, ms) => { const t = new Date(Date.now() - ms); fs.utimesSync(file, t, t); };
+  const age = (dir, ms) => {                       // makes every kept list and the meta look `ms` old
+    const t = Date.now() - ms;
+    const listsDir = path.join(dir, 'engine-lists');
+    for (const f of fs.readdirSync(listsDir).filter((x) => x.endsWith('.json'))) {
+      const file = path.join(listsDir, f); const j = JSON.parse(fs.readFileSync(file, 'utf8')); j.fetchedAt = t; fs.writeFileSync(file, JSON.stringify(j));
+    }
+  };
+  const flush = () => new Promise((r) => setTimeout(r, 30));
 
   await test('first start downloads the lists and keeps the compiled engine; the next start needs no network at all', async () => {
-    reset();
-    const file = path.join(cacheDir, 'engine1.bin');
-    await new AdBlockerService(newStorage('abc1'), { cacheFile: file }).setupFilter(webRequestSession());
-    assert(ghostery.fetchCalls === 1 && fs.existsSync(file), 'first start: downloaded ' + ghostery.fetchCalls);
-    await new AdBlockerService(newStorage('abc2'), { cacheFile: file }).setupFilter(webRequestSession());
-    assert(ghostery.fetchCalls === 1 && ghostery.fromCache === 1, `second start: downloads=${ghostery.fetchCalls} fromCache=${ghostery.fromCache}`);
+    gm.reset();
+    const a = newAB();
+    await a.setupFilter(webRequestSession());
+    assert(a._fetch.calls.length > 0 && fs.existsSync(path.join(a._dir, 'engine.bin')) && fs.existsSync(path.join(a._dir, 'engine.json')), 'first start should download and keep the engine');
+    const b = newAB({}, { cacheFile: path.join(a._dir, 'engine.bin'), fetch: gm.makeFetch() });
+    gm.state.parseCalls.length = 0;
+    await b.setupFilter(webRequestSession()); await flush();
+    assert(b._fetch.calls.length === 0, 'second start: ' + b._fetch.calls.length + ' downloads');
+    assert(gm.state.parseCalls.length === 0 && gm.state.deserializeCalls >= 1, 'the kept engine must be loaded, not rebuilt');
   });
 
   await test('the lists are fetched with the injected fetch (Electron net.fetch in the app), never with Node http', async () => {
-    reset();
-    const myFetch = async () => { throw new Error('not called by the mock'); };
-    await new AdBlockerService(newStorage('abc3'), { cacheFile: path.join(cacheDir, 'engine3.bin'), fetch: myFetch }).setupFilter(webRequestSession());
-    assert(ghostery.calls[0].fetchImpl === myFetch, 'custom fetch not used');
+    gm.reset();
+    const ab = newAB();
+    await ab.setupFilter(webRequestSession());
+    assert(ab._fetch.calls.length > 5, 'the injected fetch must have been used for the lists');
     const src = fs.readFileSync(path.join(SRC, 'services', 'adblocker.js'), 'utf8');
-    assert(/require\('electron'\)\.net\.fetch/.test(src) && !/cross-fetch|node-fetch/.test(src), 'default fetch must be net.fetch');
+    assert(/require\('electron'\)\.net\.fetch/.test(src) && !/cross-fetch|node-fetch|require\('https?'\)/.test(src), 'default fetch must be net.fetch');
   });
 
-  await test('a cache older than the time-to-live is refreshed, and the old copy is removed after a successful refresh', async () => {
-    reset();
-    const file = path.join(cacheDir, 'engine4.bin');
-    fs.writeFileSync(file, 'old-engine'); age(file, 3 * 24 * 3600 * 1000);
-    await new AdBlockerService(newStorage('abc4'), { cacheFile: file }).setupFilter(webRequestSession());
-    assert(ghostery.fetchCalls === 1, 'stale cache should have been refreshed');
-    assert(fs.readFileSync(file, 'utf8') === 'compiled-engine' && !fs.existsSync(file + '.stale'), 'new engine kept, old copy removed');
+  await test('lists older than the time-to-live are downloaded again; a changed list rebuilds the engine, an unchanged one does not', async () => {
+    gm.reset();
+    const a = newAB();
+    await a.setupFilter(webRequestSession());
+    age(a._dir, 3 * 24 * 3600 * 1000);
+    const b = newAB({}, { cacheFile: path.join(a._dir, 'engine.bin'), fetch: gm.makeFetch() });
+    gm.state.parseCalls.length = 0;
+    await b.setupFilter(webRequestSession());          // starts from the kept engine ...
+    await b.refresh();                                  // ... and refreshes in the background
+    assert(b._fetch.calls.length > 5, 'stale lists should have been downloaded again: ' + b._fetch.calls.length);
+    assert(gm.state.parseCalls.length === 0, 'same content → no rebuild (' + gm.state.parseCalls.length + ')');
+    const c = newAB({}, { cacheFile: path.join(a._dir, 'engine.bin'), fetch: gm.makeFetch({ textFor: (u) => /resources\.json$/.test(u) ? gm.RESOURCES_TEXT : gm.LIST_TEXT + '||ads-new.example.net^\n' }) });
+    await c.setupFilter(webRequestSession()); age(a._dir, 3 * 24 * 3600 * 1000);
+    const s2 = webRequestSession(); await c.setupFilter(s2);
+    await c.refresh({ force: true });
+    assert(gm.state.parseCalls.length === 1, 'changed lists → one rebuild (' + gm.state.parseCalls.length + ')');
+    assert(c.blocker.text.includes('ads-new.example.net'), 'the new engine is the one in use');
   });
 
-  await test('a stale cache + no internet: the previous engine keeps protecting (instead of only the short built-in list)', async () => {
-    reset(); ghostery.fail = true;
-    const origWarn = console.warn; console.warn = () => {};
-    try {
-      const file = path.join(cacheDir, 'engine5.bin');
-      fs.writeFileSync(file, 'old-engine'); age(file, 3 * 24 * 3600 * 1000);
-      const ab = new AdBlockerService(newStorage('abc5'), { cacheFile: file });
-      const s = webRequestSession();
-      await ab.setupFilter(s);
-      assert(ghostery.fromCache === 1, 'the old engine should have been loaded from the cache');
-      assert(s.listener && s.listener.engine === true, 'the engine, not the fallback, should be in charge');
-      assert(fs.readFileSync(file, 'utf8') === 'old-engine' && !fs.existsSync(file + '.stale'), 'old copy must be back in place');
-    } finally { ghostery.fail = false; console.warn = origWarn; }
+  await test('a refresh swaps the new engine into every session; the old one is switched off in all of them', async () => {
+    gm.reset();
+    const a = newAB();
+    const s1 = webRequestSession(), s2 = webRequestSession();
+    await a.setupFilter(s1); await a.setupFilter(s2);
+    const old = a.blocker;
+    a._fetch = gm.makeFetch({ textFor: (u) => /resources\.json$/.test(u) ? gm.RESOURCES_TEXT : gm.LIST_TEXT + '||ads-changed.example.net^\n' });
+    a._fetch.calls.length = 0;
+    // the service reads its fetch from this field when it downloads
+    await a.refresh({ force: true });
+    assert(a.blocker !== old, 'a new engine should be in use');
+    assert(old.enabledSessions.size === 0, 'the old engine must be off in all sessions');
+    assert(a.blocker.enabledSessions.has(s1) && a.blocker.enabledSessions.has(s2), 'the new engine protects both sessions');
+    assert(s1.listener && s1.listener.engine === true, 'the engine listener is in place');
   });
 
-  await test('no cache + no internet: the short built-in list stays in force and a later start can still download', async () => {
-    reset(); ghostery.fail = true;
+  await test('lists: every address is tried in turn, an HTML page is not accepted as a list, and the status says what failed', async () => {
+    gm.reset();
+    const ab = newAB({}, { fetch: gm.makeFetch({
+      textFor: (u) => (/easylist\.txt/.test(u) && /raw\.githubusercontent/.test(u)) ? '<html><body>Sign in to the Wi-Fi</body></html>' : (/resources\.json$/.test(u) ? gm.RESOURCES_TEXT : gm.LIST_TEXT + '! ' + u),
+      failFor: (u) => /easyprivacy/.test(u) && !/easylist\.to/.test(u)
+    }) });
+    await ab.setupFilter(webRequestSession());
+    const st = ab.getStatus();
+    assert(st.engine === 'full' && st.listsLoaded === st.listsTotal, JSON.stringify(st));
+    const source = (id) => ab.meta.lists.find((l) => l.id === id).source;
+    assert(/jsdelivr/.test(source('easylist')), 'the captive-portal page must be refused and the next address used: ' + source('easylist'));
+    assert(/easylist\.to/.test(source('easyprivacy')), 'the list\'s own server is the last resort: ' + source('easyprivacy'));
+  });
+
+  await test('some lists failing is not fatal: the others are used and the status names the failed ones', async () => {
+    gm.reset();
+    const ab = newAB({}, { fetch: gm.makeFetch({ failFor: (u) => /adguard|adtidy/i.test(u) }) });
+    await ab.setupFilter(webRequestSession());
+    const st = ab.getStatus();
+    assert(st.engine === 'full', st.engine);
+    const failed = st.lists.filter((l) => !l.ok).map((l) => l.id).sort().join();
+    assert(failed === 'adguard-base,adguard-popups', failed);
+    assert(st.listsLoaded === st.listsTotal - 2);
+  });
+
+  await test('no internet at all: it gives up after a few lists instead of waiting for every address of all of them', async () => {
+    gm.reset();
     const origErr = console.error; console.error = () => {};
     try {
-      const file = path.join(cacheDir, 'engine6.bin');
-      const s = webRequestSession();
-      await new AdBlockerService(newStorage('abc6'), { cacheFile: file }).setupFilter(s);
-      assert(!fs.existsSync(file) && s.listener && !s.listener.engine, 'nothing cached, fallback in force');
-    } finally { ghostery.fail = false; console.error = origErr; }
-    await new AdBlockerService(newStorage('abc7'), { cacheFile: path.join(cacheDir, 'engine6.bin') }).setupFilter(webRequestSession());
-    assert(fs.existsSync(path.join(cacheDir, 'engine6.bin')), 'second start (online) should create the cache');
+      const f = gm.makeFetch({ failFor: () => true });
+      const ab = newAB({}, { fetch: f });
+      await ab.setupFilter(webRequestSession());
+      assert(f.calls.length < 40, 'tried ' + f.calls.length + ' addresses');
+      assert(ab.getStatus().engine === 'fallback' && /no filter list/.test(ab.getStatus().error), JSON.stringify(ab.getStatus()));
+    } finally { console.error = origErr; }
   });
 
-  await test('a damaged cache file is replaced by a fresh download', async () => {
-    reset();
-    const file = path.join(cacheDir, 'engine8.bin');
-    fs.mkdirSync(file);                                    // unreadable as a file: read() fails like a corrupt cache would
+  await test('no kept engine + no internet: the short built-in list stays in force and a later start can still download', async () => {
+    gm.reset();
     const origErr = console.error; console.error = () => {};
-    try { await new AdBlockerService(newStorage('abc8'), { cacheFile: file }).setupFilter(webRequestSession()); }
-    catch (_) { /* the mock cannot overwrite a directory; the point is that start-up survived */ }
-    finally { console.error = origErr; }
-    assert(ghostery.fetchCalls >= 1, 'a download should have been attempted after the failed read');
+    const dir = fs.mkdtempSync(path.join(ROOT, 'ab_off_'));
+    try {
+      const s = webRequestSession();
+      const off = newAB({}, { cacheFile: path.join(dir, 'engine.bin'), fetch: gm.makeFetch({ failFor: () => true }) });
+      await off.setupFilter(s);
+      assert(!fs.existsSync(path.join(dir, 'engine.bin')) && s.listener && !s.listener.engine, 'nothing kept, fallback in force');
+    } finally { console.error = origErr; }
+    const on = newAB({}, { cacheFile: path.join(dir, 'engine.bin') });
+    await on.setupFilter(webRequestSession());
+    assert(fs.existsSync(path.join(dir, 'engine.bin')), 'second start (online) should create the engine');
+  });
+
+  await test('a damaged engine file is ignored: the engine is rebuilt from the kept lists without downloading anything', async () => {
+    gm.reset();
+    const a = newAB();
+    await a.setupFilter(webRequestSession());
+    fs.writeFileSync(path.join(a._dir, 'engine.bin'), 'garbage');
+    const b = newAB({}, { cacheFile: path.join(a._dir, 'engine.bin'), fetch: gm.makeFetch() });
+    gm.state.parseCalls.length = 0;
+    await b.setupFilter(webRequestSession());
+    assert(b._fetch.calls.length === 0, 'kept lists are fresh: ' + b._fetch.calls.length + ' downloads');
+    assert(gm.state.parseCalls.length === 1 && b.getStatus().engine === 'full', 'rebuilt once');
   });
 
   await test('blocked-request counter aggregates across sessions', async () => {
-    ghostery.blockers.length = 0;
-    const ab = new AdBlockerService(newStorage('ab4'));
+    gm.reset();
+    const ab = newAB();
     await ab.setupFilter(webRequestSession()); await ab.setupFilter(webRequestSession());
-    ghostery.blockers[0].fire('request-blocked'); ghostery.blockers[0].fire('request-redirected');
+    gm.state.blockers[0].fire('request-blocked'); gm.state.blockers[0].fire('request-redirected');
     assert(ab.getBlockedCount() === 2);
   });
 

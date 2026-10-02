@@ -20,6 +20,7 @@ const fs   = require('fs');
 
 const StorageService   = require('./services/storage');
 const AdBlockerService = require('./services/adblocker');
+const PopupPolicy      = require('./services/popupPolicy');
 const RamSaverService  = require('./services/ramSaver');
 const DownloadManager  = require('./services/downloadManager');
 const { PasswordVault }   = require('./services/passwordVault');
@@ -102,6 +103,7 @@ class ShmmothBrowserApp {
     this.incognitoWindow = null;
     this.storage         = null;
     this.adBlocker       = null;
+    this.popupPolicy     = null;
     this.ramSaver        = null;
     this.downloads       = null;
 
@@ -279,7 +281,13 @@ class ShmmothBrowserApp {
     });
 
     // 8. Wire AdBlocker (Ghostery engine; a short built-in list covers the first seconds and offline starts)
-    this.adBlocker = new AdBlockerService(this.storage, { cacheFile: path.join(app.getPath('userData'), 'adblock-engine.bin') });
+    this.adBlocker = new AdBlockerService(this.storage, { cacheFile: path.join(app.getPath('userData'), 'adblock-engine-2.bin') });
+    // the engine of 1.1.6 and before (EasyList + EasyPrivacy only, no element hiding) is replaced by the new one
+    for (const old of ['adblock-engine.bin', 'adblock-engine.bin.stale', 'adblock-engine.bin.tmp']) {
+      fs.rm(path.join(app.getPath('userData'), old), { force: true }, () => {});
+    }
+    this.popupPolicy = new PopupPolicy({ adBlocker: this.adBlocker, getSettings: () => this.storage.getSettings() });
+    this.registerGesturePreload(session.defaultSession);
     this.adBlocker.setupFilter(session.defaultSession).catch(err => {
       log.warn('AdBlocker setupFilter failed', { error: err.message });
     });
@@ -1147,6 +1155,7 @@ class ShmmothBrowserApp {
       }
     });
 
+    this.registerGesturePreload(session.fromPartition('incognito'));
     if (this.adBlocker) {
       this.adBlocker.setupFilter(session.fromPartition('incognito')).catch(() => {});
     }
@@ -1970,6 +1979,19 @@ class ShmmothBrowserApp {
         return { action: 'deny' };
       }
 
+      // Ad pop-ups and pop-unders: refused before a tab exists (Google sign-in windows are never touched)
+      if (this.popupPolicy && !isGoogleAuthUrl(url)) {
+        const activeId = tabData.isIncognito ? this.activeIncognitoTabId : this.activeTabId;
+        const verdict = this.popupPolicy.decide({
+          wcId: wc.id, url, openerUrl: wc.getURL(), openerIsActive: activeId === tabId
+        });
+        if (!verdict.allow) {
+          log.info('Pop-up blocked', { reason: verdict.reason, url: url.slice(0, 120) });
+          if (this.adBlocker) this.adBlocker.noteBlockedPopup();
+          return { action: 'deny' };
+        }
+      }
+
       // If the target URL is a direct downloadable media/binary file, initiate session download directly
       // without opening an unwanted blank tab that has to abort navigation
       const isDirectDownload = /\.(mkv|mp4|avi|mov|m4v|webm|zip|rar|7z|tar|gz|iso|exe|msi|bin|pdf)(\?.*)?$/i.test(url)
@@ -2275,6 +2297,7 @@ class ShmmothBrowserApp {
     this.closeExtensionBubble();
     this.closeShieldBubble();
     if (this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
+    try { if (this.popupPolicy && tabData.view && tabData.view.webContents) this.popupPolicy.forget(tabData.view.webContents.id); } catch (_) {}
 
     const isIncognito = Boolean(tabData.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
@@ -2989,6 +3012,15 @@ class ShmmothBrowserApp {
     return true;
   }
 
+  /** Every frame of every web page of the session reports real clicks / key presses (see services/popupPolicy.js). */
+  registerGesturePreload(sess) {
+    try {
+      sess.registerPreloadScript({ type: 'frame', filePath: path.join(__dirname, 'preload-gesture.js') });
+    } catch (err) {
+      log.warn('Could not register the gesture script', { error: err.message });
+    }
+  }
+
   /** The small "use a saved login" chooser next to a sign-in field. It never takes keyboard focus from the page. */
   createPasswordAutofillBubble({ parent, x, y, width, height }) {
     const win = new BrowserWindow({
@@ -3348,6 +3380,9 @@ class ShmmothBrowserApp {
       if (delta.adBlockerAllowlist !== undefined && this.adBlocker) {
         this.adBlocker.reloadAllowlist();
       }
+      if (delta.adBlockerCustomFilters !== undefined && this.adBlocker) {
+        this.adBlocker.reloadCustomFilters();
+      }
       if (delta.adBlockerEnabled !== undefined && this.adBlocker) {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
@@ -3449,6 +3484,18 @@ class ShmmothBrowserApp {
     }));
 
     // ── Ad Blocker ──
+    ipcMain.handle('adblocker:getStatus', secureHandlerRaw(() => {
+      return this.adBlocker ? this.adBlocker.getStatus() : null;
+    }));
+
+    ipcMain.handle('adblocker:updateLists', secureHandlerRaw(() => {
+      return this.adBlocker ? this.adBlocker.refresh({ force: true }) : null;
+    }));
+
+    // Reports from the gesture script (preload-gesture.js, runs in every frame of every web page)
+    ipcMain.on('shmmoth:gesture', (event) => { if (this.popupPolicy && event.sender) this.popupPolicy.noteGesture(event.sender.id); });
+    ipcMain.on('shmmoth:gesture-ready', (event) => { if (this.popupPolicy && event.sender) this.popupPolicy.noteReady(event.sender.id); });
+
     ipcMain.handle('adblocker:getCount', secureHandlerRaw(() => {
       return this.adBlocker ? this.adBlocker.getBlockedCount() : 0;
     }));
@@ -4297,6 +4344,29 @@ class ShmmothBrowserApp {
       const state = this.getSecureDnsState();
       this.broadcastSettingsUpdated(this.storage.getSettings());
       return { success: true, state };
+    }));
+
+    // "Test it" next to the secure-DNS choice: does the browser's resolver really refuse an ad domain?
+    ipcMain.handle('dns:test', secureHandlerRaw(async () => {
+      const ses = session.defaultSession;
+      const ask = async (host, secureDnsPolicy) => {
+        try {
+          const r = await Promise.race([
+            ses.resolveHost(host, { cacheUsage: 'disallowed', secureDnsPolicy }),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('timed out')), 8000))
+          ]);
+          return { ok: true, addresses: (r.endpoints || []).map((e) => e.address) };
+        } catch (err) {
+          return { ok: false, error: String((err && err.message) || err) };
+        }
+      };
+      const state = this.getSecureDnsState();
+      const [secureBlocked, systemBlocked, normal] = await Promise.all([
+        ask(secureDns.TEST_BLOCKED_HOST, 'allow'), ask(secureDns.TEST_BLOCKED_HOST, 'disable'), ask(secureDns.TEST_NORMAL_HOST, 'allow')
+      ]);
+      const result = secureDns.classifyDnsTest({ provider: state.effectiveProvider, proxyActive: this.isProxyActive(), secureBlocked, systemBlocked, normal });
+      const show = (a) => (a.ok ? (a.addresses.join(', ') || '(no address)') : a.error);
+      return { ...result, details: { adDomainSecure: show(secureBlocked), adDomainSystem: show(systemBlocked), ordinarySecure: show(normal) } };
     }));
 
     log.info('IPC handlers registered');
