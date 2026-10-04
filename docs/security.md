@@ -146,6 +146,14 @@ A page that cannot be loaded shows `mtc://error` (`pages/error.html`, built by `
 
 The `mtc://` protocol handler is registered on both the normal and the `incognito` session (a handler belongs to one session; incognito tabs used to show blank internal pages).
 
+## Showing and copying saved passwords
+
+`services/passwordGate.js`, used by the IPC handlers `passwords:reveal` and `passwords:copy` (the only ways to get a plain password out of the vault besides autofill):
+- the handler checks that the sender frame is `mtc://settings` (the toolbar window, bubbles and other internal pages are refused and the refusal is logged), then asks in a **native** `dialog.showMessageBox` modal on the asking window — default button Cancel, user name and site as plain single-line text (control characters, right-to-left marks and long text removed, because user names come from web pages) — and only then decrypts. One dialog at a time; 5 requests per 30 s.
+- `passwords:copy` returns no password: the vault writes to the clipboard in the main process, and the clipboard is emptied after 30 s if it still holds the password, and in `before-quit` (Electron's clipboard calls return promises — the comparison waits for them; the end-to-end test caught a version that did not).
+- `passwords:reveal` returns the password and `hideAfterMs`; `pages/settings.js` keeps it only in the DOM while it is on screen and hides it after the time, on `blur` / `visibilitychange` / `pagehide` and on every redraw. The password is never logged (only the site).
+- Not a login: anyone who can answer the dialog on a running, unlocked browser can see the password.
+
 ## Password autofill
 
 `services/passwordAutofill.js` fills a saved login into a sign-in form **after the user picks it**; the vault (`services/passwordVault.js`, OS-encrypted) is unchanged.
@@ -164,7 +172,7 @@ The `mtc://` protocol handler is registered on both the normal and the `incognit
 | Storage is plaintext JSON (no encryption at rest) | Medium | getSensitive/setSensitive stubs ready for safeStorage |
 | ~~No atomic write~~ | — | Done: all data files are written atomically with a `.bak` and damaged files are preserved (see storage.md) |
 | Installer is not Authenticode-signed (Windows SmartScreen warning on first install) | Low | Buy a code-signing certificate; update signing (Ed25519) already protects updates |
-| Password vault: no re-authentication before "reveal password" | Medium | Planned: native confirmation / Windows Hello |
+| Password vault: "show" / "copy" is confirmed with a native dialog, not with a login | Low | Done in 1.1.8: native confirmation (default Cancel), 15 s auto-hide, clipboard emptied after 30 s, rate limit, Settings only. Not done: Windows Hello / PIN (needs a native module); the Windows clipboard history (Win+V, off by default) may keep a copy |
 | ~~No Content Security Policy on internal pages~~ | — | Done: CSP header on `mtc://` pages, `<meta>` CSP on the browser chrome |
 | AdBlocker filter download requires internet at start-up | Low | A small built-in list of the biggest ad networks is armed immediately and stays in force when the download fails; the full engine replaces it once the lists are loaded |
 | notes.html inline script has no XSS protection beyond escapeHtml | Low | Notes content is user-typed only, not web content |

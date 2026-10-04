@@ -62,6 +62,8 @@
 | `adblocker:getStatus` | R → M | — | `{ engine: 'full'|'loading'|'fallback', networkRules, cosmeticRules, customRules, scriptlets, listsLoaded, listsTotal, lists[], refreshing, updatedAt, error }` |
 | `adblocker:updateLists` | R → M | — | status (downloads every list again) |
 | `dns:test` | R → M | — | `{ verdict, message, details }` |
+| `passwords:reveal` | Settings only | `id: string` | `{ success, password?, hideAfterMs?, cancelled?, error? }` — asks in a native dialog first |
+| `passwords:copy` | Settings only | `id: string` | `{ success, clearAfterMs?, cancelled?, error? }` — never returns the password |
 | `cache:clear` | R → M | — | `true` |
 | `download:getAll` | R → M | — | `DownloadRecord[]` |
 | `download:cancel` | R → M | `id: string` | `boolean` |

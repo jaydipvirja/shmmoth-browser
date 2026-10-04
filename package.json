@@ -1,6 +1,6 @@
 {
   "name": "mtc-browser",
-  "version": "1.1.7",
+  "version": "1.1.8",
   "description": "SHMMOTH Browser - A Fast, Modern, Personal Desktop Browser powered by Chromium",
   "main": "src/main.js",
   "scripts": {
