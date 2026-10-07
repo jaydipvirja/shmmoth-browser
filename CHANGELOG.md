@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.1.9
+
+### Fixes
+- **YouTube video right-click is more reliable across PCs.** When Chromium does not report the underlying video because YouTube's player overlay is on top of it, SHMMOTH now hit-tests the page to find the actual `<video>`/`<audio>` element and builds the video context menu from that fallback data.
+- Existing Chromium media metadata is still used when available, while Save / Copy address / Open actions use the detected media source when necessary.
+- Context-menu frame/source metadata is preserved when opening the native browser menu.
+
 ## 1.1.8
 
 ### Passwords — a saved password no longer comes out on a single click
