@@ -1776,9 +1776,25 @@ class ShmmothBrowserApp {
     });
 
     // ── Page Context Menu (Chrome/Edge Style) ──
-    wc.on('context-menu', (event, params) => {
+    wc.on('context-menu', async (event, params) => {
       event.preventDefault();
       const menu = new Menu();
+
+      // YouTube can place a player-control overlay above the real <video>. Chromium may report
+      // mediaType="none" even though the pointer is inside the video. Use a DOM hit-test fallback.
+      let detectedMedia = null;
+      let pageHost = '';
+      try { pageHost = new URL(params.pageURL || '').hostname.toLowerCase(); } catch (_) {}
+      if (params.mediaType !== 'video' && params.mediaType !== 'audio' && pageHost.endsWith('youtube.com')) {
+        try {
+          const hitX = Math.max(0, Math.round(Number(params.x) || 0));
+          const hitY = Math.max(0, Math.round(Number(params.y) || 0));
+          const detectionScript = "(function(){var x=" + hitX + ",y=" + hitY + ";var isMedia=function(el){return el&&(el.tagName==='VIDEO'||el.tagName==='AUDIO');};var media=document.elementsFromPoint(x,y).find(isMedia);if(!media){media=document.querySelector('video.html5-main-video, video, audio');if(media){var r=media.getBoundingClientRect();if(!(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))media=null;}}if(!media)return null;return {kind:media.tagName.toLowerCase(),isPaused:!!media.paused,isMuted:!!media.muted,isLooping:!!media.loop,isControlsVisible:!!media.controls,canToggleControls:true,canShowPictureInPicture:media.tagName==='VIDEO'&&!!(document.pictureInPictureEnabled&&media.requestPictureInPicture),srcURL:media.currentSrc||media.src||''};})()";
+          detectedMedia = await wc.executeJavaScript(detectionScript, true);
+        } catch (err) {
+          if (typeof log.debug === 'function') log.debug('YouTube media hit-test unavailable', { error: err.message });
+        }
+      }
 
       // 1. Link items
       if (params.linkURL) {
@@ -1837,16 +1853,20 @@ class ShmmothBrowserApp {
 
       // 2b. Video / audio items (what Chrome offers; pages such as YouTube show their own menu and only let this one
       //     through on a second right-click)
-      if (params.mediaType === 'video' || params.mediaType === 'audio') {
-        const kind = params.mediaType;
-        const flags = params.mediaFlags || {};
+      const effectiveMediaType = (params.mediaType === 'video' || params.mediaType === 'audio')
+        ? params.mediaType
+        : (detectedMedia && (detectedMedia.kind === 'video' || detectedMedia.kind === 'audio') ? detectedMedia.kind : null);
+      if (effectiveMediaType) {
+        const kind = effectiveMediaType;
+        const flags = params.mediaType === kind ? (params.mediaFlags || {}) : detectedMedia;
         const px = Math.max(0, Math.round(Number(params.x) || 0));
         const py = Math.max(0, Math.round(Number(params.y) || 0));
         // runs `body` with `m` = the <video>/<audio> under the cursor, as a user action (play() and Picture-in-picture need one)
         const withMedia = (body) => wc.executeJavaScript(
-          `(function(){var m=document.elementsFromPoint(${px},${py}).find(function(e){return e.tagName==='VIDEO'||e.tagName==='AUDIO';});if(!m)return;${body}})()`, true
+          `(function(){var m=document.elementsFromPoint(${px},${py}).find(function(e){return e.tagName==='VIDEO'||e.tagName==='AUDIO';});if(!m){m=document.querySelector('video.html5-main-video, video, audio');}if(!m)return;${body}})()`, true
         ).catch((err) => log.warn('Media menu action failed', { error: err.message }));
-        const mediaUrl = /^https?:\/\//i.test(params.srcURL || '') ? params.srcURL : '';
+        const rawMediaUrl = params.srcURL || (detectedMedia && detectedMedia.srcURL) || '';
+        const mediaUrl = /^https?:\/\//i.test(rawMediaUrl) ? rawMediaUrl : '';
 
         menu.append(new MenuItem({ label: flags.isPaused === false ? 'Pause' : 'Play', click: () => withMedia('if(m.paused){m.play();}else{m.pause();}') }));
         menu.append(new MenuItem({ label: flags.isMuted ? 'Unmute' : 'Mute', click: () => withMedia('m.muted=!m.muted;') }));
@@ -1930,7 +1950,10 @@ class ShmmothBrowserApp {
 
       const targetWin = tabData.isIncognito ? this.incognitoWindow : this.mainWindow;
       if (targetWin && !targetWin.isDestroyed()) {
-        menu.popup({ window: targetWin });
+        const popupOptions = { window: targetWin };
+        if (params.frame) popupOptions.frame = params.frame;
+        if (params.menuSourceType) popupOptions.sourceType = params.menuSourceType;
+        menu.popup(popupOptions);
       }
     });
 
