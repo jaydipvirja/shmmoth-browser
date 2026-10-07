@@ -1785,7 +1785,7 @@ class ShmmothBrowserApp {
       let detectedMedia = null;
       let pageHost = '';
       try { pageHost = new URL(params.pageURL || '').hostname.toLowerCase(); } catch (_) {}
-      if (params.mediaType !== 'video' && params.mediaType !== 'audio' && pageHost.endsWith('youtube.com')) {
+      if (params.mediaType !== 'video' && params.mediaType !== 'audio' && (pageHost === 'youtube.com' || pageHost.endsWith('.youtube.com'))) {
         try {
           const hitX = Math.max(0, Math.round(Number(params.x) || 0));
           const hitY = Math.max(0, Math.round(Number(params.y) || 0));
