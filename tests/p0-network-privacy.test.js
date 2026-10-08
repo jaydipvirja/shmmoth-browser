@@ -210,6 +210,23 @@ function mockSession() {
     assert(b.enabledSessions.has(normal) && b.enabledSessions.has(incog), 'both sessions must be protected');
   });
 
+  await test('REGRESSION: full ad-block engine never blocks Google sign-in or its auth-only supporting resources', async () => {
+    gm.reset();
+    const ab = newAB();
+    const s = webRequestSession();
+    await ab.setupFilter(s);
+
+    const authRef = 'https://accounts.google.com/v3/signin/identifier';
+    assertEqual(verdict(s, 'https://accounts.google.com/ServiceLogin', authRef).cancel, undefined);
+    assertEqual(verdict(s, 'https://accounts.youtube.com/o/oauth2/auth', authRef).cancel, undefined);
+    assertEqual(verdict(s, 'https://www.gstatic.com/crypto/crypt.js', authRef).cancel, undefined);
+    assertEqual(verdict(s, 'https://www.googleusercontent.com/avatar.png', authRef).cancel, undefined);
+    assertEqual(verdict(s, 'https://www.recaptcha.net/recaptcha/api2/bframe', authRef).cancel, undefined);
+
+    // The allowlist is auth-context-only; ordinary Google traffic still goes through the filter.
+    assertEqual(verdict(s, 'https://ads.example.com/tracker', 'https://www.google.com/').cancel, true);
+  });
+
   await test('REGRESSION: opening incognito no longer detaches the normal session from the setting', async () => {
     gm.reset();
     const ab = newAB();
