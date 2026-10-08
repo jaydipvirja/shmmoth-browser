@@ -58,3 +58,7 @@ runSuite('My feature', async (t) => {
 ## Not automated
 
 `tests/google-login-verification.test.js` (talks to live Google), `tests/live-download-smoke.js` (predates the duplicate-download protection and needs updating) and `tests/test-browser-click-download.js` are Electron-run scripts kept for manual use. Manual Windows smoke checks are listed in `docs/upgrading-electron.md`.
+
+### 1.1.10 regression coverage
+
+The 1.1.10 suite specifically covers two previously intermittent browser issues: Google sign-in cookies surviving an immediate hard end, and video context menus still finding the real video element when player controls or overlays cover it.

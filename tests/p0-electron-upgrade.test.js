@@ -114,8 +114,8 @@ const ExtensionManager = require('../src/services/extensionManager');
 
   await test('main.js derives the Chrome major from process.versions.chrome and uses it for the UA and sec-ch-ua', async () => {
     assert(/CHROME_MAJOR\s*=\s*String\(\(process\.versions && process\.versions\.chrome\)/.test(main));
-    assert(/GOOGLE_AUTH_UA\s*=\s*`[^`]*\$\{CHROME_REDUCED\}/.test(main));
-    assert(/"Chromium";v="\$\{CHROME_MAJOR\}"/.test(main));
+    assert(/const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;/.test(main), 'Google auth must keep the same desktop identity');
+    assert(/headers\['sec-ch-ua'\] = .*\$\{chromeVer\}.*Google Chrome.*\$\{chromeVer\}/.test(main), 'sec-ch-ua must use the runtime Chrome version');
   });
 
   await test('preloads fall back to the runtime version (not a constant) when the UA has no Chrome token', async () => {
