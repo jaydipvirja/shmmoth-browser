@@ -85,9 +85,9 @@ function webRequestSession(extra = {}) {
   sess.unregisterPreloadScript = (id) => { sess.preloads.delete(id); };
   return sess;
 }
-function verdict(sess, url) {
+function verdict(sess, url, referrer = '') {
   let out = null;
-  sess.listener({ url }, (r) => { out = r; });
+  sess.listener({ url, referrer }, (r) => { out = r; });
   return out;
 }
 function mockSession() {
@@ -217,14 +217,14 @@ function mockSession() {
     await ab.setupFilter(s);
 
     const authRef = 'https://accounts.google.com/v3/signin/identifier';
-    assertEqual(verdict(s, 'https://accounts.google.com/ServiceLogin', authRef).cancel, undefined);
-    assertEqual(verdict(s, 'https://accounts.youtube.com/o/oauth2/auth', authRef).cancel, undefined);
-    assertEqual(verdict(s, 'https://www.gstatic.com/crypto/crypt.js', authRef).cancel, undefined);
-    assertEqual(verdict(s, 'https://www.googleusercontent.com/avatar.png', authRef).cancel, undefined);
-    assertEqual(verdict(s, 'https://www.recaptcha.net/recaptcha/api2/bframe', authRef).cancel, undefined);
+    assertEqual(Boolean(verdict(s, 'https://accounts.google.com/ServiceLogin', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://accounts.youtube.com/o/oauth2/auth', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.gstatic.com/crypto/crypt.js', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.googleusercontent.com/avatar.png', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.recaptcha.net/recaptcha/api2/bframe', authRef)?.cancel), false);
 
     // The allowlist is auth-context-only; ordinary Google traffic still goes through the filter.
-    assertEqual(verdict(s, 'https://ads.example.com/tracker', 'https://www.google.com/').cancel, true);
+    assertEqual(Boolean(verdict(s, 'https://ads.example.com/tracker', 'https://www.google.com/').cancel), true);
   });
 
   await test('REGRESSION: opening incognito no longer detaches the normal session from the setting', async () => {
