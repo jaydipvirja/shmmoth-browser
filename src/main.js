@@ -1822,8 +1822,65 @@ class ShmmothBrowserApp {
       }
     });
 
+    // ── Native mouse fallback for YouTube context menus ──
+    // YouTube can consume/suppress the renderer contextmenu event. The preload bridge handles the normal
+    // path, while this main-process timer is a second line of defence based on Electron's real mouse event.
+    // We do not prevent the mouse event here, so YouTube's own menu still has priority. The fallback only
+    // fires when neither the native context-menu event nor the trusted preload bridge arrived.
+    wc.on('before-mouse-event', (event, mouse) => {
+      if (!mouse || mouse.type !== 'mouseDown' || mouse.button !== 'right') return;
+      let currentUrl = '';
+      try { currentUrl = wc.getURL() || ''; } catch (_) {}
+      let host = '';
+      try { host = new URL(currentUrl).hostname.toLowerCase(); } catch (_) {}
+      if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
+
+      if (wc.__shmmothYoutubeContextTimer) {
+        clearTimeout(wc.__shmmothYoutubeContextTimer);
+        wc.__shmmothYoutubeContextTimer = null;
+      }
+      const token = (Number(wc.__shmmothYoutubeContextToken) || 0) + 1;
+      wc.__shmmothYoutubeContextToken = token;
+      const x = Math.max(0, Math.round(Number(mouse.x) || 0));
+      const y = Math.max(0, Math.round(Number(mouse.y) || 0));
+
+      wc.__shmmothYoutubeContextTimer = setTimeout(async () => {
+        wc.__shmmothYoutubeContextTimer = null;
+        if (wc.isDestroyed() || wc.__shmmothYoutubeContextToken !== token) return;
+
+        let media = null;
+        try {
+          media = await wc.executeJavaScript(
+            "(function(){var x=" + x + ",y=" + y + ";var isMedia=function(el){return el&&(el.tagName==='VIDEO'||el.tagName==='AUDIO');};var media=document.elementsFromPoint(x,y).find(isMedia);if(!media){media=document.querySelector('video.html5-main-video, video, audio');if(media){var r=media.getBoundingClientRect();if(!(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))media=null;}}if(!media)return null;return {kind:media.tagName.toLowerCase(),isPaused:!!media.paused,isMuted:!!media.muted,isLooping:!!media.loop,isControlsVisible:!!media.controls,canToggleControls:true,canShowPictureInPicture:media.tagName==='VIDEO'&&!!(document.pictureInPictureEnabled&&media.requestPictureInPicture),srcURL:media.currentSrc||media.src||''};})()",
+            true
+          );
+        } catch (_) {}
+
+        if (!media || (media.kind !== 'video' && media.kind !== 'audio')) return;
+        try {
+          wc.emit('context-menu', { preventDefault() {} }, {
+            pageURL: currentUrl,
+            frame: null,
+            menuSourceType: 'mouse',
+            x, y,
+            mediaType: media.kind,
+            mediaFlags: media,
+            srcURL: media.srcURL || ''
+          });
+        } catch (err) {
+          log.warn('YouTube native context-menu fallback failed', { error: err.message });
+        }
+      }, 180);
+      if (wc.__shmmothYoutubeContextTimer.unref) wc.__shmmothYoutubeContextTimer.unref();
+    });
+
     // ── Page Context Menu (Chrome/Edge Style) ──
     wc.on('context-menu', async (event, params) => {
+      if (wc.__shmmothYoutubeContextTimer) {
+        clearTimeout(wc.__shmmothYoutubeContextTimer);
+        wc.__shmmothYoutubeContextTimer = null;
+      }
+      wc.__shmmothYoutubeContextToken = (Number(wc.__shmmothYoutubeContextToken) || 0) + 1;
       event.preventDefault();
       const menu = new Menu();
 
