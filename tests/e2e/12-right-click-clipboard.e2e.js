@@ -19,7 +19,15 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
   const site = await startServer((req, res) => {
     if (req.url.startsWith('/media.webm')) { res.writeHead(404); return res.end(); }
     res.setHeader('Content-Type', 'text/html; charset=utf-8');
-    if (req.url.startsWith('/youtube-like')) {
+    if (req.url.startsWith('/youtube-like-overlay')) {
+      // Regression case: a player-control layer completely covers the video at the right-click point.
+      res.end(`<!doctype html><title>youtube-like overlay</title><body style="margin:0">
+        <div id="player" style="position:relative;width:640px;height:360px;background:#123">
+          <video id="v" width="640" height="360" style="display:block"></video>
+          <div id="overlay" style="position:absolute;inset:0;background:rgba(0,0,0,.01);"></div>
+        </div>
+      </body>`);
+    } else if (req.url.startsWith('/youtube-like')) {
       // like YouTube: the page shows its own menu and prevents the browser's one; its items copy to the clipboard
       res.end(`<!doctype html><title>youtube-like</title><body style="margin:0">
         <div id="player" class="html5-video-player" style="width:640px;height:360px;background:#123"><video id="v" width="640" height="360"></video></div>
@@ -88,6 +96,16 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
     });
 
     t.section('Right-click on a plain video (or YouTube\'s native menu, on the second right-click)');
+
+    await t.test('a player overlay does not hide the real video from the browser menu', async () => {
+      const url = await open('/youtube-like-overlay');
+      await rightClick(url, 220, 160);
+      await waitFor(async () => (await lastLabels()), { message: 'a native menu for an overlaid video' });
+      const labels = await lastLabels();
+      for (const want of ['Play', 'Mute', 'Loop', 'Show controls', 'Picture in picture']) {
+        assert(labels.includes(want), `"${want}" missing for the overlaid video: ${labels.join(' | ')}`);
+      }
+    });
 
     await t.test('the browser\'s menu has the video items first, then the page items', async () => {
       const url = await open('/video');
