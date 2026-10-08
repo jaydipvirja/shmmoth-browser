@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.1.13
+
+### Fixes
+- **YouTube right-click fallback hardened.** A native Electron mouse-event fallback now catches real YouTube right-clicks when both the page context-menu and preload path are suppressed, without interfering with YouTube's normal page menu unless the video target is confirmed.
+- **Google login durability retained.** The existing immediate Google/YouTube cookie flush and Google navigation persistence remain enabled in this release.
+
+
 ## 1.1.12
 
 ### Fixes
