@@ -24,7 +24,7 @@
  *   can be used to interact with the browser application.
  */
 
-const { webFrame } = require('electron');
+const { webFrame, ipcRenderer } = require('electron');
 
 // Only used if navigator.userAgent has no Chrome/<major> token; normally the UA already carries the engine version.
 const FALLBACK_CHROME_MAJOR = String((typeof process !== 'undefined' && process.versions && process.versions.chrome) || '130').split('.')[0];
