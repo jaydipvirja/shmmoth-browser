@@ -4,6 +4,7 @@
 
 ### Fixes
 - **YouTube right-click fallback hardened.** A native Electron mouse-event fallback now catches real YouTube right-clicks when both the page context-menu and preload path are suppressed, without interfering with YouTube's normal page menu unless the video target is confirmed.
+- **Google sign-in networking hardened.** The full ad blocker now bypasses the Google authentication document and only the supporting Google/Gstatic/Googleusercontent/Google APIs/reCAPTCHA resources needed by an active sign-in flow; ordinary Google pages remain blocked normally.
 - **Google login durability retained.** The existing immediate Google/YouTube cookie flush and Google navigation persistence remain enabled in this release.
 
 
