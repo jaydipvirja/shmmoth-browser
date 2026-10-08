@@ -1398,8 +1398,6 @@ class ShmmothBrowserApp {
     };
     targetSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
       const headers = details.requestHeaders;
-      const isAuthUrl = isGoogleAuthUrl(details.url);
-
       const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
       const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
 
