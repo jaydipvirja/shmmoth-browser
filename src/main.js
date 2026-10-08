@@ -53,8 +53,10 @@ const CHROME_REDUCED = `Chrome/${CHROME_MAJOR}.0.0.0`;
 const DESKTOP_UA_FALLBACK = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Safari/537.36`;
 app.userAgentFallback = DESKTOP_UA_FALLBACK;
 
-// Dedicated Google Authentication User-Agent to pass BotGuard web attestation on accounts.google.com
-const GOOGLE_AUTH_UA = `Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Mobile Safari/537.36`;
+// Google authentication uses the same desktop Chrome identity as the rest of the browser.
+ // Keeping one stable UA / Client-Hints identity avoids login-session churn between accounts.google.com,
+ // myaccount.google.com, YouTube and other Google services.
+const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;
 
 function isGoogleAuthUrl(url) {
   if (typeof url !== 'string') return false;
@@ -459,7 +461,12 @@ class ShmmothBrowserApp {
   setupLoginDurability() {
     let timer = null;
     let last = 0;
-    const schedule = () => {
+    const schedule = (_event, cookie) => {
+      // Sign-in cookies are flushed immediately; ordinary cookies are coalesced for a few seconds.
+      if (this._isGoogleAuthCookie(cookie)) {
+        this._flushGoogleLogin('google-cookie-change');
+        return;
+      }
       if (timer) return;
       const wait = Math.max(500, 3000 - (Date.now() - last));
       timer = setTimeout(() => {
@@ -479,8 +486,28 @@ class ShmmothBrowserApp {
     if (t.unref) t.unref();
   }
 
+  /**
+   * Google login cookies need stronger durability than an ordinary site cookie because Google may rotate them
+   * immediately after sign-in. Flush the persistent cookie store as soon as an auth cookie changes.
+   * Values are never logged or persisted by this helper.
+   */
+  _isGoogleAuthCookie(cookie) {
+    if (!cookie || typeof cookie !== 'object') return false;
+    const domain = String(cookie.domain || '').toLowerCase().replace(/^\./, '');
+    if (!(domain === 'google.com' || domain.endsWith('.google.com') || domain === 'youtube.com' || domain.endsWith('.youtube.com'))) return false;
+    const name = String(cookie.name || '');
+    return /^(SID|SSID|HSID|LSID|APISID|SAPISID|ACCOUNT_CHOOSER|OSID|__Secure-1PSID|__Secure-3PSID|__Host-GAPS|LOGIN_INFO)$/i.test(name);
+  }
+
+  /** Flush the Google session immediately after a sign-in/navigation event. */
+  _flushGoogleLogin(reason = 'google-auth') {
+    this.flushBrowserData(reason).catch((err) => {
+      log.warn('Could not durably store Google login cookies', { error: err.message });
+    });
+  }
+
   /** Logs which sign-in cookies of Google exist (names and counts only). */
-  async logLoginHealth(when) {
+  
     try {
       const cookies = await session.defaultSession.cookies.get({ domain: 'google.com' });
       const names = new Set(cookies.map((c) => c.name));
@@ -1371,22 +1398,14 @@ class ShmmothBrowserApp {
     };
     targetSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
       const headers = details.requestHeaders;
-      const isAuthUrl = isGoogleAuthUrl(details.url);
+      const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
+      const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
 
-      if (isAuthUrl) {
-        headers['User-Agent'] = GOOGLE_AUTH_UA;
-        headers['sec-ch-ua'] = `"Chromium";v="${CHROME_MAJOR}", "Google Chrome";v="${CHROME_MAJOR}", "Not?A_Brand";v="99"`;
-        headers['sec-ch-ua-mobile'] = '?1';
-        headers['sec-ch-ua-platform'] = '"Android"';
-      } else {
-        const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
-        const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
-
-        headers['User-Agent'] = ua;
-        headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
-        headers['sec-ch-ua-mobile'] = '?0';
-        headers['sec-ch-ua-platform'] = '"Windows"';
-      }
+      // Google auth and ordinary Google/YouTube traffic deliberately share one stable desktop identity.
+      headers['User-Agent'] = ua;
+      headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
+      headers['sec-ch-ua-mobile'] = '?0';
+      headers['sec-ch-ua-platform'] = '"Windows"';
 
       callback({ requestHeaders: headers });
     });
@@ -1759,6 +1778,11 @@ class ShmmothBrowserApp {
         this.updateNavigationState(tabData.isIncognito);
       }
       this._applyYouTubeOptimizer(wc, navUrl);
+      // A Google sign-in often completes by redirecting through several Google hosts. Persist the
+      // just-issued cookie state at the navigation boundary as well as on the cookie event.
+      if (!tabData.isIncognito && /^https?:\/\/([^.]+\.)*google\.com(?:\/|$)/i.test(navUrl || '')) {
+        this._flushGoogleLogin('google-navigation');
+      }
       this._restoreSiteZoom(tabId, navUrl);
     });
 
@@ -1780,22 +1804,19 @@ class ShmmothBrowserApp {
       event.preventDefault();
       const menu = new Menu();
 
-      // YouTube can place a player-control overlay above the real <video>. Chromium may report
-      // mediaType="none" even though the pointer is inside the video. Use a DOM hit-test fallback.
+      // Chromium may report mediaType="none" when a site's player controls or another overlay
+      // sits above the real <video>/<audio>. Hit-test the DOM whenever Chromium did not identify media.
       let detectedMedia = null;
-      let pageHost = '';
-      try { pageHost = new URL(params.pageURL || '').hostname.toLowerCase(); } catch (_) {}
-      if (params.mediaType !== 'video' && params.mediaType !== 'audio' && (pageHost === 'youtube.com' || pageHost.endsWith('.youtube.com'))) {
+      if (params.mediaType !== 'video' && params.mediaType !== 'audio') {
         try {
           const hitX = Math.max(0, Math.round(Number(params.x) || 0));
           const hitY = Math.max(0, Math.round(Number(params.y) || 0));
           const detectionScript = "(function(){var x=" + hitX + ",y=" + hitY + ";var isMedia=function(el){return el&&(el.tagName==='VIDEO'||el.tagName==='AUDIO');};var media=document.elementsFromPoint(x,y).find(isMedia);if(!media){media=document.querySelector('video.html5-main-video, video, audio');if(media){var r=media.getBoundingClientRect();if(!(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))media=null;}}if(!media)return null;return {kind:media.tagName.toLowerCase(),isPaused:!!media.paused,isMuted:!!media.muted,isLooping:!!media.loop,isControlsVisible:!!media.controls,canToggleControls:true,canShowPictureInPicture:media.tagName==='VIDEO'&&!!(document.pictureInPictureEnabled&&media.requestPictureInPicture),srcURL:media.currentSrc||media.src||''};})()";
           detectedMedia = await wc.executeJavaScript(detectionScript, true);
         } catch (err) {
-          if (typeof log.debug === 'function') log.debug('YouTube media hit-test unavailable', { error: err.message });
+          if (typeof log.debug === 'function') log.debug('Media hit-test unavailable', { error: err.message });
         }
       }
-
       // 1. Link items
       if (params.linkURL) {
         menu.append(new MenuItem({

@@ -1,3 +1,12 @@
+# CHANGELOG
+
+## 1.1.10
+
+### Fixes
+- **Google login stays signed in more reliably.** Google authentication now uses one stable desktop Chrome identity instead of switching between Android and Windows identities. Fresh Google sign-in cookies are flushed immediately, and Google navigation boundaries trigger an additional persistence flush.
+- **YouTube/video right-click is more reliable when player controls cover the video.** The browser now performs a media hit-test whenever Chromium does not identify the target as video/audio, without restricting the fallback to a specific host.
+- Added regression coverage for immediate Google-cookie persistence and video-player overlay right-clicks.
+
 # Changelog
 
 ## 1.1.9

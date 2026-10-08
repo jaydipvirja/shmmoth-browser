@@ -29,6 +29,30 @@ const setCookie = (app, cookie) => app.evaluate(({ session }, c) => session.defa
 const getCookies = (app, name) => app.evaluate(({ session }, n) => session.defaultSession.cookies.get({ name: n }).then((l) => l.map((c) => c.value)), name);
 
 runSuite('SHMMOTH Browser — E2E 14: logins survive the app being ended', async (t) => {
+  await t.test('Google sign-in cookies are flushed immediately, so a just-completed login survives an immediate hard end', async () => {
+    const ud = tmpDir('shmmoth-e2e-google-login-');
+    const first = await launchApp({ userData: ud });
+    const googleCookie = {
+      url: 'https://accounts.google.com/',
+      name: '__Secure-1PSID',
+      value: 'google-session-fresh',
+      secure: true,
+      httpOnly: true,
+      sameSite: 'lax',
+      expirationDate: Math.floor(Date.now() / 1000) + 86400 * 30
+    };
+    await setCookie(first.app, googleCookie);
+    // Deliberately do not wait the ordinary 3 s debounce.
+    await sleep(200);
+    first.app.process().kill('SIGKILL');
+    await sleep(500);
+    await first.close();
+    const again = await launchApp({ userData: ud });
+    try {
+      assertEqual(JSON.stringify(await getCookies(again.app, '__Secure-1PSID')), JSON.stringify(['google-session-fresh']));
+    } finally { await again.close(); }
+  });
+
   t.section('Hard end (installer, Task Manager, crash)');
 
   await t.test('a cookie set while the app runs is on disk a few seconds later: it is still there after the process is killed', async () => {

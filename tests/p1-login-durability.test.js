@@ -83,6 +83,14 @@ async function main() {
     assert(block.includes('app.quit()') && block.includes('_dataFlushed'), 'it quits again afterwards and does not loop');
   });
 
+  await test('Google authentication uses one stable desktop browser identity', async () => {
+    assert(/const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;/.test(main), 'Google auth UA must match the desktop fallback');
+    const headersBlock = main.slice(main.indexOf('setupGoogleAuthHeaders(targetSession)'), main.indexOf('// ─── Content Permissions', main.indexOf('setupGoogleAuthHeaders(targetSession)')));
+    assert(!/sec-ch-ua-mobile.*\?1/.test(headersBlock), 'Google headers must not switch to mobile');
+    assert(!/Android/.test(headersBlock), 'Google headers must not switch to Android');
+    assert(/headers\['User-Agent'\] = ua;/.test(headersBlock), 'Google service requests use the same clean UA');
+  });
+
   await test('cookie changes are written shortly after they happen, for the normal profile only', async () => {
     const body = main.slice(main.indexOf('setupLoginDurability() {'), main.indexOf('async logLoginHealth'));
     assert(body.includes("session.defaultSession.cookies.on('changed'"), 'watches cookie changes');
