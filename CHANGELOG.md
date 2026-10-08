@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.1.12
+
+### Fixes
+- **YouTube video right-click is now intercepted at the trusted user-input layer.** When YouTube suppresses the page context-menu event, SHMMOTH captures a real right-click inside the video and routes it into the same native media menu used elsewhere.
+- **Google session persistence is stronger.** All Google/YouTube cookie changes are treated as authentication-related and flushed immediately, so newly issued session cookies are not left waiting for a delayed batch write.
+
 ## 1.1.11
 
 ### Fixes
