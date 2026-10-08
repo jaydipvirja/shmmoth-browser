@@ -124,6 +124,12 @@ test('the private signing key can never be committed', () => {
   const ignore = read('.gitignore');
   assert(/release-signing-key/.test(ignore) && /\*\.pem/.test(ignore));
 });
+test('all core source files parse without syntax errors', () => {
+  const { execFileSync } = require('child_process');
+  for (const rel of ['src/main.js', 'src/preload-external.js', 'src/preload-gesture.js', 'src/preload-internal.js']) {
+    execFileSync(process.execPath, ['-c', path.join(ROOT, rel)]);
+  }
+});
 
 console.log('\n══════════════════════════════════════════════════════');
 console.log(`  Results: ${passed} passed, ${failed} failed`);
