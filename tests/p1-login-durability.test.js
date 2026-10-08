@@ -91,6 +91,19 @@ async function main() {
     assert(/headers\['User-Agent'\] = ua;/.test(headersBlock), 'Google service requests use the same clean UA');
   });
 
+  await test('trusted YouTube video right-clicks are bridged before the page can suppress them', async () => {
+    const gesture = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-gesture.js'), 'utf8');
+    assert(/contextmenu/.test(gesture), 'contextmenu listener');
+    assert(/e\.isTrusted !== true/.test(gesture), 'only real user events');
+    assert(/youtube\.com/.test(gesture), 'YouTube-only bridge');
+    assert(/querySelectorAll\('video'\)/.test(gesture), 'video hit test');
+    assert(/preventDefault\(\)/.test(gesture), 'suppresses YouTube page menu');
+    assert(/ipcRenderer\.send\('shmmoth:youtube-context-menu'/.test(gesture), 'sends browser menu request');
+    const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+    assert(/ipcMain\.on\('shmmoth:youtube-context-menu'/.test(main), 'main handler');
+    assert(/wc\.emit\('context-menu'/.test(main), 'reuses native context menu builder');
+  });
+
   await test('cookie changes are written shortly after they happen, for the normal profile only', async () => {
     const start = main.indexOf('setupLoginDurability() {');
     const end = main.indexOf('\n  }', start);
