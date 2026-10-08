@@ -383,6 +383,29 @@ class ShmmothBrowserApp {
     });
     this.setupLoginDurability();
 
+    // A trusted preload bridge is used on YouTube because the page can suppress contextmenu before Electron
+    // emits its own context-menu event. The bridge reuses the exact native menu builder below.
+    ipcMain.on('shmmoth:youtube-context-menu', (event, payload) => {
+      const wc = event && event.sender;
+      if (!wc || wc.isDestroyed()) return;
+      let url = '';
+      try { url = wc.getURL() || ''; } catch (_) {}
+      let host = '';
+      try { host = new URL(url).hostname.toLowerCase(); } catch (_) {}
+      if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
+      const x = Math.max(0, Math.round(Number(payload && payload.x) || 0));
+      const y = Math.max(0, Math.round(Number(payload && payload.y) || 0));
+      // Re-enter the normal context-menu path so links, media actions and navigation items stay identical.
+      wc.emit('context-menu', { preventDefault() {} }, {
+        pageURL: url,
+        frame: null,
+        menuSourceType: 'mouse',
+        x, y,
+        mediaType: 'none',
+        mediaFlags: {}
+      });
+    });
+
     log.info('SHMMOTH Browser initialisation complete');
   }
 
@@ -494,9 +517,9 @@ class ShmmothBrowserApp {
   _isGoogleAuthCookie(cookie) {
     if (!cookie || typeof cookie !== 'object') return false;
     const domain = String(cookie.domain || '').toLowerCase().replace(/^\./, '');
-    if (!(domain === 'google.com' || domain.endsWith('.google.com') || domain === 'youtube.com' || domain.endsWith('.youtube.com'))) return false;
-    const name = String(cookie.name || '');
-    return /^(SID|SSID|HSID|LSID|APISID|SAPISID|ACCOUNT_CHOOSER|OSID|__Secure-1PSID|__Secure-3PSID|__Host-GAPS|LOGIN_INFO)$/i.test(name);
+    // Persist all Google/YouTube cookies immediately. Google changes/introduces session-cookie names over time,
+    // so relying on a hard-coded allow-list can recreate the "logged in on one PC, signed out on another" bug.
+    return domain === 'google.com' || domain.endsWith('.google.com') || domain === 'youtube.com' || domain.endsWith('.youtube.com');
   }
 
   /** Flush the Google session immediately after a sign-in/navigation event. */
