@@ -507,7 +507,7 @@ class ShmmothBrowserApp {
   }
 
   /** Logs which sign-in cookies of Google exist (names and counts only). */
-    
+  
     try {
       const cookies = await session.defaultSession.cookies.get({ domain: 'google.com' });
       const names = new Set(cookies.map((c) => c.name));
