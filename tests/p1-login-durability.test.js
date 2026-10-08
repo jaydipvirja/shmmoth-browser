@@ -96,7 +96,7 @@ async function main() {
     const end = main.indexOf('\n  }', start);
     const body = start >= 0 && end >= 0 ? main.slice(start, end) : '';
     assert(body.includes("session.defaultSession.cookies.on('changed'"), 'watches cookie changes');
-    assert(!/session\\.fromPartition\\(['\"]incognito['\"]\\)/.test(body), 'incognito stays in memory');
+    assert(!/session\.fromPartition\(['"]incognito['"]\)/.test(body), 'incognito stays in memory');
     const flush = main.slice(main.indexOf('async flushBrowserData'), main.indexOf('setupLoginDurability() {'));
     assert(flush.includes('cookies.flushStore()') && flush.includes('flushStorageData()'), 'cookies and page storage are flushed');
   });
