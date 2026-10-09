@@ -8,17 +8,19 @@
  *   - serialize() / ElectronBlocker.deserialize() round-trip, a damaged buffer throws
  *   - match(request) blocks hosts that start with "ads." and emits 'request-blocked'
  *   - updateFromDiff({ added, removed }), updateResources(), getFilters(), onInjectCosmeticFilters()
+ *   - getCosmeticsFilters(options): styles from the `##` lines, scripts from the `##+js(...)` lines, each asked for part
+ *     only when the options ask for it (calls are recorded in `state.cosmeticsCalls`)
  * Plus makeFetch(): a fake fetch that serves list texts (or fails) per host.
  */
 
 'use strict';
 
 const state = {
-  parseCalls: [], deserializeCalls: 0, blockers: [], engineCosmeticRegistrations: 0, injectCalls: [], failParse: false
+  parseCalls: [], deserializeCalls: 0, blockers: [], engineCosmeticRegistrations: 0, injectCalls: [], cosmeticsCalls: [], failParse: false
 };
 
 function reset() {
-  state.parseCalls.length = 0; state.blockers.length = 0; state.injectCalls.length = 0;
+  state.parseCalls.length = 0; state.blockers.length = 0; state.injectCalls.length = 0; state.cosmeticsCalls.length = 0;
   state.deserializeCalls = 0; state.engineCosmeticRegistrations = 0; state.failParse = false;
 }
 
@@ -66,6 +68,17 @@ function makeBlocker(text, config, extra = {}) {
       return { match: false, redirect: undefined };
     },
     onInjectCosmeticFilters: async (event, url, msg) => { state.injectCalls.push({ url, msg }); return 'injected'; },
+    getCosmeticsFilters(o) {
+      state.cosmeticsCalls.push(o);
+      const lines = Array.from(new Set(this.text.split('\n')));
+      const hiding = lines.filter((l) => /##[^+]/.test(l)).map((l) => l.slice(l.indexOf('##') + 2));
+      const wantStyles = o.getBaseRules || o.getRulesFromHostname || o.getRulesFromDOM;
+      return {
+        active: true,
+        styles: wantStyles && hiding.length ? hiding.join(',') + ' { display: none !important; }' : '',
+        scripts: o.getInjectionRules ? lines.filter((l) => l.includes('##+js(')).map((l) => `/* ${l} */ window.__scriptlet = true;`) : []
+      };
+    },
     serialize() { return Buffer.from(JSON.stringify({ text: this.text, config: this.config, resources: this.resources })); },
     ...extra
   };
@@ -91,7 +104,7 @@ const ElectronBlocker = {
 const Request = { fromRawDetails: (d) => d };
 
 /** A list that passes the "does this look like a filter list" check. */
-const LIST_TEXT = '[Adblock Plus 2.0]\n! Title: test list\n' + Array.from({ length: 30 }, (_, i) => `||ads${i}.example.com^`).join('\n') + '\nexample.com##.ad-banner\n';
+const LIST_TEXT = '[Adblock Plus 2.0]\n! Title: test list\n' + Array.from({ length: 30 }, (_, i) => `||ads${i}.example.com^`).join('\n') + '\nexample.com##.ad-banner\nexample.com##+js(set-constant, adsEnabled, false)\n';
 const RESOURCES_TEXT = JSON.stringify({ scriptlets: [{ name: 'set-constant.js', aliases: [], body: 'x'.repeat(300) }] });
 
 /**

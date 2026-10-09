@@ -129,7 +129,8 @@ const ask = (listener, url, page) => {
   });
   await test('the YouTube ad optimizer is part of the blocker: it stops when the blocker is off or paused for the site', async () => {
     const f = mainJs.slice(mainJs.indexOf('  _applyYouTubeOptimizer('));
-    assert(/this\.adBlocker\.isActiveFor\(new URL\(currentUrl\)\.hostname\)\) return/.test(f.slice(0, 600)), 'optimizer ignores the switch');
+    assert(/if \(this\.adBlocker && !this\.adBlocker\.isActiveFor\(host\)\) return;/.test(f.slice(0, 700)), 'optimizer ignores the switch');
+    assert(/if \(host !== 'youtube\.com' && !host\.endsWith\('\.youtube\.com'\)\) return;/.test(f.slice(0, 500)), 'only YouTube itself, not every address that contains "youtube.com"');
   });
 
   console.log('\n📋 3. Ad blocker: pausing a site');

@@ -91,17 +91,19 @@ async function main() {
     assert(/headers\['User-Agent'\] = ua;/.test(headersBlock), 'Google service requests use the same clean UA');
   });
 
-  await test('trusted YouTube video right-clicks are bridged before the page can suppress them', async () => {
+  await test('right-click: one menu per right-click, never held up by the page; Shift + right-click is kept from the page', async () => {
     const gesture = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-gesture.js'), 'utf8');
-    assert(/contextmenu/.test(gesture), 'contextmenu listener');
-    assert(/e\.isTrusted !== true/.test(gesture), 'only real user events');
-    assert(/youtube\.com/.test(gesture), 'YouTube-only bridge');
-    assert(/querySelectorAll\('video'\)/.test(gesture), 'video hit test');
-    assert(/preventDefault\(\)/.test(gesture), 'suppresses YouTube page menu');
-    assert(/ipcRenderer\.send\('shmmoth:youtube-context-menu'/.test(gesture), 'sends browser menu request');
+    assert(/addEventListener\('contextmenu', \(e\) => \{\s*if \(e && e\.isTrusted === true && e\.shiftKey === true\) e\.stopImmediatePropagation\(\);\s*\}, true\)/.test(gesture), 'Shift + right-click bypass');
+    assert(!/preventDefault/.test(gesture), 'the gesture script never cancels a right-click itself (a second menu would open)');
     const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
-    assert(/ipcMain\.on\('shmmoth:youtube-context-menu'/.test(main), 'main handler');
-    assert(/wc\.emit\('context-menu'/.test(main), 'reuses native context menu builder');
+    // 1.1.13 opened menus from three places (the page event, an IPC message from the page, a timer after the mouse
+    // button): two menus at once, or a menu on top of YouTube's own
+    assert(!/youtube-context-menu/.test(main + gesture), 'no menu requests from the page');
+    assert(!/before-mouse-event/.test(main), 'no timer-made menus');
+    assert(!/wc\.emit\('context-menu'/.test(main), 'no made-up context-menu events');
+    const handler = main.slice(main.indexOf("wc.on('context-menu'"), main.indexOf('// 1. Link items'));
+    assert(/Promise\.race\(\[\s*wc\.executeJavaScript\(detectionScript, true\),/.test(handler) && /CONTEXT_MENU_HIT_TEST_MS/.test(handler), 'the hit-test has a time limit');
+    assert(/if \(seq !== contextMenuSeq \|\| wc\.isDestroyed\(\)\) return;/.test(handler), 'only the newest right-click gets a menu');
   });
 
   await test('cookie changes are written shortly after they happen, for the normal profile only', async () => {

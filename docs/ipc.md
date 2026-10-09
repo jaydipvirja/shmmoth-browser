@@ -30,6 +30,7 @@
 | `window:maximize` | R → M | Toggle maximize |
 | `window:close` | R → M | Close window |
 | `shmmoth:gesture`, `shmmoth:gesture-ready` | page frames → M | Only from `preload-gesture.js` (trusted click / key press); feeds the pop-up policy |
+| `shmmoth:adblock-scriptlets` (sync) | page frames → M | Only from `preload-scriptlets.js` at document start: the frame's address → the uBlock scriptlets to run (empty for non-`http(s)`, blocker off, site paused); always answered |
 
 ### Invoke/Handle (ipcMain.handle) — All wrapped with secureHandlerRaw()
 

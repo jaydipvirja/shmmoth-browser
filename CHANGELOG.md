@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 1.1.14
+
+### YouTube — play / pause and right-click work again
+- **Pause stays paused, play plays.** The browser's own YouTube ad script was the cause: every 100 ms it pressed *play* again whenever YouTube's "ad blockers are not allowed" notice was anywhere in the page (even hidden), so a video started by itself and could not be paused. It also muted the video, set it to 16x and jumped to its end whenever an ad element was left over in the player — also during the real video — clicked every "Dismiss" button of the page, and hid the anti-adblock notice but not the dark layer behind it, which then swallowed every click on the player. That script is replaced: it now only acts while YouTube itself marks an ad as playing (mutes it, speeds it up, presses its *Skip* button) and puts sound and speed back afterwards. It never presses play or pause, never jumps in the video and never touches the page's dialogs.
+- **uBlock's YouTube rules now run before YouTube's own scripts**, the only moment they work (they remove the ad data before the player reads it). Before, they ran some time after the page had started, when the player had already seen the ads and the anti-adblock check had already run, and the half-applied patches could leave the player broken. This applies to every site with such rules, in every frame.
+- **Right-click on YouTube works like in Chrome.** On the video, the first right-click opens YouTube's own menu (Loop, Copy video URL, …) and a second right-click opens the browser's menu — exactly one, never on top of YouTube's. 1.1.12/1.1.13 opened the browser's menu from three places at once (the page, a message from the page, a timer), which gave two menus or a menu over YouTube's own.
+- **New: Shift + right-click always opens the browser's menu**, on any site, also on players and web apps that replace it with their own (as in Firefox).
+- In the browser's video menu, **Play / Pause / Mute on YouTube go through YouTube's player**, so its buttons show the right state. The menu never waits more than a quarter of a second for the page, so a busy page can no longer keep it from opening, and a fast second right-click never produces a second menu.
+- If YouTube still shows its anti-adblock notice: update the lists (Settings → Ad-Blocker & Privacy → *Update now*), or pause the blocker for youtube.com with the shield button.
+
 ## 1.1.13
 
 ### Fixes

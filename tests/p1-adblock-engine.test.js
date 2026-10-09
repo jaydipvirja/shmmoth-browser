@@ -34,13 +34,16 @@ const SRC = path.join(__dirname, '..', 'src');
 const read = (...p) => fs.readFileSync(path.join(SRC, ...p), 'utf8');
 
 const gm = require('./fixtures/ghostery-mock');
-const ipc = { handlers: {} };
+const ipc = { handlers: {}, listeners: {} };
 const origLoad = Module._load;
 Module._load = function (request, ...args) {
   if (request === 'electron') {
     return {
       app: { getPath: (n) => path.join(ROOT, n), quit() {} }, shell: {}, dialog: {},
-      ipcMain: { handle(ch, fn) { ipc.handlers[ch] = fn; }, removeHandler(ch) { delete ipc.handlers[ch]; } }
+      ipcMain: {
+        handle(ch, fn) { ipc.handlers[ch] = fn; }, removeHandler(ch) { delete ipc.handlers[ch]; },
+        on(ch, fn) { (ipc.listeners[ch] = ipc.listeners[ch] || []).push(fn); }, removeAllListeners(ch) { delete ipc.listeners[ch]; }
+      }
     };
   }
   if (request === '@ghostery/adblocker-electron') return { ElectronBlocker: gm.ElectronBlocker, Request: gm.Request };
@@ -64,17 +67,31 @@ function fakeSession() {
   const s = { preloads: new Map(), n: 1, before: null };
   s.webRequest = { onBeforeRequest(a, b) { s.before = typeof a === 'function' || a === null ? a : (b || null); }, onHeadersReceived() {} };
   s.registerPreloadScript = (script) => { const id = 'p' + s.n++; s.preloads.set(id, script); return id; };
+  s.insertedCss = [];
   s.unregisterPreloadScript = (id) => { s.preloads.delete(id); };
   return s;
 }
 function newAB(settings = {}, opts = {}) {
   const dir = fs.mkdtempSync(path.join(ROOT, 'ab_'));
   const f = opts.fetch || gm.makeFetch();
-  const ab = new AdBlockerService(newStorage(settings), Object.assign({ cacheFile: path.join(dir, 'engine.bin'), fetch: f, preloadPath: () => '/ghostery-preload.js' }, opts));
+  const ab = new AdBlockerService(newStorage(settings), Object.assign({ cacheFile: path.join(dir, 'engine.bin'), fetch: f, preloadPath: () => '/ghostery-preload.js', scriptletPreloadPath: () => '/scriptlet-preload.js' }, opts));
   ab._dir = dir; ab._f = f;
   return ab;
 }
-const wcAt = (url, destroyed = false) => ({ getURL: () => url, isDestroyed: () => destroyed });
+const wcAt = (url, destroyed = false) => {
+  const wc = { getURL: () => url, isDestroyed: () => destroyed, css: [] };
+  wc.insertCSS = async (css, opts) => { wc.css.push({ css, opts }); return 'key'; };
+  return wc;
+};
+/** What a frame gets back from the synchronous scriptlet message (the frame would hang without a returnValue). */
+function askScriptlets(url, topUrl = url) {
+  const event = { sender: wcAt(topUrl), frameId: 1, processId: 1 };
+  const fns = ipc.listeners['shmmoth:adblock-scriptlets'] || [];
+  assert(fns.length === 1, 'exactly one listener for the scriptlet message, got ' + fns.length);
+  fns[0](event, url);
+  assert('returnValue' in event, 'no returnValue: the frame would wait for ever');
+  return event.returnValue;
+}
 
 async function main() {
   console.log('\n══════════════════════════════════════════════════════');
@@ -182,10 +199,12 @@ async function main() {
     const normal = fakeSession(), incog = fakeSession();
     await ab.setupFilter(normal); await ab.setupFilter(incog);
     eq(gm.state.engineCosmeticRegistrations, 0, 'the engine registered its own preload / handler (the second session would throw)');
-    eq(normal.preloads.size, 1, 'normal session'); eq(incog.preloads.size, 1, 'incognito session');
-    const script = Array.from(normal.preloads.values())[0];
-    assert(script.type === 'frame' && script.filePath === '/ghostery-preload.js', JSON.stringify(script));
+    eq(normal.preloads.size, 2, 'normal session'); eq(incog.preloads.size, 2, 'incognito session');
+    const scripts = Array.from(normal.preloads.values());
+    assert(scripts.every((s) => s.type === 'frame'), JSON.stringify(scripts));
+    eq(scripts.map((s) => s.filePath).join(), '/scriptlet-preload.js,/ghostery-preload.js', 'the scriptlet script and the element-hiding script');
     assert(ipc.handlers['@ghostery/adblocker/inject-cosmetic-filters'] && ipc.handlers['@ghostery/adblocker/is-mutation-observer-enabled']);
+    eq((ipc.listeners['shmmoth:adblock-scriptlets'] || []).length, 1, 'one listener for the scriptlet message, also with two sessions');
     assert(gm.state.blockers[0].config.loadCosmeticFilters === true, 'the engine keeps cosmetic filters on for its own lookups');
   });
 
@@ -195,28 +214,74 @@ async function main() {
     const s = fakeSession();
     await ab.setupFilter(s);
     ab.setEnabled(false); eq(s.preloads.size, 0, 'off');
-    ab.setEnabled(true); eq(s.preloads.size, 1, 'on');
-    ab.setEnabled(true); eq(s.preloads.size, 1, 'on twice');
+    ab.setEnabled(true); eq(s.preloads.size, 2, 'on');
+    ab.setEnabled(true); eq(s.preloads.size, 2, 'on twice');
   });
 
   await test('what a frame is told: nothing for the browser\'s own pages, nothing when off or paused (page or frame), otherwise the engine\'s answer', async () => {
+    gm.reset(); ipc.listeners = {};
+    const ab = newAB();
+    await ab.setupFilter(fakeSession());
+    for (const bad of ['file:///C:/app/src/renderer/index.html', 'mtc://settings', 'about:blank', 'data:text/html,hi', 'javascript:1', 'chrome://gpu', undefined, 5]) {
+      eq(askScriptlets(bad).length, 0, String(bad));
+    }
+    eq(gm.state.cosmeticsCalls.length, 0, 'the engine must not even be asked for those');
+    const got = askScriptlets('https://www.example.com/story');
+    eq(got.length, 1, 'the scriptlet of the list');
+    assert(/^\(function\(\)\{try\{\n[\s\S]*window\.__scriptlet = true;\n\}catch\(e\)\{\}\}\)\(\);$/.test(got[0]), 'each scriptlet runs on its own, a failing one cannot stop the next: ' + got[0]);
+    new Function(got[0]);                                                        // it is valid JavaScript
+    const c = gm.state.cosmeticsCalls[0];
+    eq(c.hostname, 'www.example.com', 'hostname'); eq(c.domain, 'example.com', 'registrable domain (rules for example.com cover www.)');
+    assert(c.getInjectionRules === true && c.getRulesFromHostname === true && c.getBaseRules === false && c.getRulesFromDOM === false, 'only the scriptlets: ' + JSON.stringify(c));
+    ab.setSitePaused('example.com', true);
+    eq(askScriptlets('https://www.example.com/story').length, 0, 'paused page');
+    eq(askScriptlets('https://ads.other.net/frame', 'https://www.example.com/').length, 0, 'a frame of a paused page');
+    eq(askScriptlets('https://blog.other.org/').length, 1, 'other pages still get it');
+    ab.setEnabled(false);
+    eq(askScriptlets('https://blog.other.org/').length, 0, 'switched off');
+  });
+
+  await test('the scriptlet message always answers, also when the engine fails (the frame waits for it)', async () => {
+    gm.reset(); ipc.listeners = {};
+    const ab = newAB();
+    await ab.setupFilter(fakeSession());
+    ab.blocker.getCosmeticsFilters = () => { throw new Error('engine broke'); };
+    const origWarn = console.warn; console.warn = () => {};
+    try { eq(askScriptlets('https://www.example.com/').length, 0, 'nothing, but an answer'); } finally { console.warn = origWarn; }
+  });
+
+  await test('element hiding: CSS only (the scriptlets already ran), the base rules at start, the page\'s own classes later', async () => {
     gm.reset();
     const ab = newAB();
     await ab.setupFilter(fakeSession());
-    const top = (u) => ({ sender: wcAt(u) });
-    const ask = (url, topUrl = url) => ab._onCosmeticRequest(top(topUrl), url, undefined);
-    gm.state.injectCalls.length = 0;
-    for (const bad of ['file:///C:/app/src/renderer/index.html', 'mtc://settings', 'about:blank', 'data:text/html,hi', 'javascript:1', 'chrome://gpu', undefined, 5]) {
-      eq(await ask(bad), undefined, String(bad));
+    const ev = (u) => ({ sender: wcAt(u), frameId: 0, processId: 1 });
+    for (const bad of ['mtc://settings', 'file:///x', undefined]) {
+      const e = ev('https://www.example.com/');
+      eq(await ab._onCosmeticRequest(e, bad, undefined), undefined); eq(e.sender.css.length, 0, String(bad));
     }
-    eq(gm.state.injectCalls.length, 0, 'the engine must not even be asked for those');
-    eq(await ask('https://news.example/story'), 'injected', 'a web page');
-    ab.setSitePaused('news.example', true);
-    eq(await ask('https://news.example/story'), undefined, 'paused page');
-    eq(await ask('https://ads.other.net/frame', 'https://www.news.example/'), undefined, 'a frame of a paused page');
-    eq(await ask('https://blog.other.org/'), 'injected', 'other pages still get it');
-    ab.setEnabled(false);
-    eq(await ask('https://blog.other.org/'), undefined, 'switched off');
+    const e1 = ev('https://www.example.com/');
+    await ab._onCosmeticRequest(e1, 'https://www.example.com/', undefined);
+    eq(e1.sender.css.length, 1, 'the base CSS'); eq(e1.sender.css[0].opts.cssOrigin, 'user', 'user style sheet: a page cannot override it');
+    assert(/\.ad-banner \{ display: none !important; \}/.test(e1.sender.css[0].css), e1.sender.css[0].css);
+    let c = gm.state.cosmeticsCalls[gm.state.cosmeticsCalls.length - 1];
+    assert(c.getInjectionRules === false && c.getBaseRules === true && c.getRulesFromDOM === false, 'start: ' + JSON.stringify(c));
+    const e2 = ev('https://www.example.com/');
+    await ab._onCosmeticRequest(e2, 'https://www.example.com/', { classes: ['ad-banner'], ids: [], hrefs: [] });
+    c = gm.state.cosmeticsCalls[gm.state.cosmeticsCalls.length - 1];
+    assert(c.getInjectionRules === false && c.getBaseRules === false && c.getRulesFromDOM === true && c.classes[0] === 'ad-banner', 'later: ' + JSON.stringify(c));
+    eq(gm.state.injectCalls.length, 0, 'the engine\'s own handler (late scriptlets, CSS in the wrong frame) is not used');
+    ab.setSitePaused('example.com', true);
+    const e3 = ev('https://www.example.com/');
+    await ab._onCosmeticRequest(e3, 'https://www.example.com/', undefined);
+    eq(e3.sender.css.length, 0, 'paused');
+  });
+
+  await test('the scriptlet preload asks synchronously and runs the answer in the page, only for web pages', () => {
+    const src = read('preload-scriptlets.js');
+    assert(/ipcRenderer\.sendSync\('shmmoth:adblock-scriptlets', href\)/.test(src), 'synchronous: before the page\'s scripts');
+    assert(/webFrame\.executeJavaScript\(code\)/.test(src), 'in the page (main world), not in the isolated world');
+    assert(/\/\^https\?:\/i\.test\(href\)/.test(src), 'web pages only');
+    assert(/^try \{/m.test(src) && /catch \(_\)/.test(src), 'a failure never breaks the frame');
   });
 
   console.log('\n📋 My filters');
