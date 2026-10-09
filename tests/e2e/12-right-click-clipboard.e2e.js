@@ -99,8 +99,9 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
 
     await t.test('a player overlay does not hide the real video from the browser menu', async () => {
       const url = await open('/youtube-like-overlay');
+      const before = await menuCount();
       await rightClick(url, 220, 160);
-      await waitFor(async () => (await lastLabels()), { message: 'a native menu for an overlaid video' });
+      await waitFor(async () => (await menuCount()) > before, { message: 'a new native menu for an overlaid video' });
       const labels = await lastLabels();
       for (const want of ['Play', 'Mute', 'Loop', 'Show controls', 'Picture in picture']) {
         assert(labels.includes(want), `"${want}" missing for the overlaid video: ${labels.join(' | ')}`);
@@ -109,7 +110,9 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
 
     await t.test('the browser\'s menu has the video items first, then the page items', async () => {
       const url = await open('/video');
-      await rightClick(url); await waitFor(async () => (await lastLabels()), { message: 'a native menu' });
+      const before = await menuCount();
+      await rightClick(url);
+      await waitFor(async () => (await menuCount()) > before, { message: 'a new native menu' });
       const labels = await lastLabels();
       for (const want of ['Play', 'Mute', 'Loop', 'Show controls', 'Picture in picture', 'Save video as...', 'Copy video address', 'Open video in new tab', 'Back', 'Forward', 'Reload', 'Inspect']) {
         assert(labels.includes(want), `"${want}" missing in: ${labels.join(' | ')}`);
@@ -141,7 +144,9 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
 
     await t.test('a blob: source (how YouTube plays) gets no Save / Copy address / Open items, but still Loop and the rest', async () => {
       const url = await open('/blob-video');
-      await rightClick(url); await sleep(500);
+      const before = await menuCount();
+      await rightClick(url);
+      await waitFor(async () => (await menuCount()) > before, { message: 'a new native menu for the blob video' });
       const labels = await lastLabels();
       assert(labels.includes('Loop') && labels.includes('Mute'), labels.join(' | '));
       assert(!labels.some((l) => /Save video|Copy video address|Open video/.test(l)), 'offered a useless blob: address: ' + labels.join(' | '));
