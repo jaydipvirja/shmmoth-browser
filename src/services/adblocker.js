@@ -32,6 +32,7 @@ const ENGINE_CONFIG = Object.freeze({
 
 const COSMETIC_CHANNEL = '@ghostery/adblocker/inject-cosmetic-filters';
 const MUTATION_CHANNEL = '@ghostery/adblocker/is-mutation-observer-enabled';
+const SCRIPTLET_CHANNEL = 'shmmoth:adblock-scriptlets';
 
 /** Hosts of the biggest ad networks: in force while the real lists are not available, and a last resort for pop-ups. */
 const FALLBACK_DOMAINS = Object.freeze([
@@ -57,6 +58,20 @@ function normalizeHost(input) {
 
 function hostnameOf(url) {
   try { return new URL(url).hostname; } catch (_) { return ''; }
+}
+
+/** Host name and registrable domain (www.youtube.com → youtube.com), with the same library the engine uses. */
+let tldts = null;
+function parseDomain(url) {
+  try {
+    if (!tldts) {
+      const pkg = require.resolve('@ghostery/adblocker-electron');
+      tldts = require(require.resolve('tldts-experimental', { paths: [path.dirname(pkg), __dirname] }));
+    }
+    return tldts.parse(url);
+  } catch (_) {
+    return { hostname: hostnameOf(url), domain: '' };
+  }
 }
 
 /** The user's own filter lines ("My filters"): trimmed, no empty lines, bounded. */
@@ -88,6 +103,7 @@ class AdBlockerService {
    * @param {Function} [options.fetch]    fetch implementation (default: Electron net.fetch)
    * @param {number} [options.ttlMs]      how long downloaded lists are used before they are downloaded again
    * @param {Function} [options.preloadPath] returns the path of the cosmetic-filter preload script
+   * @param {Function} [options.scriptletPreloadPath] returns the path of the preload script that runs the scriptlets
    */
   constructor(storageService, options = {}) {
     this.storage = storageService;
@@ -97,6 +113,7 @@ class AdBlockerService {
     this._fetch = options.fetch || electronFetch;
     this.cacheTtlMs = options.ttlMs || CACHE_TTL_MS;
     this._preloadPath = options.preloadPath || defaultPreloadPath;
+    this._scriptletPreloadPath = options.scriptletPreloadPath || (() => path.join(__dirname, '..', 'preload-scriptlets.js'));
     // Sites where the user paused the blocker ("Ad blocker on this site: off"). Matches the host and its subdomains.
     this._paused = new Set();
     this.reloadAllowlist();
@@ -108,7 +125,7 @@ class AdBlockerService {
     // was overwritten when the incognito window opened, so toggling the setting only affected
     // incognito and the normal session could never be switched off again.
     this.sessions = new Set();
-    this._cosmeticPreloads = new Map();          // session → id of the registered cosmetic-filter preload script
+    this._cosmeticPreloads = new Map();          // session → ids of the registered preload scripts (element hiding, scriptlets)
     this._cosmeticHandlersInstalled = false;
     this._customApplied = [];                    // the user's own filter lines currently in the engine
     this._refreshing = null;
@@ -279,25 +296,41 @@ class AdBlockerService {
     this._unregisterCosmetic(sessionInstance);
   }
 
-  /** Element hiding + scriptlets: a preload script in every frame of the session asks the main process what to inject. */
+  /**
+   * Element hiding + scriptlets, through two preload scripts in every frame of the session:
+   *   - preload-scriptlets.js asks (synchronously) for the uBlock scriptlets of the frame's address and runs them in the
+   *     page BEFORE the page's own scripts — the only moment they work. (The engine's own way ran them some time after
+   *     the page had started: on YouTube the player had already read its ad settings, the anti-adblock checks had already
+   *     run, and half-applied patches left the player in a broken state.)
+   *   - the engine's preload script (top frame only) asks for the element-hiding rules, at start and whenever new
+   *     classes / ids show up in the page.
+   */
   _registerCosmetic(sessionInstance) {
     if (!this.blocker || this.blocker.config.loadCosmeticFilters === false) return;
     if (typeof sessionInstance.registerPreloadScript !== 'function' || this._cosmeticPreloads.has(sessionInstance)) return;
     try {
-      const id = sessionInstance.registerPreloadScript({ type: 'frame', filePath: this._preloadPath() });
-      this._cosmeticPreloads.set(sessionInstance, id);
+      this._installCosmeticHandlers();                    // before the scripts: the scriptlet script waits for its answer
     } catch (err) {
       console.warn('Could not register the element-hiding script:', err && err.message);
       return;
     }
-    this._installCosmeticHandlers();
+    const ids = [];
+    try {
+      ids.push(sessionInstance.registerPreloadScript({ type: 'frame', filePath: this._scriptletPreloadPath() }));
+      ids.push(sessionInstance.registerPreloadScript({ type: 'frame', filePath: this._preloadPath() }));
+    } catch (err) {
+      console.warn('Could not register the element-hiding script:', err && err.message);
+      for (const id of ids) { try { sessionInstance.unregisterPreloadScript(id); } catch (_) { /* ignore */ } }
+      return;
+    }
+    this._cosmeticPreloads.set(sessionInstance, ids);
   }
 
   _unregisterCosmetic(sessionInstance) {
-    const id = this._cosmeticPreloads.get(sessionInstance);
-    if (id === undefined) return;
+    const ids = this._cosmeticPreloads.get(sessionInstance);
+    if (ids === undefined) return;
     this._cosmeticPreloads.delete(sessionInstance);
-    try { sessionInstance.unregisterPreloadScript(id); } catch (_) { /* session is gone */ }
+    for (const id of ids) { try { sessionInstance.unregisterPreloadScript(id); } catch (_) { /* session is gone */ } }
   }
 
   _installCosmeticHandlers() {
@@ -307,19 +340,29 @@ class AdBlockerService {
     ipcMain.removeHandler(MUTATION_CHANNEL);
     ipcMain.handle(COSMETIC_CHANNEL, (event, url, msg) => this._onCosmeticRequest(event, url, msg));
     ipcMain.handle(MUTATION_CHANNEL, () => Boolean(this.blocker && this.blocker.config.enableMutationObserver));
+    ipcMain.removeAllListeners(SCRIPTLET_CHANNEL);
+    ipcMain.on(SCRIPTLET_CHANNEL, (event, url) => {
+      // a synchronous message: the frame waits for returnValue, so it is ALWAYS set
+      let scripts = [];
+      try { scripts = this.scriptletsFor(event, url); } catch (err) { console.warn('Could not look up the scriptlets:', err && err.message); }
+      event.returnValue = scripts;
+    });
     this._cosmeticHandlersInstalled = true;
   }
 
-  /** A frame asks which elements to hide / which scriptlets to run. Only web pages, only when the blocker is in force. */
-  _onCosmeticRequest(event, url, msg) {
-    if (!this.isEnabled || !this.blocker || typeof url !== 'string') return undefined;
+  /**
+   * The host of the frame's address when the blocker is in force for it (and for the page it is part of), else ''.
+   * Never for the browser's own pages.
+   */
+  _cosmeticHostFor(event, url) {
+    if (!this.isEnabled || !this.blocker || typeof url !== 'string') return '';
     let frameHost;
     try {
       const u = new URL(url);
-      if (u.protocol !== 'http:' && u.protocol !== 'https:') return undefined;     // never the browser's own pages
+      if (u.protocol !== 'http:' && u.protocol !== 'https:') return '';
       frameHost = u.hostname;
     } catch (_) {
-      return undefined;
+      return '';
     }
     if (this._paused.size > 0) {
       let topHost = '';
@@ -327,9 +370,52 @@ class AdBlockerService {
         const sender = event && event.sender;
         if (sender && !(sender.isDestroyed && sender.isDestroyed())) topHost = hostnameOf(sender.getURL());
       } catch (_) { /* ignore */ }
-      if (this.isSitePaused(frameHost) || (topHost && this.isSitePaused(topHost))) return undefined;
+      if (this.isSitePaused(frameHost) || (topHost && this.isSitePaused(topHost))) return '';
     }
-    return this.blocker.onInjectCosmeticFilters(event, url, msg);
+    return frameHost;
+  }
+
+  _cosmetics(event, url, msg, { injection }) {
+    const parsed = parseDomain(url);
+    const first = msg === undefined;
+    return this.blocker.getCosmeticsFilters({
+      url,
+      hostname: parsed.hostname || '',
+      domain: parsed.domain || '',
+      classes: msg && msg.classes,
+      hrefs: msg && msg.hrefs,
+      ids: msg && msg.ids,
+      getBaseRules: !injection && first,
+      getInjectionRules: injection,
+      getExtendedRules: false,
+      getRulesFromHostname: first,
+      getRulesFromDOM: !injection && !first,
+      callerContext: { frameId: event && event.frameId, processId: event && event.processId, lifecycle: msg && msg.lifecycle }
+    });
+  }
+
+  /**
+   * The uBlock scriptlets for a frame that is just starting (asked by preload-scriptlets.js). Each one is wrapped so that
+   * one failing scriptlet cannot stop the others. @returns {string[]}
+   */
+  scriptletsFor(event, url) {
+    if (!this._cosmeticHostFor(event, url)) return [];
+    const { active, scripts } = this._cosmetics(event, url, undefined, { injection: true });
+    if (active === false || !Array.isArray(scripts)) return [];
+    return scripts.filter((s) => typeof s === 'string' && s).map((s) => `(function(){try{\n${s}\n}catch(e){}})();`);
+  }
+
+  /**
+   * A top frame asks which elements to hide (the engine's preload script: at start without `msg`, later with the classes /
+   * ids / links that appeared). Scriptlets are not part of the answer any more: they already ran at document start.
+   */
+  async _onCosmeticRequest(event, url, msg) {
+    if (!this._cosmeticHostFor(event, url)) return undefined;
+    const { active, styles } = this._cosmetics(event, url, msg, { injection: false });
+    if (active === false || !styles) return undefined;
+    const sender = event && event.sender;
+    if (sender && !(sender.isDestroyed && sender.isDestroyed())) await Promise.resolve(sender.insertCSS(styles, { cssOrigin: 'user' })).catch(() => {});
+    return undefined;
   }
 
   // ─── Lists and the compiled engine ────────────────────────────────────────

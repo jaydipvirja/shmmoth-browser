@@ -126,7 +126,7 @@ test('the private signing key can never be committed', () => {
 });
 test('all core source files parse without syntax errors', () => {
   const { execFileSync } = require('child_process');
-  for (const rel of ['src/main.js', 'src/preload-external.js', 'src/preload-gesture.js', 'src/preload-internal.js']) {
+  for (const rel of ['src/main.js', 'src/preload-external.js', 'src/preload-gesture.js', 'src/preload-internal.js', 'src/preload-scriptlets.js']) {
     execFileSync(process.execPath, ['-c', path.join(ROOT, rel)]);
   }
 });

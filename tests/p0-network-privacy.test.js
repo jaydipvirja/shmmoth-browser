@@ -39,7 +39,7 @@ Module._load = function (request, ...args) {
       app: { getPath: (n) => path.join(ROOT, n), quit() {} },
       shell: { openPath: async () => '', showItemInFolder() {} },
       dialog: {},
-      ipcMain: { handle(ch, fn) { ipc.handlers[ch] = fn; }, removeHandler(ch) { delete ipc.handlers[ch]; } }
+      ipcMain: { handle(ch, fn) { ipc.handlers[ch] = fn; }, removeHandler(ch) { delete ipc.handlers[ch]; }, on() {}, removeAllListeners() {} }
     };
   }
   if (request === '@ghostery/adblocker-electron') return { ElectronBlocker: gm.ElectronBlocker, Request: gm.Request };

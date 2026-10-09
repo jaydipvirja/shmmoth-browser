@@ -83,6 +83,9 @@ const PRELOAD_EXTERNAL = path.join(__dirname, 'preload-external.js');
 // ─── Standard Zoom Levels (Stage 3) ───────────────────────────────────────────
 const ZOOM_LEVELS = [0.25, 0.33, 0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0, 4.0, 5.0];
 
+// How long the right-click menu waits for the page to say whether a video / audio is under the cursor
+const CONTEXT_MENU_HIT_TEST_MS = 250;
+
 /**
  * Returns the correct preload path for a given URL.
  * Trusted internal pages (mtc:// and the exact app-shipped file:// documents)
@@ -382,29 +385,6 @@ class ShmmothBrowserApp {
         .then(() => app.quit());
     });
     this.setupLoginDurability();
-
-    // A trusted preload bridge is used on YouTube because the page can suppress contextmenu before Electron
-    // emits its own context-menu event. The bridge reuses the exact native menu builder below.
-    ipcMain.on('shmmoth:youtube-context-menu', (event, payload) => {
-      const wc = event && event.sender;
-      if (!wc || wc.isDestroyed()) return;
-      let url = '';
-      try { url = wc.getURL() || ''; } catch (_) {}
-      let host = '';
-      try { host = new URL(url).hostname.toLowerCase(); } catch (_) {}
-      if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
-      const x = Math.max(0, Math.round(Number(payload && payload.x) || 0));
-      const y = Math.max(0, Math.round(Number(payload && payload.y) || 0));
-      // Re-enter the normal context-menu path so links, media actions and navigation items stay identical.
-      wc.emit('context-menu', { preventDefault() {} }, {
-        pageURL: url,
-        frame: null,
-        menuSourceType: 'mouse',
-        x, y,
-        mediaType: 'none',
-        mediaFlags: {}
-      });
-    });
 
     log.info('SHMMOTH Browser initialisation complete');
   }
@@ -1822,66 +1802,13 @@ class ShmmothBrowserApp {
       }
     });
 
-    // ── Native mouse fallback for YouTube context menus ──
-    // YouTube can consume/suppress the renderer contextmenu event. The preload bridge handles the normal
-    // path, while this main-process timer is a second line of defence based on Electron's real mouse event.
-    // We do not prevent the mouse event here, so YouTube's own menu still has priority. The fallback only
-    // fires when neither the native context-menu event nor the trusted preload bridge arrived.
-    wc.on('before-mouse-event', (event, mouse) => {
-      if (!mouse || mouse.type !== 'mouseDown' || mouse.button !== 'right') return;
-      let currentUrl = '';
-      try { currentUrl = wc.getURL() || ''; } catch (_) {}
-      let host = '';
-      try { host = new URL(currentUrl).hostname.toLowerCase(); } catch (_) {}
-      if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
-
-      if (wc.__shmmothYoutubeContextTimer) {
-        clearTimeout(wc.__shmmothYoutubeContextTimer);
-        wc.__shmmothYoutubeContextTimer = null;
-      }
-      const token = (Number(wc.__shmmothYoutubeContextToken) || 0) + 1;
-      wc.__shmmothYoutubeContextToken = token;
-      const x = Math.max(0, Math.round(Number(mouse.x) || 0));
-      const y = Math.max(0, Math.round(Number(mouse.y) || 0));
-
-      wc.__shmmothYoutubeContextTimer = setTimeout(async () => {
-        wc.__shmmothYoutubeContextTimer = null;
-        if (wc.isDestroyed() || wc.__shmmothYoutubeContextToken !== token) return;
-
-        let media = null;
-        try {
-          media = await wc.executeJavaScript(
-            "(function(){var x=" + x + ",y=" + y + ";var isMedia=function(el){return el&&(el.tagName==='VIDEO'||el.tagName==='AUDIO');};var media=document.elementsFromPoint(x,y).find(isMedia);if(!media){media=document.querySelector('video.html5-main-video, video, audio');if(media){var r=media.getBoundingClientRect();if(!(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))media=null;}}if(!media)return null;return {kind:media.tagName.toLowerCase(),isPaused:!!media.paused,isMuted:!!media.muted,isLooping:!!media.loop,isControlsVisible:!!media.controls,canToggleControls:true,canShowPictureInPicture:media.tagName==='VIDEO'&&!!(document.pictureInPictureEnabled&&media.requestPictureInPicture),srcURL:media.currentSrc||media.src||''};})()",
-            true
-          );
-        } catch (_) {}
-
-        if (!media || (media.kind !== 'video' && media.kind !== 'audio')) return;
-        try {
-          wc.emit('context-menu', { preventDefault() {} }, {
-            pageURL: currentUrl,
-            frame: null,
-            menuSourceType: 'mouse',
-            x, y,
-            mediaType: media.kind,
-            mediaFlags: media,
-            srcURL: media.srcURL || ''
-          });
-        } catch (err) {
-          log.warn('YouTube native context-menu fallback failed', { error: err.message });
-        }
-      }, 180);
-      if (wc.__shmmothYoutubeContextTimer.unref) wc.__shmmothYoutubeContextTimer.unref();
-    });
-
     // ── Page Context Menu (Chrome/Edge Style) ──
+    // Pages such as YouTube show their own menu on a right-click on the video and let this one through on a second
+    // right-click (like in Chrome); Shift + right-click always opens this one (preload-gesture.js keeps it from the page).
+    let contextMenuSeq = 0;
     wc.on('context-menu', async (event, params) => {
-      if (wc.__shmmothYoutubeContextTimer) {
-        clearTimeout(wc.__shmmothYoutubeContextTimer);
-        wc.__shmmothYoutubeContextTimer = null;
-      }
-      wc.__shmmothYoutubeContextToken = (Number(wc.__shmmothYoutubeContextToken) || 0) + 1;
       event.preventDefault();
+      const seq = ++contextMenuSeq;
       const menu = new Menu();
 
       // Chromium may report mediaType="none" when a site's player controls or another overlay
@@ -1889,15 +1816,22 @@ class ShmmothBrowserApp {
       let detectedMedia = null;
       // Chromium can identify the media node but still omit srcURL (notably on Linux after a failed/slow media fetch).
       // Hit-test in that case too, so Save / Copy / Open actions can recover the element's currentSrc/src.
+      // The page gets a short moment to answer: a busy or stuck page must never keep the menu from opening.
       if ((params.mediaType !== 'video' && params.mediaType !== 'audio') || !params.srcURL) {
         try {
           const hitX = Math.max(0, Math.round(Number(params.x) || 0));
           const hitY = Math.max(0, Math.round(Number(params.y) || 0));
           const detectionScript = "(function(){var x=" + hitX + ",y=" + hitY + ";var isMedia=function(el){return el&&(el.tagName==='VIDEO'||el.tagName==='AUDIO');};var media=document.elementsFromPoint(x,y).find(isMedia);if(!media){media=document.querySelector('video.html5-main-video, video, audio');if(media){var r=media.getBoundingClientRect();if(!(x>=r.left&&x<=r.right&&y>=r.top&&y<=r.bottom))media=null;}}if(!media)return null;return {kind:media.tagName.toLowerCase(),isPaused:!!media.paused,isMuted:!!media.muted,isLooping:!!media.loop,isControlsVisible:!!media.controls,canToggleControls:true,canShowPictureInPicture:media.tagName==='VIDEO'&&!!(document.pictureInPictureEnabled&&media.requestPictureInPicture),srcURL:media.currentSrc||media.src||''};})()";
-          detectedMedia = await wc.executeJavaScript(detectionScript, true);
+          let timer = null;
+          detectedMedia = await Promise.race([
+            wc.executeJavaScript(detectionScript, true),
+            new Promise((resolve) => { timer = setTimeout(() => resolve(null), CONTEXT_MENU_HIT_TEST_MS); })
+          ]).finally(() => clearTimeout(timer));
         } catch (err) {
           if (typeof log.debug === 'function') log.debug('Media hit-test unavailable', { error: err.message });
         }
+        // a newer right-click (or the tab closing) while the page was asked: only the newest one gets a menu
+        if (seq !== contextMenuSeq || wc.isDestroyed()) return;
       }
       // 1. Link items
       if (params.linkURL) {
@@ -1964,15 +1898,17 @@ class ShmmothBrowserApp {
         const flags = params.mediaType === kind ? (params.mediaFlags || {}) : detectedMedia;
         const px = Math.max(0, Math.round(Number(params.x) || 0));
         const py = Math.max(0, Math.round(Number(params.y) || 0));
-        // runs `body` with `m` = the <video>/<audio> under the cursor, as a user action (play() and Picture-in-picture need one)
+        // runs `body` with `m` = the <video>/<audio> under the cursor, as a user action (play() and Picture-in-picture need one),
+        // and `p` = YouTube's player around it when there is one: play / pause / mute go through the player's own controls
+        // there (changing the <video> behind the player's back leaves its buttons showing the wrong state)
         const withMedia = (body) => wc.executeJavaScript(
-          `(function(){var m=document.elementsFromPoint(${px},${py}).find(function(e){return e.tagName==='VIDEO'||e.tagName==='AUDIO';});if(!m){m=document.querySelector('video.html5-main-video, video, audio');}if(!m)return;${body}})()`, true
+          `(function(){var m=document.elementsFromPoint(${px},${py}).find(function(e){return e.tagName==='VIDEO'||e.tagName==='AUDIO';});if(!m){m=document.querySelector('video.html5-main-video, video, audio');}if(!m)return;var p=m.closest?m.closest('.html5-video-player'):null;if(!(p&&typeof p.playVideo==='function'&&typeof p.pauseVideo==='function'))p=null;${body}})()`, true
         ).catch((err) => log.warn('Media menu action failed', { error: err.message }));
         const rawMediaUrl = params.srcURL || (detectedMedia && detectedMedia.srcURL) || '';
         const mediaUrl = /^https?:\/\//i.test(rawMediaUrl) ? rawMediaUrl : '';
 
-        menu.append(new MenuItem({ label: flags.isPaused === false ? 'Pause' : 'Play', click: () => withMedia('if(m.paused){m.play();}else{m.pause();}') }));
-        menu.append(new MenuItem({ label: flags.isMuted ? 'Unmute' : 'Mute', click: () => withMedia('m.muted=!m.muted;') }));
+        menu.append(new MenuItem({ label: flags.isPaused === false ? 'Pause' : 'Play', click: () => withMedia('if(m.paused){if(p){p.playVideo();}else{var r=m.play();if(r&&r.catch)r.catch(function(){});}}else if(p){p.pauseVideo();}else{m.pause();}') }));
+        menu.append(new MenuItem({ label: flags.isMuted ? 'Unmute' : 'Mute', click: () => withMedia('if(p&&typeof p.isMuted===\'function\'&&typeof p.mute===\'function\'&&typeof p.unMute===\'function\'){if(p.isMuted()){p.unMute();}else{p.mute();}}else{m.muted=!m.muted;}') }));
         menu.append(new MenuItem({ label: 'Loop', type: 'checkbox', checked: Boolean(flags.isLooping), click: () => withMedia('m.loop=!m.loop;') }));
         if (kind === 'video') {
           menu.append(new MenuItem({
@@ -2950,102 +2886,80 @@ class ShmmothBrowserApp {
     return baseUrl + encodeURIComponent(query);
   }
 
-  // ─── YouTube Ad Optimizer ────────────────────────────────────────────────
-
+  // ─── YouTube ads ─────────────────────────────────────────────────────────
+  //
+  // The filter lists remove most YouTube ads before the player sees them (uBlock's YouTube rules, run at document start
+  // by preload-scriptlets.js). This is only the last resort for an ad that still starts, and it must never get in the
+  // way of the user. Up to 1.1.13 it did: every 100 ms it called play() whenever an anti-adblock notice was anywhere in
+  // the page (pause was impossible), muted the video / set it to 16x / jumped to its end whenever an ad element was left
+  // over in the player (also during the real video; with ads stitched into the stream that skipped the whole video),
+  // clicked every "#dismiss-button" of the page, and hid the anti-adblock dialog but not its backdrop, which then took
+  // every click on the player. Now:
+  //   - it acts only while YouTube itself marks the player as showing an ad (class "ad-showing" on the main player)
+  //   - during the ad: muted and 16x, a skip button inside the player is pressed; afterwards mute and speed are put back
+  //     as they were (only what it changed itself)
+  //   - it never calls play() / pause(), never seeks, never touches dialogs; ad boxes outside the player are hidden
   _applyYouTubeOptimizer(wc, currentUrl) {
-    if (!currentUrl || !currentUrl.includes('youtube.com')) return;
+    let host = '';
+    try { host = new URL(currentUrl).hostname.toLowerCase(); } catch (_) { return; }
+    if (host !== 'youtube.com' && !host.endsWith('.youtube.com')) return;
     // part of the ad blocker: it has to stop when the user switches the blocker off (everywhere, or for this site)
-    try {
-      if (this.adBlocker && !this.adBlocker.isActiveFor(new URL(currentUrl).hostname)) return;
-    } catch (_) { return; }
+    if (this.adBlocker && !this.adBlocker.isActiveFor(host)) return;
 
     wc.insertCSS(`
       ytd-banner-promo-renderer, ytd-ad-slot-renderer,
       ytd-in-feed-ad-layout-renderer, ytd-promoted-sparkles-web-renderer,
       ytd-promoted-video-renderer, ytd-display-ad-renderer,
       ytd-statement-banner-renderer, .ytp-ad-overlay-container,
-      .ytp-ad-message-container, .ytp-ad-action-interstitial,
+      .ytp-ad-message-container, .ytp-ad-overlay-slot,
       #player-ads, #masthead-ad,
       ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
       ytd-item-section-renderer:has(ytd-ad-slot-renderer),
       ytd-engagement-panel-section-list-renderer[target-id="engagement-panel-ads"],
-      tp-yt-paper-dialog:has(ytd-enforcement-message-view-model),
-      .ytp-ad-preview-container, .ytp-ad-overlay-slot,
       ytd-companion-slot-renderer { display: none !important; }
-    `).catch(() => {});
+    `, { cssOrigin: 'user' }).catch(() => {});
 
     wc.executeJavaScript(`
-      (function() {
-        if (window.__mtc_yt_killer_active__) return;
-        window.__mtc_yt_killer_active__ = true;
-
-        try {
-          let _yp = window.ytInitialPlayerResponse;
-          Object.defineProperty(window, 'ytInitialPlayerResponse', {
-            get() { return _yp; },
-            set(val) {
-              if (val) { delete val.adPlacements; delete val.playerAds; delete val.adSlots; }
-              _yp = val;
-            },
-            configurable: true
-          });
-          if (_yp) { delete _yp.adPlacements; delete _yp.playerAds; delete _yp.adSlots; }
-        } catch(e) {}
-
-        try {
-          const origFetch = window.fetch;
-          window.fetch = async function(...args) {
-            const res = await origFetch.apply(this, args);
-            try {
-              const url = args[0] ? (typeof args[0] === 'string' ? args[0] : args[0].url) : '';
-              if (url && (url.includes('/youtubei/v1/player') || url.includes('/youtubei/v1/next'))) {
-                const clone = res.clone();
-                const text  = await clone.text();
-                try {
-                  const data = JSON.parse(text);
-                  if (data.adPlacements) delete data.adPlacements;
-                  if (data.playerAds)    delete data.playerAds;
-                  if (data.adSlots)      delete data.adSlots;
-                  return new Response(JSON.stringify(data), {
-                    headers: res.headers, status: res.status, statusText: res.statusText
-                  });
-                } catch(err) { return res; }
-              }
-            } catch(e) {}
-            return res;
-          };
-        } catch(e) {}
-
-        function nukeYouTubeAds() {
-          const video  = document.querySelector('video.html5-main-video') || document.querySelector('video');
-          const player = document.querySelector('.html5-video-player');
-          const isAd   = player && (
-            player.classList.contains('ad-showing') || player.classList.contains('ad-interrupting') ||
-            document.querySelector('.ytp-ad-player-overlay') ||
-            document.querySelector('.ytp-ad-text') || document.querySelector('.ytp-ad-preview-text')
-          );
-          if (isAd && video) {
-            video.muted = true;
-            video.playbackRate = 16.0;
-            if (isFinite(video.duration) && video.duration > 0) video.currentTime = video.duration;
+      (function () {
+        if (window.__shmmothYouTubeAds) return;
+        window.__shmmothYouTubeAds = true;
+        var SKIP = '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern';
+        var FAST = 16;
+        var player = null, observer = null;
+        var saved = null;                                  // { video, muted, rate } while an ad plays
+        function check() {
+          if (!player || !player.isConnected) return;
+          var video = player.querySelector('video.html5-main-video') || player.querySelector('video');
+          if (player.classList.contains('ad-showing') && video) {
+            if (!saved || saved.video !== video) saved = { video: video, muted: video.muted, rate: video.playbackRate };
+            if (!video.muted) video.muted = true;
+            if (video.playbackRate !== FAST) { try { video.playbackRate = FAST; } catch (e) {} }
+            var skip = player.querySelector(SKIP);
+            if (skip && typeof skip.click === 'function') skip.click();
+          } else if (saved) {
+            var v = saved.video;
+            if (v && v.isConnected) {
+              if (v.muted && !saved.muted) v.muted = false;
+              if (v.playbackRate === FAST) { try { v.playbackRate = saved.rate > 0 && saved.rate !== FAST ? saved.rate : 1; } catch (e) {} }
+            }
+            saved = null;
           }
-          const skipButtons = [
-            '.ytp-ad-skip-button', '.ytp-ad-skip-button-modern', '.ytp-skip-ad-button',
-            'button.ytp-ad-skip-button-icon', '.ytp-ad-overlay-close-button', '#dismiss-button'
-          ];
-          for (const sel of skipButtons) {
-            const btn = document.querySelector(sel);
-            if (btn && typeof btn.click === 'function') btn.click();
-          }
-          const dialog = document.querySelector(
-            'tp-yt-paper-dialog:has(ytd-enforcement-message-view-model) #dismiss-button, ytd-enforcement-message-view-model button'
-          );
-          if (dialog) { dialog.click(); if (video && video.paused) video.play(); }
         }
-
-        setInterval(nukeYouTubeAds, 100);
-        window.addEventListener('yt-navigate-finish', nukeYouTubeAds);
-        nukeYouTubeAds();
+        function attach() {
+          var p = document.querySelector('#movie_player.html5-video-player') || document.querySelector('.html5-video-player');
+          if (p !== player) {
+            if (observer) observer.disconnect();
+            observer = null;
+            player = p;
+            if (p && window.MutationObserver) {
+              observer = new MutationObserver(check);
+              observer.observe(p, { attributes: true, attributeFilter: ['class'] });
+            }
+          }
+          check();
+        }
+        attach();
+        setInterval(attach, 500);
       })();
     `).catch(() => {});
   }
