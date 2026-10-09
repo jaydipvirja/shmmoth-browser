@@ -1887,7 +1887,9 @@ class ShmmothBrowserApp {
       // Chromium may report mediaType="none" when a site's player controls or another overlay
       // sits above the real <video>/<audio>. Hit-test the DOM whenever Chromium did not identify media.
       let detectedMedia = null;
-      if (params.mediaType !== 'video' && params.mediaType !== 'audio') {
+      // Chromium can identify the media node but still omit srcURL (notably on Linux after a failed/slow media fetch).
+      // Hit-test in that case too, so Save / Copy / Open actions can recover the element's currentSrc/src.
+      if ((params.mediaType !== 'video' && params.mediaType !== 'audio') || !params.srcURL) {
         try {
           const hitX = Math.max(0, Math.round(Number(params.x) || 0));
           const hitY = Math.max(0, Math.round(Number(params.y) || 0));
