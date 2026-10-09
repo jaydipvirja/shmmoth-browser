@@ -21,6 +21,7 @@ const fs   = require('fs');
 const StorageService   = require('./services/storage');
 const AdBlockerService = require('./services/adblocker');
 const PopupPolicy      = require('./services/popupPolicy');
+const GoogleSignIn     = require('./services/googleSignIn');
 const PasswordGate     = require('./services/passwordGate');
 const RamSaverService  = require('./services/ramSaver');
 const DownloadManager  = require('./services/downloadManager');
@@ -50,17 +51,13 @@ app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 // to anti-bot checks). Always derive it from the runtime.
 const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
 const CHROME_REDUCED = `Chrome/${CHROME_MAJOR}.0.0.0`;
-const DESKTOP_UA_FALLBACK = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Safari/537.36`;
+const DESKTOP_UA_FALLBACK = `Mozilla/5.0 (${GoogleSignIn.osToken(process.platform)}) AppleWebKit/537.36 (KHTML, like Gecko) ${CHROME_REDUCED} Safari/537.36`;
 app.userAgentFallback = DESKTOP_UA_FALLBACK;
 
-// Google authentication uses the same desktop Chrome identity as the rest of the browser.
- // Keeping one stable UA / Client-Hints identity avoids login-session churn between accounts.google.com,
- // myaccount.google.com, YouTube and other Google services.
-const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;
-
+// Google's sign-in pages (accounts.google.com, accounts.youtube.com): see services/googleSignIn.js for how the browser
+// presents itself there. Nothing else about the browser is disguised — pages see the engine's own, native values.
 function isGoogleAuthUrl(url) {
-  if (typeof url !== 'string') return false;
-  return url.includes('accounts.google.com') || url.includes('accounts.youtube.com');
+  return GoogleSignIn.isSignInUrl(url);
 }
 
 // ─── Register custom privileged scheme for internal mtc:// pages ─────────────
@@ -205,9 +202,12 @@ class ShmmothBrowserApp {
     session.defaultSession.setUserAgent(this.cleanUa);
     session.fromPartition('incognito').setUserAgent(this.cleanUa);
 
-    // Synchronize Client Hints and headers for Google accounts and services
-    this.setupGoogleAuthHeaders(session.defaultSession);
-    this.setupGoogleAuthHeaders(session.fromPartition('incognito'));
+    // Google's sign-in pages: which browser identity is shown there, and a retry with the next one when Google refuses
+    this.googleSignIn = new GoogleSignIn({
+      storage: this.storage, platform: process.platform, chromeVersion: process.versions.chrome, appVersion: app.getVersion(), log
+    });
+    this.setupSignInClientHints(session.defaultSession);
+    this.setupSignInClientHints(session.fromPartition('incognito'));
 
     // 2. Extension Manager & Chrome extensions (Stage 7)
     this.extensionManager = new ExtensionManager();
@@ -1383,35 +1383,104 @@ class ShmmothBrowserApp {
   }
 
   /**
-   * Synchronizes Client Hints (sec-ch-ua) and User-Agent headers with genuine Google Chrome
-   * for all Google Authentication and Google service requests.
-   *
-   * @param {Electron.Session} targetSession
+   * Requests are sent as the engine makes them: no header is rewritten to pass for Google Chrome (that is what got the
+   * sign-in refused, see services/googleSignIn.js). Two exceptions on Google's sign-in pages only:
+   *   - a page request that arrives there by a redirect (gmail.com → accounts.google.com) carries the sign-in identity's
+   *     User-Agent, the same one the page itself then reports (the tab's own User-Agent is switched when it navigates,
+   *     which a redirect is not)
+   *   - while the Firefox identity is shown, the Chromium client hints (Sec-CH-UA…) are left out, as Firefox never sends them
    */
-  setupGoogleAuthHeaders(targetSession) {
+  setupSignInClientHints(targetSession) {
     if (!targetSession || !targetSession.webRequest) return;
-    const filter = {
-      urls: [
-        '*://*.google.com/*',
-        '*://*.gstatic.com/*',
-        '*://*.googleusercontent.com/*',
-        '*://*.youtube.com/*',
-        '*://*.recaptcha.net/*'
-      ]
-    };
+    const filter = { urls: ['https://accounts.google.com/*', 'https://accounts.youtube.com/*', 'https://*.google.com/*', 'https://*.gstatic.com/*'] };
     targetSession.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
-      const headers = details.requestHeaders;
-      const ua = this.cleanUa || app.userAgentFallback || DESKTOP_UA_FALLBACK;
-      const chromeVer = (ua.match(/Chrome\/(\d+)/) || [])[1] || CHROME_MAJOR;
-
-      // Google auth and ordinary Google/YouTube traffic deliberately share one stable desktop identity.
-      headers['User-Agent'] = ua;
-      headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
-      headers['sec-ch-ua-mobile'] = '?0';
-      headers['sec-ch-ua-platform'] = '"Windows"';
-
+      if (!this.googleSignIn) return callback({});
+      let pageUrl = '';
+      try {
+        const wc = details.webContents;
+        if (wc && !wc.isDestroyed()) pageUrl = wc.getURL() || '';
+      } catch (_) { /* gone */ }
+      const isPage = details.resourceType === 'mainFrame' && GoogleSignIn.isSignInUrl(details.url);
+      const pageUa = isPage ? this._userAgentFor(details.url) : '';
+      const hideHints = this.googleSignIn.hidesClientHints(isPage ? details.url : (pageUrl || details.url));
+      const headers = Object.assign({}, details.requestHeaders);
+      const uaName = Object.keys(headers).find((n) => n.toLowerCase() === 'user-agent') || 'User-Agent';
+      if ((!pageUa || headers[uaName] === pageUa) && !hideHints) return callback({});
+      if (pageUa) headers[uaName] = pageUa;
+      if (hideHints) for (const name of Object.keys(headers)) if (/^sec-ch-ua/i.test(name)) delete headers[name];
       callback({ requestHeaders: headers });
     });
+  }
+
+  /** The User-Agent for a page of a tab or a sign-in window: the sign-in identity on Google's sign-in pages. */
+  _userAgentFor(url) {
+    const normal = this.cleanUa || app.userAgentFallback;
+    return this.googleSignIn ? this.googleSignIn.userAgentFor(url, normal) : normal;
+  }
+
+  /**
+   * Watches a tab or a sign-in window for Google's refusal page and starts the sign-in again with the next browser
+   * identity (see services/googleSignIn.js). The page is recognised by its address, and — in case Google moves it — by
+   * the link to Google's help article for this refusal, which the page carries in every language.
+   */
+  _watchGoogleSignIn(wc, parentWindow) {
+    if (!wc || wc.__shmmothSignInWatched) return;
+    wc.__shmmothSignInWatched = true;
+    const wcId = wc.id;
+    const act = (url, refused) => {
+      if (!this.googleSignIn || wc.isDestroyed()) return;
+      const r = this.googleSignIn.noteNavigation(wcId, url, { refused });
+      if (r.action === 'retry') {
+        log.info('Google sign-in refused; starting again with another browser identity', { profile: r.profile });
+        wc.setUserAgent(this._userAgentFor(r.url));
+        wc.loadURL(r.url).catch(() => {});
+      } else if (r.action === 'give-up') {
+        this._explainGoogleRefusal(wc, parentWindow);
+      }
+    };
+    const lookInPage = (url) => {
+      if (!GoogleSignIn.isSignInUrl(url) || GoogleSignIn.isRefusalUrl(url)) return;
+      for (const delay of [800, 2500]) {
+        setTimeout(() => {
+          if (wc.isDestroyed() || wc.getURL() !== url) return;
+          wc.executeJavaScript(`!!document.querySelector('a[href*="answer/${GoogleSignIn.REFUSAL_HELP_ANSWER}"]')`)
+            .then((refused) => { if (refused === true && wc.getURL() === url) act(url, true); })
+            .catch(() => {});
+        }, delay);
+      }
+    };
+    wc.on('did-navigate', (_, url) => { act(url, false); lookInPage(url); });
+    wc.on('did-navigate-in-page', (_, url, isMainFrame) => { if (isMainFrame === false) return; act(url, false); lookInPage(url); });
+    wc.once('destroyed', () => { if (this.googleSignIn) this.googleSignIn.forget(wcId); });
+  }
+
+  /** Every browser identity was refused in this sign-in: say so once, in plain words, and offer to try again. */
+  async _explainGoogleRefusal(wc, parentWindow) {
+    const parent = parentWindow && !parentWindow.isDestroyed() ? parentWindow : this.mainWindow;
+    const options = {
+      type: 'warning',
+      title: 'Google sign-in',
+      message: 'Google refused to sign in this browser.',
+      detail: 'Google blocks sign-in from browsers it cannot tell apart from an embedded or automated one ("This browser or app may not be secure"). '
+        + 'SHMMOTH tried each of its browser identities and Google refused all of them this time. This is a decision on Google\'s side, often for a while '
+        + 'after several attempts from the same computer. Try again later, or sign in to Google in another browser for now.',
+      buttons: ['Try again', 'Close'],
+      defaultId: 1,
+      cancelId: 1,
+      noLink: true
+    };
+    try {
+      const { response } = parent && !parent.isDestroyed() ? await dialog.showMessageBox(parent, options) : await dialog.showMessageBox(options);
+      if (response === 0 && !wc.isDestroyed() && this.googleSignIn) {
+        this.googleSignIn.resetFlow(wc.id);
+        const here = wc.getURL();
+        const again = GoogleSignIn.restartUrl(here, here);
+        wc.setUserAgent(this._userAgentFor(again));
+        wc.loadURL(again).catch(() => {});
+      }
+    } catch (err) {
+      log.warn('Could not show the Google sign-in notice', { error: err.message });
+    }
   }
 
   // ─── Content Permissions & Security (Stage 5) ───────────────────────────
@@ -1618,7 +1687,7 @@ class ShmmothBrowserApp {
     const view = new WebContentsView({ webPreferences });
 
     if (view.webContents) {
-      view.webContents.setUserAgent(isGoogleAuthUrl(initialUrl) ? GOOGLE_AUTH_UA : (this.cleanUa || app.userAgentFallback));
+      view.webContents.setUserAgent(this._userAgentFor(initialUrl));
     }
 
     const tabData = {
@@ -1738,12 +1807,10 @@ class ShmmothBrowserApp {
     // ── Navigation events ──
     const updateTabUa = (targetUrl) => {
       if (!wc || wc.isDestroyed()) return;
-      if (isGoogleAuthUrl(targetUrl)) {
-        wc.setUserAgent(GOOGLE_AUTH_UA);
-      } else if (this.cleanUa) {
-        wc.setUserAgent(this.cleanUa);
-      }
+      const ua = this._userAgentFor(targetUrl);
+      if (ua && wc.getUserAgent() !== ua) wc.setUserAgent(ua);
     };
+    this._watchGoogleSignIn(wc, tabData.isIncognito ? this.incognitoWindow : this.mainWindow);
 
     wc.on('will-navigate', (_, navUrl) => {
       updateTabUa(navUrl);
@@ -2113,25 +2180,16 @@ class ShmmothBrowserApp {
     wc.on('did-create-window', (childWin, { url: childUrl }) => {
       if (!childWin || !childWin.webContents) return;
       this._applyWebRtcPolicy(childWin.webContents);
-      if (isGoogleAuthUrl(childUrl)) {
-        childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
-      }
-      childWin.webContents.on('will-navigate', (_, navUrl) => {
-        if (isGoogleAuthUrl(navUrl)) {
-          childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
-        } else if (this.cleanUa) {
-          childWin.webContents.setUserAgent(this.cleanUa);
-        }
-      });
-      childWin.webContents.on('did-start-navigation', (_, navUrl, isInPlace, isMainFrame) => {
-        if (isMainFrame) {
-          if (isGoogleAuthUrl(navUrl)) {
-            childWin.webContents.setUserAgent(GOOGLE_AUTH_UA);
-          } else if (this.cleanUa) {
-            childWin.webContents.setUserAgent(this.cleanUa);
-          }
-        }
-      });
+      const child = childWin.webContents;
+      const updateChildUa = (navUrl) => {
+        if (child.isDestroyed()) return;
+        const ua = this._userAgentFor(navUrl);
+        if (ua && child.getUserAgent() !== ua) child.setUserAgent(ua);
+      };
+      updateChildUa(childUrl);
+      child.on('will-navigate', (_, navUrl) => updateChildUa(navUrl));
+      child.on('did-start-navigation', (_, navUrl, isInPlace, isMainFrame) => { if (isMainFrame) updateChildUa(navUrl); });
+      this._watchGoogleSignIn(child, childWin);
     });
 
     // ── Audio & Mute State ──

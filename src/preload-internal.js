@@ -261,61 +261,7 @@ const isInternalPage = isTrustedInternalLocation();
 if (isInternalPage) {
   contextBridge.exposeInMainWorld('mtcAPI', apiSurface);
   contextBridge.exposeInMainWorld('shmmothAPI', apiSurface);
-} else {
-  // If an internal tab was navigated to an external web page, isolate the environment
-  // and align navigator.userAgentData with genuine Google Chrome
-  try {
-    const { webFrame } = require('electron');
-    const FALLBACK_CHROME_MAJOR = String((typeof process !== 'undefined' && process.versions && process.versions.chrome) || '130').split('.')[0];
-    webFrame.executeJavaScriptInIsolatedWorld(0, [{
-      code: `
-        try {
-          if (navigator.userAgentData) {
-            const ua = navigator.userAgent || '';
-            const isAndroid = ua.includes('Android');
-            const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '${FALLBACK_CHROME_MAJOR}';
-            const chromeBrands = [
-              { brand: 'Chromium', version: chromeVersion },
-              { brand: 'Google Chrome', version: chromeVersion },
-              { brand: 'Not?A_Brand', version: '99' }
-            ];
-
-            const proto = Object.getPrototypeOf(navigator.userAgentData);
-            if (proto) {
-              Object.defineProperty(proto, 'brands', {
-                get: () => chromeBrands,
-                configurable: true
-              });
-              if (isAndroid) {
-                Object.defineProperty(proto, 'mobile', {
-                  get: () => true,
-                  configurable: true
-                });
-                Object.defineProperty(proto, 'platform', {
-                  get: () => 'Android',
-                  configurable: true
-                });
-              }
-            }
-
-            if (navigator.userAgentData.getHighEntropyValues) {
-              const origGetHighEntropyValues = navigator.userAgentData.getHighEntropyValues;
-              navigator.userAgentData.getHighEntropyValues = async function(hints) {
-                const res = await origGetHighEntropyValues.call(this, hints);
-                const copy = Object.assign({}, res);
-                if (chromeBrands) copy.brands = chromeBrands;
-                if (isAndroid) {
-                  if ('mobile' in copy) copy.mobile = true;
-                  if ('platform' in copy) copy.platform = 'Android';
-                  if ('platformVersion' in copy) copy.platformVersion = '14.0.0';
-                  if ('model' in copy) copy.model = 'Pixel 8';
-                }
-                return copy;
-              };
-            }
-          }
-        } catch (_) {}
-      `
-    }]);
-  } catch (_) {}
 }
+// A tab that was navigated from an internal page to a web page gets no API (above) and no disguise either: web pages see
+// the engine's own navigator values (a replaced navigator.userAgentData is what Google's sign-in refuses, see
+// services/googleSignIn.js).

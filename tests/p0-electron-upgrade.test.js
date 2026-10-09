@@ -112,17 +112,17 @@ const ExtensionManager = require('../src/services/extensionManager');
     }
   });
 
-  await test('main.js derives the Chrome major from process.versions.chrome and uses it for the UA and sec-ch-ua', async () => {
+  await test('main.js derives the Chrome major from process.versions.chrome for the User-Agent (and writes no sec-ch-ua of its own)', async () => {
     assert(/CHROME_MAJOR\s*=\s*String\(\(process\.versions && process\.versions\.chrome\)/.test(main));
-    assert(/const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;/.test(main), 'Google auth must keep the same desktop identity');
-    assert(/headers\['sec-ch-ua'\] = .*\$\{chromeVer\}.*Google Chrome.*\$\{chromeVer\}/.test(main), 'sec-ch-ua must use the runtime Chrome version');
+    assert(/DESKTOP_UA_FALLBACK = `Mozilla\/5\.0 \(\$\{GoogleSignIn\.osToken\(process\.platform\)\}\) AppleWebKit\/537\.36 \(KHTML, like Gecko\) \$\{CHROME_REDUCED\}/.test(main), 'fallback UA from the running engine and OS');
+    assert(!/headers\['sec-ch-ua'\]/.test(main), 'client hints come from the engine itself (a rewritten Sec-CH-UA got the Google sign-in refused)');
   });
 
-  await test('preloads fall back to the runtime version (not a constant) when the UA has no Chrome token', async () => {
-    for (const f of ['preload-internal.js', 'preload-external.js']) {
-      const src = read(f);
-      assert(/FALLBACK_CHROME_MAJOR/.test(src) && /process\.versions\.chrome/.test(src), f);
-    }
+  await test('the Google sign-in identities follow the running engine and app version (services/googleSignIn.js)', async () => {
+    assert(/chromeVersion: process\.versions\.chrome, appVersion: app\.getVersion\(\)/.test(main));
+    const GoogleSignIn = require('../src/services/googleSignIn');
+    const env = { platform: 'win32', chromeVersion: '199.0.1.2', appVersion: '9.9.9' };
+    assert(GoogleSignIn.userAgentOf('app', env).includes('Chrome/199.0.1.2') && GoogleSignIn.userAgentOf('chrome', env).includes('Chrome/199.0.0.0'));
   });
 
   try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch (_) { /* ignore */ }

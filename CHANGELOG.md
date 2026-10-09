@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.1.15
+
+### Google sign-in — "Couldn't sign you in: This browser or app may not be secure"
+- **The browser no longer disguises itself, which is what Google refused.** Up to 1.1.14 a script in every page replaced `navigator.userAgentData` with JavaScript functions that claimed "Google Chrome", and the requests to Google got a rewritten header saying the same. Google's sign-in check runs inside the page and is built to catch exactly that: the replaced functions are not native code, frames and workers the script never reached still said "Chromium", and the version fields did not match the engine. A browser that lies about itself looks like the man-in-the-middle tools the check is there to stop, so the sign-in was refused. Now every page sees the browser's real, native values, and no header is rewritten.
+- **On Google's sign-in pages the browser names itself honestly**, like Opera or Edge do: `… SHMMOTH/1.1.15 Chrome/152.… Safari/537.36` (never "Electron", which Google blocks outright).
+- **If Google refuses anyway, the browser tries again by itself.** It recognises Google's refusal page and starts the sign-in again from the beginning (same destination, e.g. back to YouTube or Gmail) with the next identity: plain Chromium, then Firefox. The one that works is remembered for next time. If Google refuses all of them, you get one plain message with *Try again* instead of an endless loop — that is a decision on Google's side, often for a while after several attempts from the same computer.
+- The sign-in identity now always matches the real operating system (a Mac never claims to be Windows), and an address that merely *contains* "accounts.google.com" (e.g. in a search query) is no longer treated as Google's sign-in.
+
 ## 1.1.14
 
 ### YouTube — play / pause and right-click work again

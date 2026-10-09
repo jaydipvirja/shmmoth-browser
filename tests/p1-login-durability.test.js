@@ -83,12 +83,11 @@ async function main() {
     assert(block.includes('app.quit()') && block.includes('_dataFlushed'), 'it quits again afterwards and does not loop');
   });
 
-  await test('Google authentication uses one stable desktop browser identity', async () => {
-    assert(/const GOOGLE_AUTH_UA = DESKTOP_UA_FALLBACK;/.test(main), 'Google auth UA must match the desktop fallback');
-    const headersBlock = main.slice(main.indexOf('setupGoogleAuthHeaders(targetSession)'), main.indexOf('// ─── Content Permissions', main.indexOf('setupGoogleAuthHeaders(targetSession)')));
-    assert(!/sec-ch-ua-mobile.*\?1/.test(headersBlock), 'Google headers must not switch to mobile');
-    assert(!/Android/.test(headersBlock), 'Google headers must not switch to Android');
-    assert(/headers\['User-Agent'\] = ua;/.test(headersBlock), 'Google service requests use the same clean UA');
+  await test('Google sign-in: one desktop identity per sign-in, chosen in services/googleSignIn.js; nothing switches to mobile', async () => {
+    assert(/new GoogleSignIn\(\{/.test(main) && /this\._userAgentFor\(/.test(main), 'the sign-in identity comes from the service');
+    assert(!/Android|Pixel|sec-ch-ua-mobile/.test(main), 'no mobile identity any more');
+    const svc = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'googleSignIn.js'), 'utf8');
+    assert(!/Android|Mobile Safari/.test(svc), 'every identity is a desktop one');
   });
 
   await test('right-click: one menu per right-click, never held up by the page; Shift + right-click is kept from the page', async () => {

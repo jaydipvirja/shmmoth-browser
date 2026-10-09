@@ -1,61 +1,39 @@
 /**
- * GOOGLE LOGIN VERIFICATION TEST
+ * GOOGLE LOGIN VERIFICATION TEST (talks to the live accounts.google.com; kept for manual use, not in the automated suite)
  *
- * Verifies that:
- * 1. User-Agent is clean and does not leak 'Electron/' or app names.
- * 2. Client Hints (sec-ch-ua) include "Google Chrome".
- * 3. DOM navigator.userAgentData.brands includes "Google Chrome".
- * 4. DOM navigator.webdriver is false.
- * 5. Window does not expose shmmothBrowser or mtcBrowser to external pages.
- * 6. Google accounts page loads modern GlifWebSignIn without being degraded to WebLiteSignIn.
+ * Verifies, with the identity the browser shows on Google's sign-in pages (services/googleSignIn.js):
+ * 1. The User-Agent does not leak 'Electron/'.
+ * 2. Nothing is disguised: navigator.userAgentData is the engine's own (native functions, no "Google Chrome").
+ * 3. DOM navigator.webdriver is false.
+ * 4. Window does not expose shmmothBrowser or mtcBrowser to external pages.
+ * 5. Google serves the normal sign-in (GlifWebSignIn), not the degraded one it gives to browsers it recognises as
+ *    embedded (WebLiteSignIn).
+ * A real sign-in can only be checked by hand: enter an account and see that Google asks for the password.
  *
  * Run with: node .\node_modules\electron\cli.js tests/google-login-verification.test.js
+ * (PROFILE=chrome|firefox to check another identity)
  */
 
 'use strict';
 
 const { app, BrowserWindow, session } = require('electron');
 const path = require('path');
+const GoogleSignIn = require('../src/services/googleSignIn');
 
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
 
 const PRELOAD_EXTERNAL = path.join(__dirname, '..', 'src', 'preload-external.js');
+const PROFILE = process.env.PROFILE || 'app';
 
 app.whenReady().then(async () => {
   console.log('══════════════════════════════════════════════════════════');
   console.log('   Google Sign-In Compatibility Verification Test        ');
   console.log('══════════════════════════════════════════════════════════');
 
-  const ses = session.fromPartition('google_verify_test');
-
-  const rawUa = ses.getUserAgent();
-  const cleanUa = rawUa
-    .replace(/Electron\/\S+\s?/, '')
-    .replace(/mtc-browser\/\S+\s?/, '')
-    .replace(/shmmoth-browser\/\S+\s?/, '')
-    .trim() || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36';
-
-  ses.setUserAgent(cleanUa);
-
-  // Synchronize Google headers
-  const filter = {
-    urls: [
-      '*://*.google.com/*',
-      '*://*.gstatic.com/*',
-      '*://*.googleusercontent.com/*',
-      '*://*.youtube.com/*',
-      '*://*.recaptcha.net/*'
-    ]
-  };
-  ses.webRequest.onBeforeSendHeaders(filter, (details, callback) => {
-    const headers = details.requestHeaders;
-    const chromeVer = (cleanUa.match(/Chrome\/(\d+)/) || [])[1] || '130';
-    headers['User-Agent'] = cleanUa;
-    headers['sec-ch-ua'] = `"Chromium";v="${chromeVer}", "Google Chrome";v="${chromeVer}", "Not?A_Brand";v="99"`;
-    headers['sec-ch-ua-mobile'] = '?0';
-    headers['sec-ch-ua-platform'] = '"Windows"';
-    callback({ requestHeaders: headers });
+  const ua = GoogleSignIn.userAgentOf(PROFILE, {
+    platform: process.platform, chromeVersion: process.versions.chrome, appVersion: require('../package.json').version
   });
+  console.log('  identity:', PROFILE, '—', ua);
 
   const win = new BrowserWindow({
     show: false,
@@ -67,7 +45,7 @@ app.whenReady().then(async () => {
     }
   });
 
-  win.webContents.setUserAgent(cleanUa);
+  win.webContents.setUserAgent(ua);
 
   let passed = 0;
   let failed = 0;
@@ -99,6 +77,7 @@ app.whenReady().then(async () => {
       ua: navigator.userAgent,
       hasElectron: /Electron/i.test(navigator.userAgent),
       brands: navigator.userAgentData ? navigator.userAgentData.brands : [],
+      nativeBrands: navigator.userAgentData ? /\\[native code\\]/.test(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator.userAgentData), 'brands').get.toString()) : null,
       webdriver: navigator.webdriver,
       hasShmmothBrowser: 'shmmothBrowser' in window,
       hasMtcBrowser: 'mtcBrowser' in window
@@ -109,8 +88,9 @@ app.whenReady().then(async () => {
     assert(domInfo.hasShmmothBrowser === false, 'window.shmmothBrowser is not leaked to external pages');
     assert(domInfo.hasMtcBrowser === false, 'window.mtcBrowser is not leaked to external pages');
 
-    const hasGoogleChromeBrand = Array.isArray(domInfo.brands) && domInfo.brands.some(b => b.brand === 'Google Chrome');
-    assert(hasGoogleChromeBrand, 'DOM navigator.userAgentData.brands includes "Google Chrome"');
+    const claimsChrome = Array.isArray(domInfo.brands) && domInfo.brands.some(b => b.brand === 'Google Chrome');
+    assert(!claimsChrome && domInfo.nativeBrands === true, 'navigator.userAgentData is the engine\'s own (native, no "Google Chrome")');
+    assert(domInfo.ua === ua, 'the page reports the sign-in identity');
 
     console.log('\n══════════════════════════════════════════════════════════');
     console.log(`  Results: ${passed} passed, ${failed} failed`);

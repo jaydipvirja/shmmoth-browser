@@ -125,12 +125,16 @@ runSuite('SHMMOTH Browser — E2E 02: security', async (t) => {
 
     t.section('Browser identity');
 
-    await t.test('navigator.userAgent and userAgentData match the running Chromium (no Electron token, no stale version)', async () => {
+    await t.test('navigator.userAgent and userAgentData match the running Chromium (no Electron token, no stale version, nothing disguised)', async () => {
       const major = await app.evaluate(() => process.versions.chrome.split('.')[0]);
-      const r = await evalIn(app, `${site.url}/plain`, `({ ua: navigator.userAgent, brands: navigator.userAgentData.brands.map(b => b.brand + "/" + b.version) })`);
+      const r = await evalIn(app, `${site.url}/plain`, `({ ua: navigator.userAgent, brands: navigator.userAgentData.brands.map(b => b.brand + "/" + b.version),
+        nativeBrands: /\\[native code\\]/.test(Object.getOwnPropertyDescriptor(Object.getPrototypeOf(navigator.userAgentData), 'brands').get.toString()),
+        nativeHigh: /\\[native code\\]/.test(navigator.userAgentData.getHighEntropyValues.toString()) })`);
       assert(!/Electron\//.test(r.ua) && !/mtc-browser|shmmoth/i.test(r.ua), r.ua);
       assert(r.ua.includes(`Chrome/${major}.`), `UA ${r.ua} should carry Chrome/${major}`);
-      assert(r.brands.includes(`Google Chrome/${major}`) && r.brands.includes(`Chromium/${major}`), r.brands.join());
+      // the engine's own brands: a page script that claimed "Google Chrome" is what got the Google sign-in refused
+      assert(r.brands.includes(`Chromium/${major}`) && !r.brands.some((b) => /Google Chrome/.test(b)), r.brands.join());
+      assert(r.nativeBrands && r.nativeHigh, 'navigator.userAgentData was replaced by a page script');
     });
 
     t.section('Password capture');
