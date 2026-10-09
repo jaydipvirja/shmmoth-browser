@@ -24,65 +24,10 @@
  *   can be used to interact with the browser application.
  */
 
-const { webFrame } = require('electron');
-
-// Only used if navigator.userAgent has no Chrome/<major> token; normally the UA already carries the engine version.
-const FALLBACK_CHROME_MAJOR = String((typeof process !== 'undefined' && process.versions && process.versions.chrome) || '130').split('.')[0];
-
-// Align navigator.userAgentData with genuine Google Chrome in the webpage's main world
-// This ensures Google Account login (botguard / GlifWebSignIn) does not detect embedded Chromium.
-try {
-  webFrame.executeJavaScriptInIsolatedWorld(0, [{
-    code: `
-      try {
-        if (navigator.userAgentData) {
-          const ua = navigator.userAgent || '';
-          const isAndroid = ua.includes('Android');
-          const chromeVersion = (ua.match(/Chrome\\/(\\d+)/) || [])[1] || '${FALLBACK_CHROME_MAJOR}';
-          const chromeBrands = [
-            { brand: 'Chromium', version: chromeVersion },
-            { brand: 'Google Chrome', version: chromeVersion },
-            { brand: 'Not?A_Brand', version: '99' }
-          ];
-
-          const proto = Object.getPrototypeOf(navigator.userAgentData);
-          if (proto) {
-            Object.defineProperty(proto, 'brands', {
-              get: () => chromeBrands,
-              configurable: true
-            });
-            if (isAndroid) {
-              Object.defineProperty(proto, 'mobile', {
-                get: () => true,
-                configurable: true
-              });
-              Object.defineProperty(proto, 'platform', {
-                get: () => 'Android',
-                configurable: true
-              });
-            }
-          }
-
-          if (navigator.userAgentData.getHighEntropyValues) {
-            const origGetHighEntropyValues = navigator.userAgentData.getHighEntropyValues;
-            navigator.userAgentData.getHighEntropyValues = async function(hints) {
-              const res = await origGetHighEntropyValues.call(this, hints);
-              const copy = Object.assign({}, res);
-              if (chromeBrands) copy.brands = chromeBrands;
-              if (isAndroid) {
-                if ('mobile' in copy) copy.mobile = true;
-                if ('platform' in copy) copy.platform = 'Android';
-                if ('platformVersion' in copy) copy.platformVersion = '14.0.0';
-                if ('model' in copy) copy.model = 'Pixel 8';
-              }
-              return copy;
-            };
-          }
-        }
-      } catch (_) {}
-    `
-  }]);
-} catch (_) {}
+// Nothing about the browser is disguised here either. Up to 1.1.14 this script replaced navigator.userAgentData.brands
+// and getHighEntropyValues() with JavaScript functions that said "Google Chrome"; Google's sign-in check sees such
+// replaced (non-native) functions and refuses the browser as "not secure". Pages now see the engine's own values; how
+// the browser presents itself on Google's sign-in pages is decided in services/googleSignIn.js.
 
 // External web pages have zero access to privileged browser APIs.
 // window.mtcAPI and window.shmmothAPI are intentionally NOT defined for external pages.

@@ -123,14 +123,15 @@ test('preload-internal.js loads in a sandboxed environment and exposes the API o
   assert(r.exposed.includes('mtcAPI') && r.exposed.includes('shmmothAPI'));
 });
 
-test('preload-internal.js loads in a sandboxed environment on an external page (no API, UA patch only)', () => {
+// (no script is run in the page either: a replaced navigator.userAgentData is what Google's sign-in refuses)
+test('preload-internal.js loads in a sandboxed environment on an external page (no API, nothing injected into the page)', () => {
   const r = runPreloadStrict('preload-internal.js', loc('https:', 'example.com', '/'));
-  assert(r.exposed.length === 0 && r.isolatedWorldScripts.length === 1);
+  assert(r.exposed.length === 0 && r.isolatedWorldScripts.length === 0, JSON.stringify(r));
 });
 
-test('preload-external.js loads in a sandboxed environment and applies the UA-data patch without exposing anything', () => {
+test('preload-external.js loads in a sandboxed environment without exposing or injecting anything', () => {
   const r = runPreloadStrict('preload-external.js', loc('https:', 'example.com', '/'));
-  assert(r.exposed.length === 0 && r.isolatedWorldScripts.length === 1);
+  assert(r.exposed.length === 0 && r.isolatedWorldScripts.length === 0, JSON.stringify(r));
 });
 
 test('preloads only require modules available to sandboxed preloads', () => {
