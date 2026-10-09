@@ -23,6 +23,7 @@ async function test(name, fn) {
   catch (err) { console.error(`  ❌ FAIL: ${name}\n         ${err.message}`); failed++; }
 }
 function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
+function assertEqual(actual, expected, message) { assert(actual === expected, message || `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`); }
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_p0_net_'));
 const SRC  = path.join(__dirname, '..', 'src');
