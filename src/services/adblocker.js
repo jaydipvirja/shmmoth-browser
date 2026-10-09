@@ -200,6 +200,54 @@ class AdBlockerService {
    * Turns the engine on for a session. The engine registers its own webRequest listeners; they are replaced by thin
    * wrappers that let requests of paused sites through untouched and hand everything else to the engine.
    */
+  /**
+   * Google sign-in is a security-sensitive flow: never let the general ad/tracker filter
+   * cancel the authentication document or its authentication-only supporting resources.
+   * Google search/YouTube pages outside an auth flow remain subject to normal blocking.
+   */
+  _isGoogleAuthRequest(details) {
+    if (!details || typeof details.url !== 'string') return false;
+
+    let target;
+    try { target = new URL(details.url); } catch (_) { return false; }
+    if (target.protocol !== 'http:' && target.protocol !== 'https:') return false;
+
+    const targetHost = target.hostname.toLowerCase();
+    const targetIsAuthHost =
+      targetHost === 'accounts.google.com' ||
+      targetHost.endsWith('.accounts.google.com') ||
+      targetHost === 'accounts.youtube.com' ||
+      targetHost.endsWith('.accounts.youtube.com');
+
+    if (targetIsAuthHost) return true;
+
+    let sourceUrl = '';
+    try {
+      const wc = details.webContents;
+      if (wc && typeof wc.getURL === 'function' && !(wc.isDestroyed && wc.isDestroyed())) sourceUrl = wc.getURL() || '';
+    } catch (_) {}
+    if (!sourceUrl) sourceUrl = typeof details.referrer === 'string' ? details.referrer : '';
+
+    let sourceHost = '';
+    try { sourceHost = new URL(sourceUrl).hostname.toLowerCase(); } catch (_) { return false; }
+
+    const sourceIsAuth =
+      sourceHost === 'accounts.google.com' ||
+      sourceHost.endsWith('.accounts.google.com') ||
+      sourceHost === 'accounts.youtube.com' ||
+      sourceHost.endsWith('.accounts.youtube.com');
+
+    if (!sourceIsAuth) return false;
+
+    return (
+      targetHost === 'gstatic.com' || targetHost.endsWith('.gstatic.com') ||
+      targetHost === 'googleusercontent.com' || targetHost.endsWith('.googleusercontent.com') ||
+      targetHost === 'google.com' || targetHost.endsWith('.google.com') ||
+      targetHost === 'googleapis.com' || targetHost.endsWith('.googleapis.com') ||
+      targetHost === 'recaptcha.net' || targetHost.endsWith('.recaptcha.net')
+    );
+  }
+
   _enableEngine(sessionInstance) {
     const blocker = this.blocker;
     const context = this._withoutEngineCosmeticRegistration(blocker, () => blocker.enableBlockingInSession(sessionInstance));
@@ -207,10 +255,18 @@ class AdBlockerService {
       const filter = { urls: ['<all_urls>'] };
       if (typeof context.onBeforeRequest === 'function') {
         sessionInstance.webRequest.onBeforeRequest(filter, Object.assign(
-          (details, callback) => (this._pausedFor(details) ? callback({}) : context.onBeforeRequest(details, callback)), { engine: true }));
+          (details, callback) => (
+            this._pausedFor(details) || this._isGoogleAuthRequest(details)
+              ? callback({})
+              : context.onBeforeRequest(details, callback)
+          ), { engine: true }));
       }
       if (typeof context.onHeadersReceived === 'function') {
-        sessionInstance.webRequest.onHeadersReceived(filter, (details, callback) => (this._pausedFor(details) ? callback({}) : context.onHeadersReceived(details, callback)));
+        sessionInstance.webRequest.onHeadersReceived(filter, (details, callback) => (
+          this._pausedFor(details) || this._isGoogleAuthRequest(details)
+            ? callback({})
+            : context.onHeadersReceived(details, callback)
+        ));
       }
     }
     this._registerCosmetic(sessionInstance);

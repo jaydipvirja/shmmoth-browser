@@ -23,6 +23,7 @@ async function test(name, fn) {
   catch (err) { console.error(`  ❌ FAIL: ${name}\n         ${err.message}`); failed++; }
 }
 function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
+function assertEqual(actual, expected, message) { assert(actual === expected, message || `expected ${JSON.stringify(expected)}, got ${JSON.stringify(actual)}`); }
 
 const ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_p0_net_'));
 const SRC  = path.join(__dirname, '..', 'src');
@@ -85,9 +86,9 @@ function webRequestSession(extra = {}) {
   sess.unregisterPreloadScript = (id) => { sess.preloads.delete(id); };
   return sess;
 }
-function verdict(sess, url) {
+function verdict(sess, url, referrer = '') {
   let out = null;
-  sess.listener({ url }, (r) => { out = r; });
+  sess.listener({ url, referrer }, (r) => { out = r; });
   return out;
 }
 function mockSession() {
@@ -208,6 +209,23 @@ function mockSession() {
     assert(gm.state.parseCalls.length === 1, 'the engine was built ' + gm.state.parseCalls.length + ' times');
     const b = gm.state.blockers[0];
     assert(b.enabledSessions.has(normal) && b.enabledSessions.has(incog), 'both sessions must be protected');
+  });
+
+  await test('REGRESSION: full ad-block engine never blocks Google sign-in or its auth-only supporting resources', async () => {
+    gm.reset();
+    const ab = newAB();
+    const s = webRequestSession();
+    await ab.setupFilter(s);
+
+    const authRef = 'https://accounts.google.com/v3/signin/identifier';
+    assertEqual(Boolean(verdict(s, 'https://accounts.google.com/ServiceLogin', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://accounts.youtube.com/o/oauth2/auth', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.gstatic.com/crypto/crypt.js', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.googleusercontent.com/avatar.png', authRef)?.cancel), false);
+    assertEqual(Boolean(verdict(s, 'https://www.recaptcha.net/recaptcha/api2/bframe', authRef)?.cancel), false);
+
+    // The allowlist is auth-context-only; ordinary Google traffic still goes through the filter.
+    assertEqual(Boolean(verdict(s, 'https://ads.example.com/tracker', 'https://www.google.com/').cancel), true);
   });
 
   await test('REGRESSION: opening incognito no longer detaches the normal session from the setting', async () => {

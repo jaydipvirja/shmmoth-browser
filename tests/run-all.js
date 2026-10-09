@@ -141,7 +141,7 @@ async function main() {
   console.log(`\n  ${results.length - failed.length}/${results.length} test files passed${failed.length ? ` — FAILED: ${failed.map((r) => r.name).join(', ')}` : ''}\n`);
 
   for (const r of failed.filter((x) => x.kind === 'unit')) {
-    console.log(`──── ${r.name} (last output) ────\n${r.out.split('\n').slice(-25).join('\n')}\n`);
+    console.log(`──── ${r.name} (last output) ────\n${r.out.split('\n').slice(-80).join('\n')}\n`);
   }
   process.exit(failed.length ? 1 : 0);
 }
