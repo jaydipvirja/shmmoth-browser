@@ -12,6 +12,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
@@ -471,7 +472,7 @@ function mockSession() {
   });
 
   await test('the mtc:// protocol handler knows the woff2 mime type', async () => {
-    assert(/'\.woff2':\s*'font\/woff2'/.test(fs.readFileSync(path.join(SRC, 'main.js'), 'utf8')));
+    assert(/'\.woff2':\s*'font\/woff2'/.test(mainSource()));
   });
 
   try { fs.rmSync(ROOT, { recursive: true, force: true }); } catch (_) { /* ignore */ }

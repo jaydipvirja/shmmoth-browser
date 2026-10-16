@@ -5,6 +5,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
@@ -42,7 +43,7 @@ function AdBlockerService(storage, opts = {}) {
 AdBlockerService.normalizeHost = RealAdBlockerService.normalizeHost;
 const enabledSessions = () => new Set(gm.state.blockers.flatMap((b) => Array.from(b.enabledSessions)));
 const dns = require('../src/services/secureDns');
-const mainJs = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+const mainJs = mainSource();
 
 function newStorage(tag, settings = {}) {
   const s = new StorageService();

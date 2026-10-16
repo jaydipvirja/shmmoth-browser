@@ -5,6 +5,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
@@ -18,7 +19,7 @@ function test(name, fn) {
 function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 
 const { SessionStore, buildSnapshot, sanitizeSnapshot, isRestorableUrl, MAX_TABS } = require('../src/services/sessionStore');
-const mainJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+const mainJs = mainSource();
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth_session_'));
 
 console.log('\n══════════════════════════════════════════════════════');

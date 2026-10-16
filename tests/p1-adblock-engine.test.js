@@ -14,6 +14,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -402,11 +403,11 @@ async function main() {
 
   console.log('\n📋 Wiring');
 
-  const main = read('main.js');
+  const main = mainSource();
 
   await test('main.js: the gesture script is registered for the normal and the incognito session, and its reports reach the policy', () => {
     assert(/registerGesturePreload\(session\.defaultSession\)/.test(main) && /registerGesturePreload\(session\.fromPartition\('incognito'\)\)/.test(main));
-    assert(/registerPreloadScript\(\{ type: 'frame', filePath: path\.join\(__dirname, 'preload-gesture\.js'\) \}\)/.test(main));
+    assert(/registerPreloadScript\(\{ type: 'frame', filePath: path\.join\(SRC_DIR, 'preload-gesture\.js'\) \}\)/.test(main));
     assert(/ipcMain\.on\('shmmoth:gesture', .*popupPolicy\.noteGesture\(event\.sender\.id\)/.test(main) && /ipcMain\.on\('shmmoth:gesture-ready'/.test(main));
   });
 

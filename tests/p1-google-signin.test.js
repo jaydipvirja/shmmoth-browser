@@ -15,6 +15,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs = require('fs');
 const path = require('path');
 const GoogleSignIn = require('../src/services/googleSignIn');
@@ -154,7 +155,7 @@ async function main() {
   });
 
   await test('main.js: no Sec-CH-UA rewritten, no "Google Chrome" claimed; only Firefox\'s missing client hints are removed', () => {
-    const main = read('main.js');
+    const main = mainSource();
     assert(!/headers\['sec-ch-ua/i.test(main), 'a client hint is still written');
     assert(!/"Google Chrome"/.test(main), '"Google Chrome" is still claimed');
     assert(!/GOOGLE_AUTH_UA/.test(main) && !/setupGoogleAuthHeaders/.test(main), 'the old fixed identity is still there');
@@ -168,7 +169,7 @@ async function main() {
   });
 
   await test('isGoogleAuthUrl (pop-up rules) uses the exact host check', () => {
-    const main = read('main.js');
+    const main = mainSource();
     assert(/function isGoogleAuthUrl\(url\) \{\s*return GoogleSignIn\.isSignInUrl\(url\);\s*\}/.test(main));
   });
 

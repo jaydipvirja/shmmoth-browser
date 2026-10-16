@@ -48,6 +48,15 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y xvfb
       - run: npm ci
       - run: npm run test:e2e
+      # the pictures of every screen (tests/e2e/20-screens.e2e.js): the before/after record of the redesign
+      - name: Keep the screen pictures
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-linux
+          path: test-results/screens
+          if-no-files-found: ignore
+          retention-days: 30
 
   # The shipped configuration: build it as users get it and read the Electron fuses back from the binary
   # (the E2E builds differ in one fuse, because Playwright needs --inspect).
@@ -81,6 +90,14 @@ jobs:
       # run the E2E suite even when a unit test failed, so one run shows every Windows problem
       - run: npm run test:e2e
         if: ${{ !cancelled() }}
+      - name: Keep the screen pictures
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: screens-windows
+          path: test-results/screens
+          if-no-files-found: ignore
+          retention-days: 30
 
   # Same security/UI scenarios against an electron-builder --dir build (app.asar, app.isPackaged, real OS sandbox).
   e2e-windows-packaged:

@@ -14,6 +14,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -395,6 +396,21 @@ async function main() {
     assert(/^Normal download:/.test(rec.turboNote), 'wording');
   });
 
+  await test('a small download that finishes while the fast engine is being tested still says why it was a normal download', async () => {
+    // a file the browser receives in one go completes before the test request answers (E2E 13 met this on a fast runner)
+    const m = newManager(makeStorage(), null);
+    let started = 0;
+    const item = mockItem('https://files.test/big.zip', 80 * 1024 * 1024, { getReceivedBytes: () => 80 * 1024 * 1024 });
+    m.turboEngine.probe = async () => { item.handlers.done({}, 'completed'); return { acceptsRanges: false, totalBytes: 0, finalUrl: 'x', filename: 'x', status: 200 }; };
+    m.startTurboDownload = async () => { started++; };
+    await m._handleDownload(item, pageContents({}));
+    const rec = Object.values(m.downloads)[0];
+    eq(rec.state, 'completed', 'the finished download stays finished');
+    eq(started, 0, 'the fast engine must not start');
+    eq(item.cancelled, false);
+    assert(/^Normal download: .*ignored the range request/.test(rec.turboNote || ''), 'the card says why: ' + rec.turboNote);
+  });
+
   await test('the reasons for a normal download are in plain words for every kind of answer', async () => {
     const d = DownloadManager.describeNoTurbo;
     assert(/ignored the range request/.test(d({ status: 200 })), '200');
@@ -466,7 +482,7 @@ async function main() {
   });
 
   await test('the Turbo state IPC waits for the network list (a Promise inside the answer made the whole call fail)', async () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+    const src = mainSource();
     assert(/interfaces:\s*await this\.downloads\.getNetworkInterfaces\(\)/.test(src), 'getTurboState must await getNetworkInterfaces()');
   });
 

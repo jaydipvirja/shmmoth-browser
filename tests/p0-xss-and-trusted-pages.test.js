@@ -9,6 +9,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs     = require('fs');
 const path   = require('path');
 const vm     = require('vm');
@@ -174,7 +175,7 @@ test('browser chrome <meta> CSP: scripts only from self', () => {
 });
 
 test('main.js sends the CSP header on mtc:// html responses', () => {
-  const main = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+  const main = mainSource();
   assert(/Content-Security-Policy'\]\s*=\s*MTC_PAGE_CSP/.test(main));
 });
 

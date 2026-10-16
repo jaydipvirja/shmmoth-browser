@@ -7,6 +7,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -56,7 +57,7 @@ runTest('3. style.css configures drag regions and no-drag controls', () => {
 
 // 4. Main process window configurations
 runTest('4. main.js configures compact min dimensions, thickFrame, and resizable', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(/minWidth:\s*400/.test(main), 'minWidth 400 not configured');
   assert(/minHeight:\s*300/.test(main), 'minHeight 300 not configured');
   assert(/resizable:\s*true/.test(main), 'resizable true not configured');
@@ -65,7 +66,7 @@ runTest('4. main.js configures compact min dimensions, thickFrame, and resizable
 
 // 5. Main process reserves edge margins in windowed mode for OS resize handles
 runTest('5. main.js reserves 4px margin in windowed mode for 8-direction resize handles', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes('const edgeMargin = isMax ? 0 : 4;'), 'Missing edgeMargin calculation in main.js');
   assert(main.includes('ipcMain.handle(\'window:isMaximized\''), 'Missing window:isMaximized IPC handler in main.js');
 });

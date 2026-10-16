@@ -21,6 +21,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const assert = require('assert');
 const fs = require('fs');
 const path = require('path');
@@ -46,7 +47,7 @@ console.log('══════════════════════�
 
 // 1. Floating bubbles registered in main.js
 runTest('1. main.js defines extensionBubbleWin, shieldBubbleWin, permissionBubbleWin', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes('this.extensionBubbleWin'), 'Missing extensionBubbleWin in main.js');
   assert(main.includes('this.shieldBubbleWin'), 'Missing shieldBubbleWin in main.js');
   assert(main.includes('this.permissionBubbleWin'), 'Missing permissionBubbleWin in main.js');
@@ -64,7 +65,7 @@ runTest('2. Bubble HTML files exist in src/pages/', () => {
 
 // 3. Bubble IPC handlers in main.js
 runTest('3. main.js registers IPC handlers for bubbles', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes("ipcMain.handle('extensions:toggleBubble'"), 'Missing extensions:toggleBubble');
   assert(main.includes("ipcMain.handle('shield:toggleBubble'"), 'Missing shield:toggleBubble');
   assert(main.includes("ipcMain.handle('permissions:openBubble'"), 'Missing permissions:openBubble');
@@ -87,20 +88,20 @@ runTest('5. .hidden { display: none !important; } in extensions.css prevents err
 
 // 6. Throttled resize in main.js
 runTest('6. main.js uses throttledUpdateViewBounds to eliminate Windows 10 resize lag', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes('throttledUpdateViewBounds'), 'Missing throttledUpdateViewBounds in main.js');
   assert(main.includes("this.mainWindow.on('resize',     () => this.throttledUpdateViewBounds"), 'mainWindow resize not using throttler');
 });
 
 // 7. Cached header height in main.js
 runTest('7. main.js caches headerHeight to prevent synchronous storage queries on resize', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes('this._cachedHeaderHeight'), 'Missing _cachedHeaderHeight in main.js');
 });
 
 // 8. DuckDuckGo search engine normalization
 runTest('8. DuckDuckGo search engine normalization in main.js and newtab.js', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   const newtab = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'newtab.js'), 'utf8');
   assert(main.includes('duckduckgo:'), 'Missing duckduckgo in main.js search URLs');
   assert(newtab.includes('duckduckgo:'), 'Missing duckduckgo in newtab.js search URLs');
@@ -127,7 +128,7 @@ runTest('10. Internal pages (settings, extensions, newtab) have theme-light styl
 
 // 11. Theme broadcasting and live synchronization
 runTest('11. main.js broadcasts theme:changed and settings:updated', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
   assert(main.includes('broadcastThemeChange'), 'Missing broadcastThemeChange in main.js');
   assert(main.includes('broadcastSettingsUpdated'), 'Missing broadcastSettingsUpdated in main.js');
 });

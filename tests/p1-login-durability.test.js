@@ -14,6 +14,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -74,7 +75,7 @@ async function main() {
   });
 
   console.log('\n── main.js ──');
-  const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+  const main = mainSource();
 
   await test('quitting writes cookies and page storage first, then really quits (with a time limit)', async () => {
     const block = main.slice(main.indexOf("app.on('before-quit'"), main.indexOf('this.setupLoginDurability()'));
@@ -94,7 +95,7 @@ async function main() {
     const gesture = fs.readFileSync(path.join(__dirname, '..', 'src', 'preload-gesture.js'), 'utf8');
     assert(/addEventListener\('contextmenu', \(e\) => \{\s*if \(e && e\.isTrusted === true && e\.shiftKey === true\) e\.stopImmediatePropagation\(\);\s*\}, true\)/.test(gesture), 'Shift + right-click bypass');
     assert(!/preventDefault/.test(gesture), 'the gesture script never cancels a right-click itself (a second menu would open)');
-    const main = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+    const main = mainSource();
     // 1.1.13 opened menus from three places (the page event, an IPC message from the page, a timer after the mouse
     // button): two menus at once, or a menu on top of YouTube's own
     assert(!/youtube-context-menu/.test(main + gesture), 'no menu requests from the page');

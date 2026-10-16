@@ -55,7 +55,8 @@ SHMMOTH Browser is an Electron desktop browser built on Chromium (Blink/V8) — 
 
 | File | Role |
 |---|---|
-| `src/main.js` | Main process controller |
+| `src/main.js` | Main process entry: start-up switches, the `mtc://` scheme, the application class (constructor, `init`) and the bootstrap |
+| `src/browser/` | The rest of the application class, one file per area (see below) |
 | `src/preload-internal.js` | Full browser API bridge (trusted pages only) |
 | `src/preload-external.js` | Empty bridge (external web pages) |
 | `src/security/ipcSecurity.js` | IPC origin validation |
@@ -70,6 +71,28 @@ SHMMOTH Browser is an Electron desktop browser built on Chromium (Blink/V8) — 
 | `src/renderer/` | Browser chrome HTML/JS/CSS |
 | `src/pages/` | Internal mtc:// page files |
 
+## The main process, file by file
+
+`main.js` holds only what has to run first and the application's start-up. The application's other methods live in
+`src/browser/`, one file per area, each a class whose methods `browser/mixins.js` copies onto `ShmmothBrowserApp`, so
+`this` inside them is the application exactly as before (the split moved code verbatim; nothing changed in behaviour).
+
+| File | Area |
+|---|---|
+| `browser/shared.js` | The imports and constants all of them use (Electron, services, security helpers, preload paths, `SRC_DIR`) |
+| `browser/session.js` | Start-up tabs, session restore, login durability (cookie flushes), the second instance |
+| `browser/network.js` | Secure DNS, proxy and WebRTC policy, Google sign-in identity, site permissions, the gesture script |
+| `browser/extensions.js` | Loading Chrome extensions and their pop-ups |
+| `browser/bubbles.js` | The bubbles next to the toolbar: downloads, extensions, ad-blocker shield, site permission |
+| `browser/windows.js` | The browser windows, the `mtc://` protocol, header height and where the tab views / side panel go |
+| `browser/broadcast.js` | Telling the browser windows and pages what changed (tabs, navigation, theme, settings, downloads) |
+| `browser/tabs.js` | Tabs (creation with all their page events, switching, closing, pinning), zoom, the address bar, YouTube ads |
+| `browser/passwords.js` | Offering to save passwords, the save bubble, the autofill bubble |
+| `browser/ipc.js` | Every IPC handler of the browser windows and internal pages (`setupIpc`) |
+
+A method name may exist only once across these files (`mixins.js` refuses a second definition at start-up). Tests that
+look for a piece of main-process code read all of them at once through `tests/helpers/main-source.js`.
+
 ## Preload Architecture
 
 Two preload files determine what APIs are available in each rendering context:
@@ -77,7 +100,7 @@ Two preload files determine what APIs are available in each rendering context:
 - **`preload-internal.js`** — exposes the full `window.mtcAPI` surface. Used for the browser chrome and all `mtc://` internal pages.
 - **`preload-external.js`** — exposes **nothing privileged**. Only a read-only `window.mtcBrowser` identity object. Used for all external web content.
 
-The `selectPreload(url)` function in `main.js` routes the correct preload at `WebContentsView` creation time based on the initial URL.
+The `selectPreload(url)` function (`browser/shared.js`) routes the correct preload at `WebContentsView` creation time based on the initial URL.
 
 ## Internal Pages (mtc:// scheme)
 

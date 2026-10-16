@@ -5,6 +5,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const path = require('path');
 
@@ -18,7 +19,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 
 const ROOT = path.join(__dirname, '..');
 const pkg  = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
-const mainJs = fs.readFileSync(path.join(ROOT, 'src', 'main.js'), 'utf8');
+const mainJs = mainSource();
 
 console.log('\n══════════════════════════════════════════════════════');
 console.log('  SHMMOTH Browser — P0 Process Hardening Tests         ');
@@ -47,7 +48,7 @@ console.log('📋 1. Electron fuses (package.json → build.electronFuses)');
   });
   test('the browser chrome still loads from file:// so grantFileProtocolExtraPrivileges must NOT be switched off (packaged build cannot load it otherwise)', () => {
     assert(!('grantFileProtocolExtraPrivileges' in fuses) || fuses.grantFileProtocolExtraPrivileges === true);
-    assert(/loadFile\(path\.join\(__dirname, 'renderer', 'index\.html'\)\)/.test(mainJs));
+    assert(/loadFile\(path\.join\(SRC_DIR, 'renderer', 'index\.html'\)\)/.test(mainJs));
   });
   test('the packaged-test runner only turns the inspect fuse back on', () => {
     const runner = fs.readFileSync(path.join(__dirname, 'run-all.js'), 'utf8');

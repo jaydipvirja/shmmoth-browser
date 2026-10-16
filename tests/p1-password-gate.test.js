@@ -13,6 +13,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs = require('fs');
 const path = require('path');
 const PasswordGate = require('../src/services/passwordGate');
@@ -129,7 +130,7 @@ async function main() {
 
   console.log('\n📋 Wiring');
 
-  const main = read('main.js');
+  const main = mainSource();
   const handlers = main.slice(main.indexOf('const gateMessages'), main.indexOf("ipcMain.handle('passwords:respondPrompt'"));
 
   await test('main.js: only Settings may ask, the question comes before the password is decrypted, a copy never goes through the page', () => {

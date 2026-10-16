@@ -14,6 +14,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -350,7 +351,7 @@ async function main() {
   console.log('\n📋 Wiring');
 
   await test('main.js: attached after load, handled before the save-capture code, closed on navigation / tab switch / tab close / window move', () => {
-    const main = read('src', 'main.js');
+    const main = mainSource();
     assert(/this\.passwordAutofill\.attach\(wc, tabId, tabData\)/.test(main), 'attach on dom-ready');
     assert(/passwordAutofill\.handleConsoleMessage\(tabId, message\)\) return;/.test(main), 'console messages');
     assert(/!isInPlace && this\.passwordAutofill\) this\.passwordAutofill\.forgetTab\(tabId\)/.test(main), 'navigation');
@@ -363,7 +364,7 @@ async function main() {
   });
 
   await test('the unsafe test key can only be switched on in an unpackaged run', () => {
-    const main = read('src', 'main.js');
+    const main = mainSource();
     assert(/allowInsecureFallback: !app\.isPackaged && process\.env\.SHMMOTH_E2E_INSECURE_VAULT === '1'/.test(main));
   });
 

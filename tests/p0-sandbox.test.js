@@ -11,6 +11,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const path = require('path');
 const vm   = require('vm');
@@ -24,7 +25,7 @@ function test(name, fn) {
 function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 
 const SRC  = path.join(__dirname, '..', 'src');
-const main = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+const main = mainSource();
 
 console.log('\n══════════════════════════════════════════════════════');
 console.log('  SHMMOTH Browser — P0 Renderer Sandbox Tests          ');
