@@ -76,8 +76,19 @@ test('the repository\'s own CHANGELOG has notes for the current version', () => 
 console.log('\n📋 3. The release workflow');
 const wf = read('.github', 'workflows', 'release.yml');
 const ci = read('.github', 'workflows', 'ci.yml');
-test('it runs only for version tags', () => {
+test('it runs only for version tags, or by hand (Run workflow) on main', () => {
   assert(/tags:\s*\['v\[0-9\]\+\.\[0-9\]\+\.\[0-9\]\+'\]/.test(wf) && !/branches:|pull_request/.test(wf));
+  assert(/^\s+workflow_dispatch:/m.test(wf) && !/workflow_dispatch:\s*\n\s+inputs:/.test(wf), 'Run workflow takes no input (nothing typed reaches a command)');
+  assert(/\[ "\$GITHUB_REF" != "refs\/heads\/main" \][^\n]*exit 1/.test(wf), 'Run workflow is refused on any branch but main');
+});
+test('Run workflow releases the version in package.json, refuses an existing tag, and tags the built commit only after the smoke test', () => {
+  const i = (s) => wf.indexOf(s);
+  assert(/TAG="v\$\(node -p "require\('\.\/package\.json'\)\.version"\)"/.test(wf), 'the tag comes from package.json');
+  assert(/git ls-remote --exit-code --tags origin "refs\/tags\/\$\{TAG\}"[\s\S]{0,80}\n[^\n]*exit 1/.test(wf), 'an existing tag is never moved or reused');
+  assert(i('echo "TAG=') < i('release-tool.js check --tag "$TAG"'), 'the readiness check sees the tag that will be released');
+  assert(/if: github\.event_name == 'workflow_dispatch'\s*\n[\s\S]*?git tag "\$TAG" "\$GITHUB_SHA"/.test(wf), 'the tag goes on the commit that was built');
+  assert(i('smoke-installer.js') < i('git tag "$TAG"') && i('git tag "$TAG"') < i('gh release create "$TAG"'), 'tag only after the smoke test, before the draft');
+  assert(!/\$\{\{\s*github\.ref_name\s*\}\}/.test(wf.split('jobs:')[1]), 'commands use $TAG, never ${{ github.ref_name }} pasted into a script');
 });
 test('it checks readiness before building, builds with the production configuration and smoke-tests the installer', () => {
   const i = (s) => wf.indexOf(s);
