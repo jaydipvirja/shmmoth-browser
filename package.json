@@ -14,7 +14,8 @@
     "release:keygen": "node scripts/release-tool.js keygen",
     "release:sign": "node scripts/release-tool.js sign",
     "release:verify": "node scripts/release-tool.js verify",
-    "release:check": "node scripts/release-tool.js check"
+    "release:check": "node scripts/release-tool.js check",
+    "release:publish": "node scripts/release-publish.js"
   },
   "keywords": [
     "browser",

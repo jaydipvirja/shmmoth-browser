@@ -10,6 +10,7 @@
  *   npm run release:verify -- <installer.exe>    check an installer + its .sig against the keys in the app
  *   npm run release:check  [-- --tag v1.2.3]     is the source ready to be released? (keys, version, changelog, icon)
  *   node scripts/release-tool.js notes <version> print that version's section of CHANGELOG.md (release notes)
+ *   release.bat  (or npm run release:publish)    sign and publish the newest draft release in one go (scripts/release-publish.js)
  *
  * The PRIVATE key (release-signing-key.pem) must never be committed or uploaded to GitHub.
  */
@@ -166,6 +167,6 @@ async function main() {
   process.exit(cmd ? 1 : 0);
 }
 
-module.exports = { isValidPublicKey, extractNotes, checkRelease };
+module.exports = { isValidPublicKey, extractNotes, checkRelease, publicKeyBase64FromPrivatePem };
 
 if (require.main === module) main().catch(err => fail(err.message));
