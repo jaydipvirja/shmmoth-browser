@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>New Tab - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="newtab.css">
@@ -13,9 +14,9 @@
   <div class="newtab-container">
     <!-- Top Right Quick Access -->
     <header class="top-nav">
-      <button id="btn-open-bookmarks" class="nav-btn" title="Bookmarks">★ Bookmarks</button>
-      <button id="btn-open-history" class="nav-btn" title="History">🕒 History</button>
-      <button id="btn-open-settings" class="nav-btn" title="Settings">⚙️ Settings</button>
+      <button id="btn-open-bookmarks" class="nav-btn" title="Bookmarks"><span class="sh-icon" data-icon="star" aria-hidden="true"></span>Bookmarks</button>
+      <button id="btn-open-history" class="nav-btn" title="History"><span class="sh-icon" data-icon="history" aria-hidden="true"></span>History</button>
+      <button id="btn-open-settings" class="nav-btn" title="Settings"><span class="sh-icon" data-icon="settings" aria-hidden="true"></span>Settings</button>
     </header>
 
     <!-- Center Section: Brand, Clock, Greeting, Search -->
@@ -33,9 +34,9 @@
 
       <!-- Google Search Form -->
       <form id="search-form" class="search-box">
-        <span class="search-icon">🔍</span>
+        <span class="search-icon sh-icon" data-icon="search" aria-hidden="true"></span>
         <input type="text" id="search-input" placeholder="Search Google or type a URL..." autofocus autocomplete="off">
-        <button type="submit" class="search-submit-btn" title="Search">➜</button>
+        <button type="submit" class="search-submit-btn" title="Search" aria-label="Search"><span class="sh-icon" data-icon="arrow-right" aria-hidden="true"></span></button>
       </form>
 
       <!-- Incognito Notice (Stage 4) -->
@@ -113,6 +114,8 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="newtab.js"></script>
 </body>

@@ -121,8 +121,9 @@ runTest('10. Internal pages (settings, extensions, newtab) have theme-light styl
   const setCss = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'settings.css'), 'utf8');
   const extCss = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'extensions.css'), 'utf8');
   const ntCss  = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'newtab.css'), 'utf8');
-  assert(setCss.includes('body.theme-light'), 'Missing body.theme-light in settings.css');
-  assert(extCss.includes('body.theme-light'), 'Missing body.theme-light in extensions.css');
+  // settings.css (also History, Bookmarks, Downloads, Notes) takes light and dark from the design tokens (1.2.1)
+  assert(/background: var\(--sh-bg\)/.test(setCss) && /\.card \{[^}]*background: var\(--sh-surface\)/.test(setCss), 'settings.css uses the design tokens');
+  assert(/background-color: var\(--sh-bg\)/.test(extCss) && !/#0b1120|#162032/.test(extCss), 'extensions.css uses the design tokens');
   assert(ntCss.includes('body.theme-light'),  'Missing body.theme-light in newtab.css');
 });
 

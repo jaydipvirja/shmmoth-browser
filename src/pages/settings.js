@@ -229,8 +229,8 @@ async function initSettings() {
       loadAdBlockerStatus();
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
-      selectTheme.value = currentSettings.theme || 'dark';
-      document.body.classList.toggle('theme-light', (currentSettings.theme === 'light'));
+      // "midnight" (until 1.2.0) is shown as Dark, like the browser does (services/theme.js)
+      selectTheme.value = ['system', 'light', 'dark'].includes(currentSettings.theme) ? currentSettings.theme : 'dark';
 
       // Live ad blocked count
       const blockedCount = await window.mtcAPI.getAdsBlockedCount();
@@ -374,9 +374,7 @@ selectRamTimeout.addEventListener('change', () => {
 });
 
 selectTheme.addEventListener('change', () => {
-  const newTheme = selectTheme.value;
-  document.body.classList.toggle('theme-light', (newTheme === 'light'));
-  saveSettingChange({ theme: newTheme });
+  saveSettingChange({ theme: selectTheme.value });   // the page follows by itself (theme.js)
 });
 
 // ─── Download Settings Handlers ─────────────────────────────────────────────

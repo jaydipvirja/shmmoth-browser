@@ -13,6 +13,7 @@ const path = require('path');
 const { app } = require('electron');
 const { storageLogger: log } = require('../utils/logger');
 const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { DEFAULT_THEME } = require('./theme');
 
 // settings/bookmarks/history change on every navigation; refresh the .bak at most once a minute
 const BACKUP_INTERVAL_MS = 60 * 1000;
@@ -46,7 +47,7 @@ class StorageService {
         secureDnsStrict:        false,
         ramSaverEnabled:        true,
         ramSaverTimeoutMinutes: 15,
-        theme:                  'dark',
+        theme:                  DEFAULT_THEME, // 'system' follows Windows (services/theme.js)
         homepage:               'mtc://newtab',
         showBookmarksBar:       true,
         startupBehavior:        'newtab',      // 'newtab' | 'restore' (continue where I left off)

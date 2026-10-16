@@ -43,6 +43,7 @@ const {
   urlsFromArgv,
   DESKTOP_UA_FALLBACK
 } = require('./browser/shared');
+const { normalizeTheme } = require('./services/theme');
 
 // Prevent Chromium automation flags from interfering with Google Sign-in and anti-bot verification
 app.commandLine.appendSwitch('disable-blink-features', 'AutomationControlled');
@@ -151,6 +152,8 @@ class ShmmothBrowserApp {
     this.storage = new StorageService();
     this.sessionStore = new SessionStore(app.getPath('userData'));
     this.applySecureDns();
+    // What Chromium draws itself (scroll bars, form controls, menus) follows the Theme setting (services/theme.js)
+    require('electron').nativeTheme.themeSource = normalizeTheme(this.storage.getSettings().theme);
 
     // Standardise User-Agent to match official Google Chrome early (before any windows or tabs are created)
     const rawUa = session.defaultSession.getUserAgent();

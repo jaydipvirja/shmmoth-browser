@@ -2,12 +2,14 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Quick Notes - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
   <style>
     body {
-      background: #1e293b;
+      background: var(--sh-surface);
       margin: 0;
       padding: 16px;
       display: flex;
@@ -22,7 +24,7 @@
       justify-content: space-between;
       margin-bottom: 12px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--sh-border);
     }
     .notes-title {
       display: flex;
@@ -30,16 +32,16 @@
       gap: 8px;
       font-size: 15px;
       font-weight: 700;
-      color: #38bdf8;
+      color: var(--sh-accent-text);
     }
     .header-actions {
       display: flex;
       gap: 6px;
     }
     .action-btn {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: #cbd5e1;
+      background: var(--sh-hover);
+      border: 1px solid var(--sh-border);
+      color: var(--sh-text-2);
       padding: 4px 10px;
       border-radius: 6px;
       font-size: 12px;
@@ -47,11 +49,11 @@
       transition: all 0.15s;
     }
     .action-btn:hover {
-      background: rgba(255, 255, 255, 0.15);
-      color: #ffffff;
+      background: var(--sh-hover);
+      color: var(--sh-text);
     }
     .action-btn.danger:hover {
-      background: #dc2626;
+      background: var(--sh-danger-bg);
       border-color: #ef4444;
     }
     .notes-body {
@@ -62,11 +64,11 @@
     textarea {
       flex: 1;
       width: 100%;
-      background: #0f172a;
-      border: 1px solid #334155;
+      background: var(--sh-field);
+      border: 1px solid var(--sh-border);
       border-radius: 8px;
       padding: 14px;
-      color: #f8fafc;
+      color: var(--sh-text);
       font-family: inherit;
       font-size: 13.5px;
       line-height: 1.6;
@@ -76,7 +78,7 @@
       transition: border-color 0.2s;
     }
     textarea:focus {
-      border-color: #3b82f6;
+      border-color: var(--sh-accent);
     }
     .notes-footer {
       display: flex;
@@ -84,13 +86,13 @@
       justify-content: space-between;
       margin-top: 10px;
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
     }
     .save-status {
       display: flex;
       align-items: center;
       gap: 6px;
-      color: #10b981;
+      color: var(--sh-success);
     }
   </style>
 </head>
@@ -115,6 +117,7 @@
     <span id="status" class="save-status">✓ All changes saved</span>
   </div>
 
+  <script src="theme.js"></script>
   <script src="notes.js"></script>
 </body>
 </html>

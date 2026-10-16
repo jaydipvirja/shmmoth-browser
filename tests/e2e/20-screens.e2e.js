@@ -125,6 +125,36 @@ runSuite('SHMMOTH Browser — E2E 20: every screen, captured', async (t) => {
       }
     }
 
+    t.section('Theme setting reaches every screen, live');
+
+    await t.test('Dark, Light and Follow Windows switch an open page and the frame without a reload', async () => {
+      const tabId = await api(chrome, 'createTab', 'mtc://settings');
+      try {
+        await waitForWebContents(app, 'mtc://settings');
+        const look = () => app.evaluate(async ({ webContents }) => {
+          const page = webContents.getAllWebContents().filter((w) => w.getURL().startsWith('mtc://settings')).sort((a, b) => b.id - a.id)[0];
+          const frame = webContents.getAllWebContents().find((w) => /index\.html/.test(w.getURL()));
+          const bg = await page.executeJavaScript("getComputedStyle(document.body).backgroundColor");
+          const rgb = bg.match(/\d+/g).map(Number);
+          return {
+            pageLight: (rgb[0] + rgb[1] + rgb[2]) / 3 > 128,
+            pageClass: await page.executeJavaScript("document.documentElement.className"),
+            frameLight: await frame.executeJavaScript("document.body.classList.contains('theme-light')"),
+            windowsLight: await page.executeJavaScript("matchMedia('(prefers-color-scheme: light)').matches")
+          };
+        });
+        for (const [theme, expectLight] of [['dark', false], ['light', true], ['system', null], ['dark', false]]) {
+          await setTheme(theme);
+          const want = expectLight === null ? (await look()).windowsLight : expectLight;
+          const r = await waitFor(async () => { const x = await look(); return x.pageLight === want && x.frameLight === want ? x : null; },
+            { message: `${theme}: page and frame ${want ? 'light' : 'dark'}` });
+          assert(r.pageClass.includes(want ? 'theme-light' : 'theme-dark'), `${theme}: <html> class ${r.pageClass}`);
+        }
+      } finally {
+        if (typeof tabId === 'string') await api(chrome, 'closeTab', tabId).catch(() => {});
+      }
+    });
+
     t.section('Overall');
 
     await t.test('no screen broke the Content Security Policy', async () => {

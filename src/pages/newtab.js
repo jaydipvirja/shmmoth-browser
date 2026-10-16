@@ -221,25 +221,7 @@ async function checkIncognito() {
   } catch (_) {}
 }
 
-// Theme Handling
-async function initTheme() {
-  try {
-    if (window.mtcAPI && window.mtcAPI.getSettings) {
-      const s = await window.mtcAPI.getSettings();
-      if (s && s.theme) {
-        document.body.classList.toggle('theme-light', s.theme === 'light');
-      }
-    }
-    if (window.mtcAPI && window.mtcAPI.onThemeChanged) {
-      window.mtcAPI.onThemeChanged((theme) => {
-        document.body.classList.toggle('theme-light', theme === 'light');
-      });
-    }
-  } catch (_) {}
-}
-
 checkIncognito();
 loadShortcuts();
 loadStats();
-initTheme();
 

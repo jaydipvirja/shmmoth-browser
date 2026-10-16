@@ -1,0 +1,151 @@
+/*
+ * SHMMOTH design tokens — the one source of colours, type, spacing, corners, shadows and motion for the browser frame,
+ * every internal page and every bubble (docs/redesign-plan.md, Phase 1).
+ *
+ * Dark is the base set. The `theme-light` class (put on <html> and <body> by pages/theme.js, on the frame's <body> by
+ * renderer/app.js, from the Theme setting: "system" follows Windows) switches to the light set; the Incognito window's
+ * `theme-incognito` class to its violet set. Everything changes live.
+ * Pages use the tokens (`var(--sh-text)`), never colour literals.
+ */
+
+:root {
+  color-scheme: dark;
+
+  /* colour — dark */
+  --sh-bg: #0b1220;            /* page and frame */
+  --sh-surface: #111a2e;       /* cards, toolbar, bubbles, dialogs */
+  --sh-surface-2: #16213a;     /* inputs, chips, secondary buttons */
+  --sh-field: #0b1220;         /* text fields and selects inside a card */
+  --sh-hover: rgba(148, 163, 184, 0.12);
+  --sh-selected: rgba(37, 99, 235, 0.22);
+  --sh-border: rgba(148, 163, 184, 0.20);
+  --sh-border-strong: rgba(148, 163, 184, 0.34);
+  --sh-text: #e8eef9;
+  --sh-text-2: #9aa8c1;        /* secondary text: 7.2 : 1 on surface */
+  --sh-accent: #2563eb;        /* primary button, active tab, toggle on: white text 5.2 : 1 */
+  --sh-accent-hover: #1d4ed8;
+  --sh-accent-text: #7dd3fc;   /* links and selected items on surfaces */
+  --sh-on-accent: #ffffff;
+  --sh-focus: #22d3ee;
+  --sh-success: #34d399;
+  --sh-success-bg: rgba(52, 211, 153, 0.14);
+  --sh-warning: #fbbf24;
+  --sh-warning-bg: rgba(251, 191, 36, 0.14);
+  --sh-danger: #f87171;        /* danger text */
+  --sh-danger-bg: #c5221f;     /* danger button (white text) */
+  --sh-danger-soft: rgba(248, 113, 113, 0.14);
+  --sh-track: #3a4864;         /* toggle off */
+  --sh-overlay: rgba(2, 6, 23, 0.65);
+  --sh-shadow: 0 12px 32px rgba(2, 6, 23, 0.5);
+  --sh-shadow-s: 0 1px 3px rgba(2, 6, 23, 0.4);
+  --sh-brand-cyan: #22d3ee;
+  --sh-brand-blue: #2563eb;
+  --sh-brand-navy: #0b1220;
+
+  /* type (Inter, bundled in fonts.css) */
+  --sh-font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --sh-font-mono: ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  --sh-text-display: 700 28px/36px var(--sh-font);
+  --sh-text-title: 600 20px/28px var(--sh-font);
+  --sh-text-heading: 600 16px/24px var(--sh-font);
+  --sh-text-body: 400 14px/20px var(--sh-font);
+  --sh-text-small: 400 12px/16px var(--sh-font);
+
+  /* spacing, corners, motion */
+  --sh-space-1: 4px;
+  --sh-space-2: 8px;
+  --sh-space-3: 12px;
+  --sh-space-4: 16px;
+  --sh-space-5: 24px;
+  --sh-space-6: 32px;
+  --sh-space-7: 48px;
+  --sh-radius-s: 6px;          /* inputs, small chips */
+  --sh-radius-m: 10px;         /* buttons, menu rows */
+  --sh-radius-l: 14px;         /* cards, bubbles, dialogs */
+  --sh-radius-pill: 999px;
+  --sh-motion-fast: 120ms;     /* hovers */
+  --sh-motion: 200ms;          /* bubbles, menus */
+  --sh-ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* Light */
+:root.theme-light,
+body.theme-light {
+  color-scheme: light;
+  --sh-bg: #f6f8fc;
+  --sh-surface: #ffffff;
+  --sh-surface-2: #eef2f8;
+  --sh-field: #ffffff;
+  --sh-hover: rgba(15, 23, 42, 0.06);
+  --sh-selected: #dde7fb;
+  --sh-border: rgba(15, 23, 42, 0.12);
+  --sh-border-strong: rgba(15, 23, 42, 0.24);
+  --sh-text: #0f172a;
+  --sh-text-2: #4f5d75;      /* 6.7 : 1 on white */
+  --sh-accent: #2563eb;
+  --sh-accent-hover: #1d4ed8;
+  --sh-accent-text: #1d4ed8; /* 6.7 : 1 on white */
+  --sh-on-accent: #ffffff;
+  --sh-focus: #0e7490;
+  --sh-success: #0b7a3e;
+  --sh-success-bg: #e3f4ea;
+  --sh-warning: #a15c00;
+  --sh-warning-bg: #fdf0dc;
+  --sh-danger: #c5221f;
+  --sh-danger-bg: #c5221f;
+  --sh-danger-soft: #fdecea;
+  --sh-track: #a3afc2;
+  --sh-overlay: rgba(15, 23, 42, 0.45);
+  --sh-shadow: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --sh-shadow-s: 0 1px 3px rgba(15, 23, 42, 0.12);
+}
+
+/* The Incognito window: its own dark violet set, whatever the theme */
+.theme-incognito {
+  color-scheme: dark;
+  --sh-bg: #160e2b;
+  --sh-surface: #20143f;
+  --sh-surface-2: #2a1b52;
+  --sh-field: #160e2b;
+  --sh-hover: rgba(196, 181, 253, 0.12);
+  --sh-selected: rgba(124, 58, 237, 0.30);
+  --sh-border: rgba(196, 181, 253, 0.20);
+  --sh-border-strong: rgba(196, 181, 253, 0.34);
+  --sh-text: #ede9fe;
+  --sh-text-2: #b9aee0;
+  --sh-accent: #7c3aed;
+  --sh-accent-hover: #6d28d9;
+  --sh-accent-text: #c4b5fd;
+  --sh-focus: #c4b5fd;
+  --sh-track: #4a3a78;
+  --sh-overlay: rgba(10, 5, 25, 0.65);
+  --sh-shadow: 0 12px 32px rgba(10, 5, 25, 0.55);
+}
+
+/* ── Icons (pages/icons.js) ─────────────────────────────────────────────── */
+.sh-icon {
+  display: inline-flex;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  vertical-align: -0.2em;
+}
+.sh-icon > svg { width: 100%; height: 100%; }
+
+/* ── Accessibility, everywhere ──────────────────────────────────────────── */
+
+/* A visible ring for keyboard focus (not for mouse clicks) */
+:focus-visible {
+  outline: 2px solid var(--sh-focus);
+  outline-offset: 2px;
+}
+
+/* Windows "Animation effects" off → no motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -24,6 +24,7 @@ const {
   displayUrl,
   secureDns
 } = require('./shared');
+const { normalizeTheme } = require('../services/theme');
 
 class IpcMethods {
   // ─── IPC Setup (Stage 1 Core) ────────────────────────────────────────────
@@ -284,6 +285,7 @@ class IpcMethods {
       if (typeof delta !== 'object' || delta === null || Array.isArray(delta)) {
         throw new Error('settings:update requires a plain object');
       }
+      if (delta.theme !== undefined) delta = { ...delta, theme: normalizeTheme(delta.theme) };
       const updated = this.storage.updateSettings(delta);
       if (delta.adBlockerAllowlist !== undefined && this.adBlocker) {
         this.adBlocker.reloadAllowlist();
