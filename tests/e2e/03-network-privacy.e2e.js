@@ -21,7 +21,8 @@ const {
 
 runSuite('SHMMOTH Browser — E2E 03: network privacy', async (t) => {
   // "origin" server for the no-proxy Turbo test
-  const origin = await startServer(fileHandler({ filename: 'direct.bin' }));
+  // the full answer is slow, the parts are not: the native download cannot complete before the fast engine is tried
+  const origin = await startServer(fileHandler({ filename: 'direct.bin', slowFullBodyMs: 5000 }));
 
   // the proxy: records what it is asked for and answers for private-site.test itself
   const seen = [];
