@@ -326,7 +326,10 @@ async function runAllTests() {
 
     const indexHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'index.html'), 'utf-8');
     assert(indexHtml.includes('id="incognito-badge"'), 'index.html must contain #incognito-badge');
-    assert(indexHtml.includes('id="btn-incognito"'), 'index.html must contain #btn-incognito');
+    // since 1.3.0 "New Incognito window" is an entry of the main menu (⋮)
+    const menuHtml = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'menu-bubble.html'), 'utf-8');
+    const appJs = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'app.js'), 'utf-8');
+    assert(menuHtml.includes('data-action="new-incognito"') && /'new-incognito':\s+\(\) => api && api\.newIncognitoWindow/.test(appJs), 'the main menu opens an Incognito window');
 
     const styleCss = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'style.css'), 'utf-8');
     assert(styleCss.includes('.theme-incognito'), 'style.css must contain .theme-incognito');

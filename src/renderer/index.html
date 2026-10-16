@@ -15,9 +15,12 @@
   <header id="browser-chrome" class="browser-chrome">
     <!-- Tabs Strip & Window Controls -->
     <div class="tabs-header-row">
-      <div class="brand-chip" title="SHMMOTH Browser">
-        <span class="brand-logo-icon">🌐</span>
-        <span class="brand-title">SHMMOTH</span>
+      <img class="brand-logo" src="../pages/logo.svg" alt="SHMMOTH" title="SHMMOTH Browser" width="22" height="22">
+
+      <!-- Incognito Mode Badge (Stage 4) -->
+      <div id="incognito-badge" class="incognito-badge hidden" title="You've gone Incognito. Your browsing activity is not saved.">
+        <span class="sh-icon" data-icon="incognito" aria-hidden="true"></span>
+        <span class="incognito-text">Incognito</span>
       </div>
 
       <!-- Tabs Strip -->
@@ -26,64 +29,50 @@
       </div>
 
       <!-- Add Tab Button -->
-      <button id="btn-new-tab" class="btn-chrome btn-new-tab" title="New Tab (Ctrl+T)">+</button>
+      <button id="btn-new-tab" class="btn-chrome btn-new-tab" title="New Tab (Ctrl+T)" aria-label="New tab"><span class="sh-icon" data-icon="plus" aria-hidden="true"></span></button>
 
       <!-- Draggable titlebar region (Chrome-style window mover) -->
       <div id="drag-region" class="drag-region" title="Double-click to Maximize/Restore"></div>
 
-      <!-- Incognito Mode Badge (Stage 4) -->
-      <div id="incognito-badge" class="incognito-badge hidden" title="You've gone Incognito. Your browsing activity is not saved.">
-        <span class="incognito-icon">🕶️</span>
-        <span class="incognito-text">Incognito</span>
-      </div>
-
       <!-- Window Controls (Windows Minimize, Maximize, Close) -->
       <div class="window-controls">
-        <button id="btn-win-min" class="btn-win" title="Minimize">─</button>
-        <button id="btn-win-max" class="btn-win" title="Maximize">□</button>
-        <button id="btn-win-close" class="btn-win btn-win-close" title="Close">✕</button>
+        <button id="btn-win-min" class="btn-win" title="Minimize" aria-label="Minimize"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" stroke-width="1"/></svg></button>
+        <button id="btn-win-max" class="btn-win" title="Maximize" aria-label="Maximize"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><rect x="0.5" y="0.5" width="9" height="9" fill="none" stroke="currentColor" stroke-width="1"/></svg></button>
+        <button id="btn-win-close" class="btn-win btn-win-close" title="Close" aria-label="Close"><svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 10M10 0 0 10" stroke="currentColor" stroke-width="1"/></svg></button>
       </div>
     </div>
 
     <!-- Navigation Bar (Omnibox & Actions) -->
     <div class="nav-toolbar">
       <div class="nav-buttons">
-        <button id="btn-back" class="btn-tool" title="Back (Alt+Left)" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+        <button id="btn-back" class="btn-tool" title="Back (Alt+Left)" aria-label="Back" disabled><span class="sh-icon" data-icon="arrow-left" aria-hidden="true"></span></button>
+        <button id="btn-forward" class="btn-tool" title="Forward (Alt+Right)" aria-label="Forward" disabled><span class="sh-icon" data-icon="arrow-right" aria-hidden="true"></span></button>
+        <button id="btn-reload" class="btn-tool" title="Reload (Ctrl+R)" aria-label="Reload">
+          <span id="icon-reload" class="sh-icon" data-icon="reload" aria-hidden="true"></span>
+          <span id="icon-stop" class="sh-icon hidden" data-icon="stop" aria-hidden="true"></span>
         </button>
-        <button id="btn-forward" class="btn-tool" title="Forward (Alt+Right)" disabled>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-        </button>
-        <button id="btn-reload" class="btn-tool" title="Reload (Ctrl+R)">
-          <!-- Reload Icon -->
-          <svg id="icon-reload" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          <!-- Stop Icon (hidden by default) -->
-          <svg id="icon-stop" class="hidden" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-        </button>
-        <button id="btn-home" class="btn-tool" title="Home">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-        </button>
+        <button id="btn-home" class="btn-tool" title="Home" aria-label="Home"><span class="sh-icon" data-icon="home" aria-hidden="true"></span></button>
       </div>
 
       <!-- Omnibox (Address & Search Bar) -->
       <div class="omnibox-wrapper">
-        <span id="omnibox-security" class="omnibox-icon lock" title="Secure Connection">🔒</span>
+        <button id="omnibox-security" class="omnibox-icon lock" title="Secure Connection" aria-label="Site information"><span class="sh-icon" data-icon="lock" aria-hidden="true"></span></button>
         <input type="text" id="omnibox-input" placeholder="Search Google or type a URL..." autocomplete="off" spellcheck="false">
         <button id="omnibox-zoom-badge" class="zoom-badge hidden" title="Reset zoom to 100% (Ctrl+0)">100%</button>
-        <button id="btn-star-bookmark" class="omnibox-action-btn" title="Bookmark this tab (Ctrl+D)">★</button>
+        <button id="btn-star-bookmark" class="omnibox-action-btn" title="Bookmark this tab (Ctrl+D)" aria-label="Bookmark this tab"><span class="sh-icon" data-icon="star" aria-hidden="true"></span></button>
       </div>
 
       <!-- Action Tools -->
       <div class="action-tools">
         <!-- Ad Blocker Indicator -->
-        <button id="btn-adblocker-status" class="tool-badge-btn" title="SHMMOTH Shield Active">
-          <span class="shield">🛡️</span>
+        <button id="btn-adblocker-status" class="tool-badge-btn" title="SHMMOTH Shield Active" aria-label="Ad blocker">
+          <span class="shield"><span class="sh-icon" data-icon="shield" aria-hidden="true"></span></span>
           <span id="ad-counter" class="counter">0</span>
         </button>
 
         <!-- Live Download Status Chip in Toolbar -->
         <div id="toolbar-download-status" class="toolbar-download-status hidden" title="Click to view Downloads (Ctrl+J)">
-          <span class="tb-dl-icon">⬇️</span>
+          <span class="tb-dl-icon"><span class="sh-icon" data-icon="download" aria-hidden="true"></span></span>
           <span id="toolbar-download-filename" class="tb-dl-filename">Downloading...</span>
           <div class="tb-dl-progress-bg">
             <div id="toolbar-download-bar" class="tb-dl-progress-bar"></div>
@@ -92,8 +81,8 @@
         </div>
 
         <!-- Downloads Page Trigger Button -->
-        <button id="btn-downloads" class="btn-tool btn-downloads" title="Downloads (Ctrl+J)">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <button id="btn-downloads" class="btn-tool btn-downloads" title="Downloads (Ctrl+J)" aria-label="Downloads">
+          <span class="sh-icon" data-icon="download" aria-hidden="true"></span>
           <span id="download-badge" class="download-badge hidden">0</span>
         </button>
 
@@ -101,44 +90,14 @@
         <div id="extension-action-icons" class="extension-action-icons"></div>
 
         <!-- Extensions Menu (Stage 7) -->
-        <button id="btn-extensions" class="btn-tool" title="Extensions">
-          <span>🧩</span>
-        </button>
+        <button id="btn-extensions" class="btn-tool" title="Extensions" aria-label="Extensions"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span></button>
 
-        <!-- New Incognito Window (Stage 4) -->
-        <button id="btn-incognito" class="btn-tool" title="New Incognito Window (Ctrl+Shift+N)">
-          <span>🕶️</span>
-        </button>
+        <span class="toolbar-divider" aria-hidden="true"></span>
 
-        <!-- Quick Notes Toggle -->
-        <button id="btn-toggle-notes" class="btn-tool" title="Quick Notes Scratchpad">
-          <span>📝</span>
-        </button>
-
-        <!-- DevTools Toggle -->
-        <button id="btn-devtools" class="btn-tool" title="Developer Tools (F12)">
-          <span>🛠️</span>
-        </button>
-
-        <!-- Check for Updates Toolbar Button -->
-        <button id="btn-check-update-toolbar" class="btn-tool btn-update-toolbar" title="Check for Updates">
-          <svg class="update-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-          <span id="update-toolbar-badge" class="update-toolbar-badge hidden">!</span>
-        </button>
-
-        <!-- Quick Light / Dark Mode Toggle Button -->
-        <button id="btn-toggle-theme" class="btn-tool" title="Toggle Light / Dark Mode">
-          <span id="theme-toggle-icon">🌙</span>
-        </button>
-
-        <!-- Quick Google & Site Session Importer Button -->
-        <button id="btn-import-session-toolbar" class="btn-tool" title="Import Google & YouTube Session (1-Click Login)">
-          <span style="font-size: 14px;">🔑</span>
-        </button>
-
-        <!-- Settings Button -->
-        <button id="btn-settings" class="btn-tool" title="Settings">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        <!-- Main menu: new windows, pages, theme, zoom, tools, updates, settings (pages/menu-bubble.html) -->
+        <button id="btn-menu" class="btn-tool btn-menu" title="Customize and control SHMMOTH" aria-label="Main menu" aria-haspopup="menu">
+          <span class="sh-icon" data-icon="menu" aria-hidden="true"></span>
+          <span id="menu-update-dot" class="menu-update-dot hidden" aria-hidden="true"></span>
         </button>
       </div>
     </div>
@@ -370,6 +329,7 @@
     </div>
   </div>
 
+  <script src="../pages/icons.js"></script>
   <script src="../pages/safe-html.js"></script>
   <script src="app.js"></script>
 </body>

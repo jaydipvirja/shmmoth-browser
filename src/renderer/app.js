@@ -23,17 +23,24 @@ const btnStarBookmark    = document.getElementById('btn-star-bookmark');
 const btnAdblockerStatus = document.getElementById('btn-adblocker-status');
 const adCounter          = document.getElementById('ad-counter');
 const btnDownloads       = document.getElementById('btn-downloads');
-const btnToggleNotes     = document.getElementById('btn-toggle-notes');
-const btnDevtools        = document.getElementById('btn-devtools');
-const btnCheckUpdateToolbar = document.getElementById('btn-check-update-toolbar');
-const updateToolbarBadge    = document.getElementById('update-toolbar-badge');
-const btnToggleTheme        = document.getElementById('btn-toggle-theme');
-const themeToggleIcon       = document.getElementById('theme-toggle-icon');
-const btnSettings        = document.getElementById('btn-settings');
-const btnImportSessionToolbar = document.getElementById('btn-import-session-toolbar');
+const btnMenu            = document.getElementById('btn-menu');
+const menuUpdateDot      = document.getElementById('menu-update-dot');
 const bookmarksBar       = document.getElementById('bookmarks-bar');
 
 let currentUpdateStatus  = null;
+
+// An icon of ../pages/icons.js as markup for the innerHTML-built parts (drawn by drawIcons() after rendering)
+function iconMarkup(name) {
+  return `<span class="sh-icon" data-icon="${name}" aria-hidden="true"></span>`;
+}
+function drawIcons(root) {
+  if (window.ShIcons) window.ShIcons.drawAll(root);
+}
+function setIcon(el, name) {
+  if (!el) return;
+  const svg = window.ShIcons ? window.ShIcons.create(name) : null;
+  if (svg) el.replaceChildren(svg);
+}
 
 // Window Controls
 const btnWinMin   = document.getElementById('btn-win-min');
@@ -63,7 +70,6 @@ const btnFindClose     = document.getElementById('btn-find-close');
 
 // Stage 4: Incognito Elements
 const incognitoBadge = document.getElementById('incognito-badge');
-const btnIncognito   = document.getElementById('btn-incognito');
 
 // Stage 5: Site Info & Permissions Elements
 const siteInfoPopup        = document.getElementById('site-info-popup');
@@ -178,17 +184,6 @@ async function init() {
 }
 
 // ─── Settings & Theme ───────────────────────────────────────────────────────
-function updateThemeToggleButton(themeName) {
-  if (!btnToggleTheme || !themeToggleIcon) return;
-  if (themeName === 'light') {
-    themeToggleIcon.textContent = '☀️';
-    btnToggleTheme.title = 'Switch to Dark Mode';
-  } else {
-    themeToggleIcon.textContent = '🌙';
-    btnToggleTheme.title = 'Switch to Light Mode';
-  }
-}
-
 // "Follow Windows": this query reports Windows' own dark / light setting, and changes when Windows switches
 const prefersLight = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
 if (prefersLight) {
@@ -200,7 +195,6 @@ function applyTheme(themeName) {
   const light = themeName === 'light' || (themeName === 'system' && Boolean(prefersLight && prefersLight.matches));
   document.body.classList.remove('theme-dark', 'theme-light');
   document.body.classList.add(light ? 'theme-light' : 'theme-dark');
-  updateThemeToggleButton(light ? 'light' : 'dark');
 }
 
 async function loadSettings() {
@@ -243,9 +237,9 @@ function renderBookmarksBar() {
   barBookmarks.forEach(bm => {
     const item = document.createElement('div');
     item.className = 'bookmark-item';
-    let iconHtml = '⭐';
+    let iconHtml = iconMarkup('globe');
     if (bm.favicon) {
-      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" data-fallback="⭐"/>`;
+      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" alt="" data-fallback="⭐" data-fallback-icon="globe"/>`;
     }
     item.innerHTML = `
       <span class="bookmark-icon">${iconHtml}</span>
@@ -266,7 +260,7 @@ function renderBookmarksBar() {
     const folderChip = document.createElement('div');
     folderChip.className = 'bookmark-item bookmark-folder-chip';
     folderChip.innerHTML = `
-      <span class="bookmark-icon">📁</span>
+      <span class="bookmark-icon">${iconMarkup('folder')}</span>
       <span class="bookmark-label">${escapeHtml(folderName)}</span>
       <span style="font-size: 9px; margin-left: 2px;">▼</span>
     `;
@@ -278,6 +272,7 @@ function renderBookmarksBar() {
 
     bookmarksBar.appendChild(folderChip);
   });
+  drawIcons(bookmarksBar);
 }
 
 function showBookmarkFolderDropdown(anchorEl, items) {
@@ -297,7 +292,7 @@ function showBookmarkFolderDropdown(anchorEl, items) {
     row.className = 'menu-item';
     row.innerHTML = `
       <span style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 240px;">
-        ⭐ ${escapeHtml(item.title || item.url)}
+        ${escapeHtml(item.title || item.url)}
       </span>
     `;
     row.addEventListener('click', () => {
@@ -340,14 +335,13 @@ function renderTabs(tabs, activeId) {
     if (tab.isLoading) {
       iconHtml = `<div class="tab-spinner" title="Loading..."></div>`;
     } else {
-      let icon = '🌐';
-      if (tab.url && tab.url.startsWith('mtc://settings'))  icon = '⚙️';
-      else if (tab.url && tab.url.startsWith('mtc://newtab')) icon = '🚀';
-      else if (tab.url && tab.url.startsWith('mtc://history')) icon = '🕒';
-      else if (tab.url && tab.url.startsWith('mtc://bookmarks')) icon = '★';
-      else if (tab.url && tab.url.startsWith('mtc://downloads')) icon = '⬇️';
-      else if (tab.url && tab.url.startsWith('mtc://extensions')) icon = '🧩';
-      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" data-fallback="🌐"/>`;
+      // the browser's own pages show their icon (the New Tab page the logo), sites their favicon
+      const page = (tab.url || '').match(/^mtc:\/\/([a-z]+)/);
+      const PAGE_ICONS = { settings: 'settings', history: 'history', bookmarks: 'star', downloads: 'download', extensions: 'puzzle', notes: 'notes', error: 'warning', crash: 'warning' };
+      let icon = iconMarkup('globe');
+      if (page && page[1] === 'newtab') icon = '<img src="../pages/logo.svg" alt=""/>';
+      else if (page && PAGE_ICONS[page[1]]) icon = iconMarkup(PAGE_ICONS[page[1]]);
+      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" alt="" data-fallback="🌐" data-fallback-icon="globe"/>`;
 
       iconHtml = `<div class="tab-favicon">${icon}</div>`;
     }
@@ -355,7 +349,7 @@ function renderTabs(tabs, activeId) {
     // Audio / Mute badge
     let audioHtml = '';
     if (tab.isAudible) {
-      const audioIcon = tab.isMuted ? '🔇' : '🔊';
+      const audioIcon = iconMarkup(tab.isMuted ? 'volume-off' : 'volume');
       const audioTitle = tab.isMuted ? 'Unmute tab' : 'Mute tab';
       audioHtml = `<button class="tab-audio-btn" title="${audioTitle}">${audioIcon}</button>`;
     }
@@ -363,7 +357,7 @@ function renderTabs(tabs, activeId) {
     // Sleep badge (RAM saver)
     let badgeHtml = '';
     if (tab.isSleeping) {
-      badgeHtml = '<span class="tab-badge" title="Sleeping (RAM Saver)">💤</span>';
+      badgeHtml = `<span class="tab-badge" title="Sleeping (RAM Saver)">${iconMarkup('sleep')}</span>`;
     }
 
     tabEl.innerHTML = `
@@ -478,6 +472,7 @@ function renderTabs(tabs, activeId) {
 
     tabsStrip.appendChild(tabEl);
   });
+  drawIcons(tabsStrip);
 
   // Update Omnibox & Toolbar state for active tab
   const activeTab = currentTabs.find(t => t.id === activeTabId);
@@ -600,26 +595,29 @@ function updateOmnibox(url, hasError = false) {
   if (hasError && url) {
     // the address that failed to load: never show the padlock for a page that was not delivered
     omniboxInput.value = url;
-    omniboxSecurity.textContent = '⚠️';
-    omniboxSecurity.title = 'This page could not be loaded';
+    setSecurityIcon('warning', 'warn', 'This page could not be loaded');
   } else if (!url || url === 'mtc://newtab') {
     omniboxInput.value = '';
-    omniboxSecurity.textContent = '🚀';
-    omniboxSecurity.title = 'SHMMOTH Start Dashboard';
+    setSecurityIcon('search', 'neutral', 'Search or type a web address');
   } else if (url.startsWith('mtc://')) {
     omniboxInput.value = url;
-    omniboxSecurity.textContent = '🛡️';
-    omniboxSecurity.title = 'SHMMOTH Internal Page';
+    setSecurityIcon('shield', 'internal', 'SHMMOTH page');
   } else {
     omniboxInput.value = url;
     if (url.startsWith('https://')) {
-      omniboxSecurity.textContent = '🔒';
-      omniboxSecurity.title = 'Secure Connection (HTTPS)';
+      setSecurityIcon('lock', 'secure', 'Connection is secure');
     } else {
-      omniboxSecurity.textContent = '⚠️';
-      omniboxSecurity.title = 'Not Secure';
+      setSecurityIcon('warning', 'warn', 'Not secure');
     }
   }
+}
+
+// The icon at the start of the address bar and its state (the colour comes from style.css: .omnibox-icon.<state>)
+function setSecurityIcon(name, state, title) {
+  setIcon(omniboxSecurity, name);
+  omniboxSecurity.classList.remove('secure', 'warn', 'internal', 'neutral', 'lock');
+  omniboxSecurity.classList.add(state);
+  omniboxSecurity.title = title;
 }
 
 function updateReloadStopButton(isLoading) {
@@ -720,17 +718,17 @@ async function toggleSiteInfoPopup() {
 
   if (siteSecurityBadge && siteSecurityIcon && siteSecurityTitle) {
     if (isHttps) {
-      siteSecurityIcon.textContent = '🔒';
+      setIcon(siteSecurityIcon, 'lock');
       siteSecurityTitle.textContent = 'Connection is secure';
-      siteSecurityBadge.style.color = '#10b981';
+      siteSecurityBadge.style.color = 'var(--sh-success)';
     } else if (isInternal) {
-      siteSecurityIcon.textContent = '🛡️';
+      setIcon(siteSecurityIcon, 'shield');
       siteSecurityTitle.textContent = 'SHMMOTH Internal Page';
-      siteSecurityBadge.style.color = '#3b82f6';
+      siteSecurityBadge.style.color = 'var(--sh-accent-text)';
     } else {
-      siteSecurityIcon.textContent = '⚠️';
+      setIcon(siteSecurityIcon, 'warning');
       siteSecurityTitle.textContent = 'Connection is not secure';
-      siteSecurityBadge.style.color = '#f59e0b';
+      siteSecurityBadge.style.color = 'var(--sh-warning)';
     }
   }
 
@@ -958,53 +956,17 @@ function setupEventListeners() {
     });
   }
 
-  // Notes Side Panel toggle
-  btnToggleNotes.addEventListener('click', () => {
-    if (api && api.toggleSidePanel) {
-      api.toggleSidePanel('notes');
-    }
-  });
-
-  // DevTools Toggle
-  btnDevtools.addEventListener('click', () => {
-    if (api && api.toggleDevTools) {
-      api.toggleDevTools(activeTabId);
-    }
-  });
-
-  // Quick Light / Dark Mode Toggle Button
-  if (btnToggleTheme) {
-    btnToggleTheme.addEventListener('click', async () => {
-      // switches away from what is shown (also when the setting is "Follow Windows")
-      const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
-      settings.theme = next;
-      applyTheme(next);
-      if (api && api.updateSettings) {
-        try {
-          await api.updateSettings({ theme: next });
-        } catch (_) {}
+  // Main menu (⋮): a small window of its own (pages/menu-bubble.html), so it can open over the page
+  if (btnMenu) {
+    btnMenu.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const rect = btnMenu.getBoundingClientRect();
+      if (api && api.toggleMenuBubble) {
+        api.toggleMenuBubble({ x: Math.round(rect.x), y: Math.round(rect.bottom), width: Math.round(rect.width), height: Math.round(rect.height) });
       }
     });
   }
-
-  // Settings Button
-  btnSettings.addEventListener('click', () => {
-    openSettingsTab();
-  });
-
-  // Google & Site Session Import Button
-  if (btnImportSessionToolbar) {
-    btnImportSessionToolbar.addEventListener('click', () => {
-      openSettingsTab('privacy');
-    });
-  }
-
-  // New Incognito Window Button (Stage 4)
-  if (btnIncognito) {
-    btnIncognito.addEventListener('click', () => {
-      if (api && api.newIncognitoWindow) api.newIncognitoWindow();
-    });
-  }
+  if (api && api.onMenuAction) api.onMenuAction(runMenuAction);
 
   // Window Controls & Double-Click Maximize/Restore
   btnWinMin.addEventListener('click', () => api && api.minimizeWindow && api.minimizeWindow());
@@ -1021,13 +983,21 @@ function setupEventListeners() {
   // Update Maximize / Restore icon based on live window state
   function updateMaximizeButton(isMaximized) {
     if (!btnWinMax) return;
-    if (isMaximized) {
-      btnWinMax.textContent = '❐';
-      btnWinMax.title = 'Restore';
-    } else {
-      btnWinMax.textContent = '□';
-      btnWinMax.title = 'Maximize';
+    // drawn with DOM calls: the markup is fixed, nothing from a page reaches it
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    for (const [k, v] of Object.entries({ width: 10, height: 10, viewBox: '0 0 10 10', 'aria-hidden': 'true' })) svg.setAttribute(k, String(v));
+    const shapes = isMaximized
+      ? [['rect', { x: 0.5, y: 2.5, width: 7, height: 7 }], ['path', { d: 'M2.5 2.5V0.5h7v7h-2' }]]
+      : [['rect', { x: 0.5, y: 0.5, width: 9, height: 9 }]];
+    for (const [tag, attrs] of shapes) {
+      const el = document.createElementNS(NS, tag);
+      for (const [k, v] of Object.entries({ ...attrs, fill: 'none', stroke: 'currentColor', 'stroke-width': 1 })) el.setAttribute(k, String(v));
+      svg.appendChild(el);
     }
+    btnWinMax.replaceChildren(svg);
+    btnWinMax.title = isMaximized ? 'Restore' : 'Maximize';
+    btnWinMax.setAttribute('aria-label', btnWinMax.title);
   }
 
   if (api && api.onWindowState) {
@@ -1869,67 +1839,23 @@ function setupDownloadListeners() {
   });
 }
 
-// ─── Auto-Update Toolbar Controller ─────────────────────────────────────────
-function setupUpdateToolbarListeners() {
-  if (!btnCheckUpdateToolbar) return;
-
-  function renderToolbarUpdateStatus(status) {
-    if (!status) return;
-    currentUpdateStatus = status;
-
-    switch (status.status) {
-      case 'checking':
-        btnCheckUpdateToolbar.classList.add('spinning');
-        btnCheckUpdateToolbar.classList.remove('update-ready');
-        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
-        btnCheckUpdateToolbar.title = 'Checking for updates...';
-        break;
-
-      case 'available':
-      case 'downloading':
-        btnCheckUpdateToolbar.classList.remove('spinning');
-        btnCheckUpdateToolbar.classList.remove('update-ready');
-        if (updateToolbarBadge) {
-          updateToolbarBadge.classList.remove('hidden');
-          const pct = Math.round(status.percent || 0);
-          updateToolbarBadge.textContent = pct > 0 ? `${pct}%` : '↓';
-        }
-        btnCheckUpdateToolbar.title = `Downloading update: ${Math.round(status.percent || 0)}% (Click to view)`;
-        break;
-
-      case 'downloaded':
-        btnCheckUpdateToolbar.classList.remove('spinning');
-        btnCheckUpdateToolbar.classList.add('update-ready');
-        if (updateToolbarBadge) {
-          updateToolbarBadge.classList.remove('hidden');
-          updateToolbarBadge.textContent = '!';
-        }
-        btnCheckUpdateToolbar.title = `Update ready (v${status.availableVersion || ''})! Click to restart and install.`;
-        break;
-
-      case 'not-available':
-        btnCheckUpdateToolbar.classList.remove('spinning');
-        btnCheckUpdateToolbar.classList.remove('update-ready');
-        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
-        btnCheckUpdateToolbar.title = `SHMMOTH Browser is up to date (v${status.currentVersion || ''})`;
-        break;
-
-      case 'error':
-        btnCheckUpdateToolbar.classList.remove('spinning');
-        btnCheckUpdateToolbar.classList.remove('update-ready');
-        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
-        btnCheckUpdateToolbar.title = 'Update check: ' + (status.error || status.message || 'Error occurred');
-        break;
-
-      default:
-        btnCheckUpdateToolbar.classList.remove('spinning');
-        btnCheckUpdateToolbar.classList.remove('update-ready');
-        if (updateToolbarBadge) updateToolbarBadge.classList.add('hidden');
-        btnCheckUpdateToolbar.title = 'Check for updates';
-        break;
-    }
+// ─── Updates: a dot on the ⋮ button (the menu shows the details) ─────────────
+function renderToolbarUpdateStatus(status) {
+  if (!status) return;
+  currentUpdateStatus = status;
+  const pending = ['available', 'downloading', 'downloaded'].includes(status.status);
+  if (menuUpdateDot) {
+    menuUpdateDot.classList.toggle('hidden', !pending);
+    menuUpdateDot.classList.toggle('ready', status.status === 'downloaded');
   }
+  if (btnMenu) {
+    btnMenu.title = status.status === 'downloaded'
+      ? `Update ready (v${status.availableVersion || ''}): open the menu to restart`
+      : 'Customize and control SHMMOTH';
+  }
+}
 
+function setupUpdateToolbarListeners() {
   // Subscribe to live status pushes from UpdateManager
   if (api && api.onUpdateStatus) {
     api.onUpdateStatus((status) => {
@@ -1943,42 +1869,36 @@ function setupUpdateToolbarListeners() {
       renderToolbarUpdateStatus(status);
     }).catch(() => {});
   }
+}
 
-  // Click handler
-  btnCheckUpdateToolbar.addEventListener('click', async () => {
-    // 1. If an update has already finished downloading, offer instant restart & install
-    if (currentUpdateStatus && currentUpdateStatus.status === 'downloaded') {
-      const confirmRelaunch = window.confirm(
-        `SHMMOTH Browser Update Ready!\n\nVersion ${currentUpdateStatus.availableVersion || ''} is downloaded and ready to install.\n\nRestart now to finish updating?`
-      );
-      if (confirmRelaunch && api && api.installUpdate) {
-        api.installUpdate();
-      }
-      return;
+// Menu → "Check for updates" / "Restart to update"
+async function runUpdateCheck() {
+  // 1. If an update has already finished downloading, offer instant restart & install
+  if (currentUpdateStatus && currentUpdateStatus.status === 'downloaded') {
+    const confirmRelaunch = window.confirm(
+      `SHMMOTH Browser Update Ready!\n\nVersion ${currentUpdateStatus.availableVersion || ''} is downloaded and ready to install.\n\nRestart now to finish updating?`
+    );
+    if (confirmRelaunch && api && api.installUpdate) {
+      api.installUpdate();
     }
+    return;
+  }
 
-    // 2. Open About Settings in a NEW TAB (or switch to existing) so active user work is NEVER lost!
-    openSettingsTab('about');
+  // 2. Open About Settings in a NEW TAB (or switch to existing) so active user work is NEVER lost!
+  openSettingsTab('about');
 
-    // 3. Trigger manual check if idle, not-available, or error
-    if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
-      renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '1.0.10' });
-      if (api && api.checkForUpdates) {
-        try {
-          const res = await api.checkForUpdates();
-          renderToolbarUpdateStatus(res);
-        } catch (err) {
-          renderToolbarUpdateStatus({ status: 'error', error: err.message });
-        }
+  // 3. Trigger manual check if idle, not-available, or error
+  if (!currentUpdateStatus || currentUpdateStatus.status === 'idle' || currentUpdateStatus.status === 'not-available' || currentUpdateStatus.status === 'error') {
+    renderToolbarUpdateStatus({ status: 'checking', currentVersion: currentUpdateStatus?.currentVersion || '' });
+    if (api && api.checkForUpdates) {
+      try {
+        const res = await api.checkForUpdates();
+        renderToolbarUpdateStatus(res);
+      } catch (err) {
+        renderToolbarUpdateStatus({ status: 'error', error: err.message });
       }
     }
-  });
-
-  // Secondary / contextmenu: open settings about in a new tab without overwriting active work
-  btnCheckUpdateToolbar.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-    openSettingsTab('about');
-  });
+  }
 }
 
 function openSettingsTab(hash = '') {
@@ -2008,6 +1928,39 @@ function openExtensionsTab() {
   } else {
     if (api && api.createTab) api.createTab('mtc://extensions');
   }
+}
+
+function openPageTab(url) {
+  const existingTab = currentTabs.find(t => t.url && t.url.startsWith(url));
+  if (existingTab) {
+    if (api && api.switchTab) api.switchTab(existingTab.id);
+  } else if (api && api.createTab) {
+    api.createTab(url);
+  }
+}
+
+// ─── Main menu (⋮) ──────────────────────────────────────────────────────────
+// What the entries of pages/menu-bubble.html do; the main process hands the chosen one to the window the menu was
+// opened from (theme and zoom it handles itself). Only these names are accepted.
+const MENU_ACTIONS = {
+  'new-tab':       () => api && api.createTab && api.createTab('mtc://newtab'),
+  'new-incognito': () => api && api.newIncognitoWindow && api.newIncognitoWindow(),
+  history:         () => openPageTab('mtc://history'),
+  downloads:       () => openDownloadsTab(),
+  bookmarks:       () => openPageTab('mtc://bookmarks'),
+  passwords:       () => openSettingsTab('passwords'),
+  notes:           () => api && api.toggleSidePanel && api.toggleSidePanel('notes'),
+  extensions:      () => openExtensionsTab(),
+  'import-signin': () => openSettingsTab('privacy'),
+  devtools:        () => api && api.toggleDevTools && api.toggleDevTools(activeTabId),
+  'check-update':  () => runUpdateCheck(),
+  settings:        () => openSettingsTab(),
+  about:           () => openSettingsTab('about')
+};
+
+function runMenuAction(action) {
+  const run = Object.prototype.hasOwnProperty.call(MENU_ACTIONS, action) ? MENU_ACTIONS[action] : null;
+  if (run) run();
 }
 
 // escapeHtml() comes from ../pages/safe-html.js (loaded before this script)

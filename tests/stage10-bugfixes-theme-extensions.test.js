@@ -110,10 +110,10 @@ runTest('8. DuckDuckGo search engine normalization in main.js and newtab.js', ()
 // 9. body.theme-light styles in style.css
 runTest('9. body.theme-light CSS variables and overrides in src/renderer/style.css', () => {
   const css = fs.readFileSync(path.join(__dirname, '..', 'src', 'renderer', 'style.css'), 'utf8');
-  assert(css.includes('body.theme-light'), 'Missing body.theme-light in style.css');
-  assert(css.includes('--bg-chrome: #e2e8f0;'), 'Missing light bg-chrome');
-  assert(css.includes('--bg-toolbar: #f8fafc;'), 'Missing light bg-toolbar');
-  assert(css.includes('--text-main: #0f172a;'), 'Missing light text-main');
+  // since 1.3.0 the frame takes its colours from the design tokens, which switch with body.theme-light
+  assert(/body \{\s*\n\s*--bg-chrome: var\(--sh-frame\);[\s\S]*--bg-toolbar: var\(--sh-surface\);[\s\S]*--text-main: var\(--sh-text\);/.test(css), 'frame colours come from the tokens');
+  const tokens = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'design-tokens.css'), 'utf8');
+  assert(/body\.theme-light \{[\s\S]*--sh-frame: #e6ecf5;/.test(tokens), 'light frame colour');
 });
 
 // 10. theme-light styling in internal pages

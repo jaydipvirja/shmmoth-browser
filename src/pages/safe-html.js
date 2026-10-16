@@ -51,13 +51,18 @@
     root.escapeHtml = escapeHtml;
 
     // Image fallback without inline handlers (CSP-safe). Markup:
-    //   <img src="…" data-fallback="🌐">
+    //   <img src="…" data-fallback="🌐">            the text replaces the broken image
+    //   <img src="…" data-fallback-icon="globe">    an icon of pages/icons.js replaces it (when that script is loaded)
     // `error` events do not bubble, so listen in the capture phase on document.
     root.document.addEventListener('error', function (event) {
       var el = event.target;
-      if (!el || el.tagName !== 'IMG' || !el.hasAttribute('data-fallback')) return;
+      if (!el || el.tagName !== 'IMG') return;
       var parent = el.parentElement;
-      if (parent) parent.textContent = el.getAttribute('data-fallback');
+      if (!parent) return;
+      var icon = el.getAttribute('data-fallback-icon');
+      var svg = icon && root.ShIcons ? root.ShIcons.create(icon) : null;
+      if (svg) parent.replaceChildren(svg);
+      else if (el.hasAttribute('data-fallback')) parent.textContent = el.getAttribute('data-fallback');
     }, true);
   }
 })(typeof window !== 'undefined' ? window : null);

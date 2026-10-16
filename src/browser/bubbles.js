@@ -9,6 +9,12 @@ const {
   PRELOAD_INTERNAL,
   SRC_DIR
 } = require('./shared');
+const { normalizeTheme } = require('../services/theme');
+
+// Entries of the main menu that the browser window runs itself (renderer/app.js MENU_ACTIONS); theme and zoom are
+// handled here, everything else is refused.
+const FRAME_MENU_ACTIONS = new Set(['new-tab', 'new-incognito', 'history', 'downloads', 'bookmarks', 'passwords', 'notes',
+  'extensions', 'import-signin', 'devtools', 'check-update', 'settings', 'about']);
 
 class BubblesMethods {
   // ─── Download Bubble (Chrome Style Flyout) ───────────────────────────────
@@ -331,6 +337,126 @@ class BubblesMethods {
       this.permissionBubbleWin.close();
       this.permissionBubbleWin = null;
     }
+  }
+
+  // ─── Main menu (⋮) ────────────────────────────────────────────────────────
+  // A small window of its own like the other bubbles, so it can open over the page. Its entries either change the
+  // theme / zoom (here, the menu stays open and shows the new value) or are handed to the browser window it was opened
+  // from (renderer/app.js runMenuAction), which then closes it.
+
+  toggleMenuBubble(bounds, isIncognito = false) {
+    if (this.menuBubbleWin && !this.menuBubbleWin.isDestroyed()) {
+      this.closeMenuBubble();
+      return false;
+    }
+    return this.openMenuBubble(bounds, isIncognito);
+  }
+
+  openMenuBubble(bounds, isIncognito = false) {
+    const parentWin = isIncognito ? this.incognitoWindow : this.mainWindow;
+    if (!parentWin || parentWin.isDestroyed()) return false;
+    this.closeShieldBubble();
+    this.closeDownloadBubble();
+    this.closeExtensionBubble();
+    this.closeMenuBubble();
+
+    const width = 320;
+    const height = 590;
+    const winBounds = parentWin.getBounds();
+    let x, y;
+    if (bounds && typeof bounds.x === 'number') {
+      x = Math.round(winBounds.x + bounds.x + (bounds.width || 36) - width + 6);   // right edge under the ⋮ button
+      y = Math.round(winBounds.y + bounds.y + 2);
+    } else {
+      x = winBounds.x + winBounds.width - width - 8;
+      y = winBounds.y + 88;
+    }
+    x = Math.max(winBounds.x + 8, Math.min(x, winBounds.x + winBounds.width - width - 4));
+
+    this.menuBubbleIncognito = Boolean(isIncognito);
+    this.menuBubbleWin = new BrowserWindow({
+      width,
+      height,
+      x,
+      y,
+      parent: parentWin,
+      frame: false,
+      resizable: false,
+      show: false,
+      alwaysOnTop: true,
+      skipTaskbar: true,
+      transparent: true,
+      backgroundColor: '#00000000',
+      webPreferences: {
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        preload: PRELOAD_INTERNAL
+      }
+    });
+
+    this.menuBubbleWin.loadFile(path.join(SRC_DIR, 'pages', 'menu-bubble.html'));
+
+    this.menuBubbleWin.once('ready-to-show', () => {
+      if (this.menuBubbleWin && !this.menuBubbleWin.isDestroyed()) {
+        this.menuBubbleWin.show();
+        this.menuBubbleWin.focus();
+      }
+    });
+
+    this.menuBubbleWin.on('blur', () => {
+      setTimeout(() => {
+        if (this.menuBubbleWin && !this.menuBubbleWin.isDestroyed() && !this.menuBubbleWin.isFocused()) {
+          this.closeMenuBubble();
+        }
+      }, 150);
+    });
+
+    return true;
+  }
+
+  closeMenuBubble() {
+    if (this.menuBubbleWin && !this.menuBubbleWin.isDestroyed()) {
+      this.menuBubbleWin.close();
+    }
+    this.menuBubbleWin = null;
+  }
+
+  /** What the menu shows: the Theme setting, the zoom of the tab it belongs to, the update state. */
+  menuState() {
+    const isIncognito = Boolean(this.menuBubbleIncognito);
+    const tabId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
+    const settings = this.storage ? this.storage.getSettings() : {};
+    let update = null;
+    try { update = this.updateManager ? this.updateManager.getStatus() : null; } catch (_) { update = null; }
+    return {
+      isIncognito,
+      theme: normalizeTheme(settings.theme),
+      zoom: Math.round(this.getZoomFactor(tabId) * 100),
+      update: update ? { status: update.status, availableVersion: update.availableVersion || '' } : null
+    };
+  }
+
+  /** An entry of the menu was chosen. Returns the new menu state (theme / zoom) or true (handed to the window). */
+  runMenuAction(action) {
+    const isIncognito = Boolean(this.menuBubbleIncognito);
+    const tabId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
+    if (action === 'zoom-in') { this.zoomIn(tabId); return this.menuState(); }
+    if (action === 'zoom-out') { this.zoomOut(tabId); return this.menuState(); }
+    if (action === 'zoom-reset') { this.resetZoom(tabId); return this.menuState(); }
+    if (typeof action === 'string' && action.startsWith('theme-')) {
+      const theme = normalizeTheme(action.slice('theme-'.length));
+      const updated = this.storage.updateSettings({ theme });
+      try { require('electron').nativeTheme.themeSource = theme; } catch (_) { /* not in tests */ }
+      this.broadcastThemeChange(theme);
+      this.broadcastSettingsUpdated(updated);
+      return this.menuState();
+    }
+    if (!FRAME_MENU_ACTIONS.has(action)) return false;
+    this.closeMenuBubble();
+    const win = isIncognito ? this.incognitoWindow : this.mainWindow;
+    if (win && !win.isDestroyed()) win.webContents.send('menu:action', action);
+    return true;
   }
 }
 

@@ -1189,6 +1189,29 @@ class IpcMethods {
       return true;
     }));
 
+    // ── Main menu (⋮) ──
+    ipcMain.handle('menu:toggleBubble', secureHandlerRaw((event, bounds) => {
+      return this.toggleMenuBubble(bounds, this.isIncognitoSender(event.sender));
+    }));
+
+    ipcMain.handle('menu:closeBubble', secureHandlerRaw(() => {
+      this.closeMenuBubble();
+      return true;
+    }));
+
+    // only the menu window itself may choose an entry
+    const fromMenu = (event) => Boolean(this.menuBubbleWin && !this.menuBubbleWin.isDestroyed() && event.sender === this.menuBubbleWin.webContents);
+
+    ipcMain.handle('menu:getState', secureHandlerRaw((event) => {
+      if (!fromMenu(event)) throw new Error('menu:getState is only for the menu');
+      return this.menuState();
+    }));
+
+    ipcMain.handle('menu:action', secureHandlerRaw((event, action) => {
+      if (!fromMenu(event)) throw new Error('menu:action is only for the menu');
+      return this.runMenuAction(sanitizeString(action, 32, 'action'));
+    }));
+
     // ── Auto-Update (Chromium / electron-updater) ──
     ipcMain.handle('updater:getStatus', secureHandlerRaw(() => {
       return this.updateManager ? this.updateManager.getStatus() : { status: 'idle', currentVersion: app.getVersion() };

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.3.0
+
+Redesign, Phase 2 (first part): the browser frame, as in the approved mockup (`docs/redesign-plan.md`).
+- **A calmer toolbar.** Next to the address bar there are now only the everyday buttons: the ad blocker (with the number blocked on this page), downloads, extensions and a new **⋮ main menu**. The rest moved into that menu: *New tab*, *New Incognito window*, *History*, *Downloads*, *Bookmarks*, *Passwords*, *Quick notes*, *Extensions*, *Import Google & YouTube sign-in*, *Developer tools*, *Check for updates*, *Settings* and *About*, each with its keyboard shortcut. The keyboard shortcuts work as before.
+- **Theme and zoom in the menu:** *Windows / Light / Dark* switch the whole browser at once, and − / + / the percentage change the zoom of the page; the menu stays open and shows the new value.
+- **Updates:** a small dot on ⋮ while an update downloads (green when it is ready); the menu entry then reads *Restart to update*.
+- **New look for tabs, address bar and bookmarks bar:** the SHMMOTH logo instead of the "SHMMOTH" chip, the active tab joined to the toolbar, site icons (and the browser's own pages with their own icons) instead of emoji, a rounded address bar with a clear lock / warning icon, and bookmark icons instead of stars. Dark, Light and the violet Incognito window all come from the design tokens of 1.2.1. The page area keeps its exact size and place.
+- Menus and the find bar in the frame follow the theme too.
+
 ## 1.2.1
 
 Redesign, Phase 1: one design system for the whole browser (`docs/redesign-plan.md`).

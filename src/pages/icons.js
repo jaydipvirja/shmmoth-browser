@@ -35,7 +35,18 @@
     trash:       [['path', { d: 'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3' }]],
     menu:        [['circle', { cx: 12, cy: 5, r: 1.2 }], ['circle', { cx: 12, cy: 12, r: 1.2 }], ['circle', { cx: 12, cy: 19, r: 1.2 }]],
     sun:         [['circle', { cx: 12, cy: 12, r: 4 }], ['path', { d: 'M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4' }]],
-    moon:        [['path', { d: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z' }]]
+    moon:        [['path', { d: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z' }]],
+    home:        [['path', { d: 'm3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z' }]],
+    stop:        [['path', { d: 'M6 6l12 12M18 6 6 18' }]],
+    incognito:   [['path', { d: 'M3 11l2-6h14l2 6M10 15h4' }], ['circle', { cx: 6.5, cy: 15, r: 3.5 }], ['circle', { cx: 17.5, cy: 15, r: 3.5 }]],
+    notes:       [['rect', { x: 4, y: 4, width: 16, height: 16, rx: 2 }], ['path', { d: 'M8 9h8M8 13h8M8 17h5' }]],
+    code:        [['path', { d: 'm8 6-6 6 6 6M16 6l6 6-6 6' }]],
+    login:       [['path', { d: 'M15 3h4v18h-4M10 17l5-5-5-5M15 12H3' }]],
+    file:        [['path', { d: 'M14 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8z' }], ['path', { d: 'M14 3v5h5' }]],
+    'volume':    [['path', { d: 'M4 9h4l5-4v14l-5-4H4z' }], ['path', { d: 'M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12' }]],
+    'volume-off':[['path', { d: 'M4 9h4l5-4v14l-5-4H4z' }], ['path', { d: 'm17 9 5 6M22 9l-5 6' }]],
+    sleep:       [['path', { d: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z' }], ['path', { d: 'M15 4h4l-4 4h4' }]],
+    warning:     [['path', { d: 'M12 3 2 20h20z' }], ['path', { d: 'M12 10v4M12 17v.01' }]]
   };
 
   function create(name, size) {
