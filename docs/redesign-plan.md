@@ -8,6 +8,15 @@ Mockups of the three directions to choose from (private canvas, owner only):
 https://claude.ai/artifact/Exv3JURvZXHF83S3JyDpUM — A Clean (Chrome-like), B Sidebar (vertical tabs), C Compact (one
 row). Each has a Dark / Light switch.
 
+## Decisions (2026-10-16)
+
+| Question | Decision |
+|---|---|
+| Direction | **A — Clean**: tabs on top, address bar, bookmarks bar (vertical tabs may come later as an option, Phase 6) |
+| Brand | Keep the "S" logo and the navy / cyan colours |
+| Default theme | Follow Windows (light or dark), with Dark and Light still selectable |
+| Windows 11 Mica | Yes, with a solid background on Windows 10 |
+
 ## Where the UI stands (1.1.15)
 
 | Part | Files | Size |
@@ -40,8 +49,7 @@ must be its own small window, as the bubbles already are. The page area starts a
 | 6 | Optional features: vertical tabs (if not the chosen direction), tab groups, split view, reading mode | L | later |
 
 ### Phase 0 — Groundwork (nothing visible changes)
-- Choose the direction (A / B / C) from the mockups. Also decide on brand (keep the logo and colours or not), the default
-  theme (Dark / Light / follow Windows), and whether to use Windows 11 Mica.
+- ~~Choose the direction, brand, default theme and Mica~~ — done, see Decisions.
 - **Screenshot baselines:** an E2E suite captures every screen (frame, each internal page, each bubble, dark and light)
   so later phases show their differences and catch accidental breakage.
 - **Split `main.js`** into modules (window/layout, tabs, context menu, downloads IPC, settings IPC, Google sign-in
