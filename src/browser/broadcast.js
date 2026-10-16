@@ -146,7 +146,9 @@ class BroadcastMethods {
   }
 
   broadcastThemeChange(theme) {
-    const wins = [this.mainWindow, this.incognitoWindow].filter(w => w && !w.isDestroyed() && w.webContents);
+    // the browser windows and the open bubbles (the main menu shows the new theme while it stays open)
+    const wins = [this.mainWindow, this.incognitoWindow, this.menuBubbleWin, this.shieldBubbleWin, this.downloadBubbleWin, this.extensionBubbleWin, this.permissionBubbleWin]
+      .filter(w => w && !w.isDestroyed() && w.webContents);
     for (const win of wins) {
       try { win.webContents.send('theme:changed', theme); } catch (_) {}
     }

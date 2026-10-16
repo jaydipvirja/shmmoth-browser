@@ -42,7 +42,7 @@ must be its own small window, as the bubbles already are. The page area starts a
 |---|---|---|---|
 | 0 | Groundwork: direction chosen, screenshot baselines, `main.js` split | M | 1.2.0 (no visible change) |
 | 1 | Design system: tokens, components, icon set | M | 1.2.1 |
-| 2 | Browser frame: tabs, address bar, toolbar, bookmarks bar, bubbles | L | 1.3.0 |
+| 2 | Browser frame: tabs, address bar, toolbar, bookmarks bar, main menu (1.3.0); bubbles (1.3.1) | L | 1.3.0 / 1.3.1 |
 | 3 | New Tab + Settings | L | 1.3.x |
 | 4 | Remaining pages: History, Bookmarks, Downloads, Extensions, Notes, Error, Crash | M | 1.3.x |
 | 5 | Polish: motion, Windows 11 Mica, logo/icon/installer art, first-run screen | M | 1.4.0 |
@@ -70,6 +70,10 @@ Mockup: the "SHMMOTH Design System" canvas.
 - Accessibility: text contrast at least 4.5:1, a visible focus ring, full keyboard navigation, `prefers-reduced-motion`.
 
 ### Phase 2 — Browser frame (largest)
+Done in 1.3.0: tab strip, toolbar, address bar and bookmarks bar on the tokens and icons; the ⋮ main menu
+(`pages/menu-bubble.html`, a bubble window) with the actions that left the toolbar, theme and zoom. Header height
+unchanged (114 / 86 px). Next, 1.3.1: the shield, downloads, extensions and permission bubbles.
+
 - Tabs: new shape, audio/mute indicator, pinned tabs, hover preview. The tab strip becomes vertical if direction B is
   chosen.
 - Address bar: new look, security chip, suggestions drawn in a bubble window above the page.

@@ -12,7 +12,8 @@
   color-scheme: dark;
 
   /* colour — dark */
-  --sh-bg: #0b1220;            /* page and frame */
+  --sh-frame: #070d19;         /* the tab strip behind the tabs */
+  --sh-bg: #0b1220;            /* page background */
   --sh-surface: #111a2e;       /* cards, toolbar, bubbles, dialogs */
   --sh-surface-2: #16213a;     /* inputs, chips, secondary buttons */
   --sh-field: #0b1220;         /* text fields and selects inside a card */
@@ -72,6 +73,7 @@
 :root.theme-light,
 body.theme-light {
   color-scheme: light;
+  --sh-frame: #e6ecf5;
   --sh-bg: #f6f8fc;
   --sh-surface: #ffffff;
   --sh-surface-2: #eef2f8;
@@ -103,6 +105,7 @@ body.theme-light {
 /* The Incognito window: its own dark violet set, whatever the theme */
 .theme-incognito {
   color-scheme: dark;
+  --sh-frame: #0f0820;
   --sh-bg: #160e2b;
   --sh-surface: #20143f;
   --sh-surface-2: #2a1b52;

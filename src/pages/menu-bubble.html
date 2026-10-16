@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
+  <title>Menu</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { background: transparent; overflow: hidden; }
+    body {
+      font: var(--sh-text-body);
+      font-size: 13px;
+      color: var(--sh-text);
+      user-select: none;
+      padding: 2px 6px 10px;
+    }
+    .menu {
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
+      border-radius: var(--sh-radius-l);
+      box-shadow: var(--sh-shadow);
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      animation: open var(--sh-motion) var(--sh-ease);
+    }
+    @keyframes open { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+    .group { display: flex; flex-direction: column; padding: 4px 0; }
+    .group + .group, .row { border-top: 1px solid var(--sh-border); }
+    .item {
+      display: flex; align-items: center; gap: 12px;
+      height: 34px; padding: 0 10px;
+      border: 0; border-radius: 8px;
+      background: transparent; color: inherit; font: inherit; text-align: left;
+      cursor: default;
+    }
+    .item:hover, .item:focus-visible { background: var(--sh-hover); outline: none; }
+    .item .sh-icon { color: var(--sh-text-2); width: 18px; height: 18px; }
+    .item .label { flex: 1; }
+    .item .key { color: var(--sh-text-2); font-size: 12px; }
+    .item.attention .sh-icon, .item.attention .label { color: var(--sh-accent-text); font-weight: 600; }
+    .row { display: flex; align-items: center; gap: 8px; padding: 8px 10px; }
+    .row .label { flex: 1; }
+    .segmented { display: flex; padding: 3px; border-radius: var(--sh-radius-m); background: var(--sh-surface-2); }
+    .segmented button {
+      height: 26px; padding: 0 10px; border: 0; border-radius: 7px;
+      background: transparent; color: var(--sh-text-2); font: 600 12px var(--sh-font);
+    }
+    .segmented button[aria-pressed="true"] { background: var(--sh-surface); color: var(--sh-text); box-shadow: var(--sh-shadow-s); }
+    .zoom-btn {
+      width: 30px; height: 28px; border-radius: 8px; border: 1px solid var(--sh-border);
+      background: transparent; color: inherit; font: 600 15px var(--sh-font);
+    }
+    .zoom-btn:hover { background: var(--sh-hover); }
+    #zoom-value { min-width: 52px; height: 28px; border: 0; border-radius: 8px; background: transparent; color: inherit; font: 600 13px var(--sh-font); }
+    #zoom-value:hover { background: var(--sh-hover); }
+  </style>
+</head>
+<body>
+  <div class="menu" role="menu" aria-label="Main menu">
+    <div class="group">
+      <button class="item" role="menuitem" data-action="new-tab"><span class="sh-icon" data-icon="plus" aria-hidden="true"></span><span class="label">New tab</span><span class="key">Ctrl+T</span></button>
+      <button class="item" role="menuitem" data-action="new-incognito"><span class="sh-icon" data-icon="incognito" aria-hidden="true"></span><span class="label">New Incognito window</span><span class="key">Ctrl+Shift+N</span></button>
+    </div>
+    <div class="group">
+      <button class="item" role="menuitem" data-action="history"><span class="sh-icon" data-icon="history" aria-hidden="true"></span><span class="label">History</span><span class="key">Ctrl+H</span></button>
+      <button class="item" role="menuitem" data-action="downloads"><span class="sh-icon" data-icon="download" aria-hidden="true"></span><span class="label">Downloads</span><span class="key">Ctrl+J</span></button>
+      <button class="item" role="menuitem" data-action="bookmarks"><span class="sh-icon" data-icon="star" aria-hidden="true"></span><span class="label">Bookmarks</span></button>
+      <button class="item" role="menuitem" data-action="passwords"><span class="sh-icon" data-icon="key" aria-hidden="true"></span><span class="label">Passwords</span></button>
+      <button class="item" role="menuitem" data-action="notes"><span class="sh-icon" data-icon="notes" aria-hidden="true"></span><span class="label">Quick notes</span></button>
+    </div>
+    <div class="group">
+      <button class="item" role="menuitem" data-action="extensions"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span><span class="label">Extensions</span></button>
+      <button class="item" role="menuitem" data-action="import-signin"><span class="sh-icon" data-icon="login" aria-hidden="true"></span><span class="label">Import Google &amp; YouTube sign-in</span></button>
+      <button class="item" role="menuitem" data-action="devtools"><span class="sh-icon" data-icon="code" aria-hidden="true"></span><span class="label">Developer tools</span><span class="key">F12</span></button>
+    </div>
+    <div class="group">
+      <button class="item" role="menuitem" data-action="check-update" id="item-update"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span><span class="label" id="update-label">Check for updates</span></button>
+      <button class="item" role="menuitem" data-action="settings"><span class="sh-icon" data-icon="settings" aria-hidden="true"></span><span class="label">Settings</span></button>
+      <button class="item" role="menuitem" data-action="about"><span class="sh-icon" data-icon="info" aria-hidden="true"></span><span class="label">About SHMMOTH</span></button>
+    </div>
+    <div class="row">
+      <span class="label" id="theme-label">Theme</span>
+      <div class="segmented" role="group" aria-labelledby="theme-label">
+        <button data-action="theme-system" aria-pressed="false" title="Follow Windows' dark / light setting">Windows</button>
+        <button data-action="theme-light" aria-pressed="false">Light</button>
+        <button data-action="theme-dark" aria-pressed="false">Dark</button>
+      </div>
+    </div>
+    <div class="row">
+      <span class="label">Zoom</span>
+      <button class="zoom-btn" data-action="zoom-out" aria-label="Zoom out">−</button>
+      <button id="zoom-value" data-action="zoom-reset" title="Reset to 100%">100%</button>
+      <button class="zoom-btn" data-action="zoom-in" aria-label="Zoom in">+</button>
+    </div>
+  </div>
+  <script src="icons.js"></script>
+  <script src="theme.js"></script>
+  <script src="menu-bubble.js"></script>
+</body>
+</html>

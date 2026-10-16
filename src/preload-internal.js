@@ -126,6 +126,13 @@ const apiSurface = {
   openDownloadsFolder: ()    => ipcRenderer.invoke('download:openDownloadsFolder'),
   retryDownload:       (url) => ipcRenderer.invoke('download:retry', url),
   chooseDownloadFolder:()    => ipcRenderer.invoke('download:chooseDirectory'),
+  // ─── Main menu (⋮, pages/menu-bubble.html) ───────────────────────────────────
+  toggleMenuBubble:    (bounds) => ipcRenderer.invoke('menu:toggleBubble', bounds),
+  closeMenuBubble:     ()    => ipcRenderer.invoke('menu:closeBubble'),
+  getMenuState:        ()    => ipcRenderer.invoke('menu:getState'),
+  menuAction:          (action) => ipcRenderer.invoke('menu:action', action),
+  onMenuAction:        (cb)  => ipcRenderer.on('menu:action', (_, action) => cb(action)),
+
   toggleDownloadBubble:(bounds) => ipcRenderer.invoke('download:toggleBubble', bounds),
   openDownloadBubble:  (bounds) => ipcRenderer.invoke('download:openBubble', bounds),
   closeDownloadBubble: ()    => ipcRenderer.invoke('download:closeBubble'),
@@ -246,6 +253,7 @@ const TRUSTED_FILE_SUFFIXES = [
   '/pages/permission-bubble.html',
   '/pages/password-bubble.html',
   '/pages/autofill-bubble.html',
+  '/pages/menu-bubble.html',
 ];
 
 function isTrustedInternalLocation() {

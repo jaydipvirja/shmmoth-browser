@@ -5,7 +5,7 @@
  *   - the browser frame (tab strip, toolbar, bookmarks bar)
  *   - the internal pages: New Tab, Settings, History, Bookmarks, Downloads, Extensions, Notes, the error page, the
  *     crash page
- *   - the bubbles: ad blocker (shield), downloads, extensions, site permission
+ *   - the bubbles: ad blocker (shield), downloads, extensions, site permission, the main menu (⋮)
  * Each picture must show something (not a blank or single-colour surface), and no screen may break the Content
  * Security Policy. The pictures land in test-results/screens/<platform>/ (CI keeps them as a downloadable artifact), so
  * every redesign step can be compared with the one before. See docs/redesign-plan.md.
@@ -113,7 +113,8 @@ runSuite('SHMMOTH Browser — E2E 20: every screen, captured', async (t) => {
         ['shield', 'shield-bubble.html', () => api(chrome, 'openShieldBubble', anchor), () => api(chrome, 'closeShieldBubble')],
         ['downloads-bubble', 'download-bubble.html', () => api(chrome, 'openDownloadBubble', anchor), () => api(chrome, 'closeDownloadBubble')],
         ['extensions-bubble', 'extension-bubble.html', () => api(chrome, 'openExtensionBubble', anchor), () => api(chrome, 'closeExtensionBubble')],
-        ['permission-bubble', 'permission-bubble.html', () => api(chrome, 'openPermissionBubble', { requestId: 'e2e', origin: 'https://example.com', permission: 'geolocation' }), () => api(chrome, 'closePermissionBubble')]
+        ['permission-bubble', 'permission-bubble.html', () => api(chrome, 'openPermissionBubble', { requestId: 'e2e', origin: 'https://example.com', permission: 'geolocation' }), () => api(chrome, 'closePermissionBubble')],
+        ['menu-bubble', 'menu-bubble.html', () => api(chrome, 'toggleMenuBubble', { x: WIDTH - 46, y: 82, width: 36, height: 36 }), () => api(chrome, 'closeMenuBubble')]
       ];
       for (const [name, file, open, close] of bubbles) {
         await t.test(`${name}`, async () => {
@@ -166,7 +167,7 @@ runSuite('SHMMOTH Browser — E2E 20: every screen, captured', async (t) => {
       fs.writeFileSync(path.join(OUT, 'index.html'), `<!doctype html><meta charset="utf-8"><title>SHMMOTH screens (${process.platform})</title>
 <style>body{font:14px system-ui;margin:24px;background:#888}figure{display:inline-block;margin:0 16px 24px 0;vertical-align:top}img{max-width:640px;border:1px solid #444;display:block}figcaption{margin-top:6px}</style>
 ${rows}\n`);
-      assertEqual(shots.length, 2 * (PAGES.length + 1 + 4), 'every screen in both themes');
+      assertEqual(shots.length, 2 * (PAGES.length + 1 + 5), 'every screen in both themes');
       console.log(`         pictures: ${OUT}`);
     });
   } finally {

@@ -123,7 +123,8 @@ test('pages/theme.js: the setting decides, "system" follows the Windows query, b
   }
   const app = read('src', 'renderer', 'app.js');
   assert(/prefersLight\.addEventListener\('change', \(\) => \{ if \(settings\.theme === 'system'\) applyTheme\('system'\); \}\)/.test(app), 'the frame follows a Windows switch');
-  assert(/const next = document\.body\.classList\.contains\('theme-light'\) \? 'dark' : 'light'/.test(app), 'the toolbar button flips what is shown');
+  const bubbles = read('src', 'browser', 'bubbles.js');
+  assert(/action\.startsWith\('theme-'\)[\s\S]{0,200}normalizeTheme[\s\S]{0,300}broadcastThemeChange\(theme\)/.test(bubbles), 'the main menu switches the theme (since 1.3.0)');
 });
 
 console.log('\n📋 4. Icons');

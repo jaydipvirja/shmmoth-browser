@@ -716,6 +716,7 @@ class TabsMethods {
     this.closePermissionBubble();
     this.closeExtensionBubble();
     this.closeShieldBubble();
+    this.closeMenuBubble();
     this.closeDownloadBubble();
     if (this.passwordAutofill) this.passwordAutofill.dismiss();
 
