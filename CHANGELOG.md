@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.3.1
+
+Redesign, Phase 2 (second part): the small windows next to the toolbar (`docs/redesign-plan.md`).
+- **The ad blocker, downloads, extensions and site-permission windows follow the theme** (Dark, Light, Follow Windows) and use the same colours, corners, shadow and Inter font as the rest of the browser. Before, they were always dark.
+- **Icons instead of emoji** in all of them: shield, downloads, folder, pause / resume, cancel, retry, pin, camera, location, notifications. In the downloads list each file shows its type as a short label (ZIP, PDF, EXE …).
+- Buttons on a blue or red background always have white text, also in the light theme (Allow, Delete, the download actions), and the shield's green and red status texts are readable in both themes.
+
 ## 1.3.0
 
 Redesign, Phase 2 (first part): the browser frame, as in the approved mockup (`docs/redesign-plan.md`).

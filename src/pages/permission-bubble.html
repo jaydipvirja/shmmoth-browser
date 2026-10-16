@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Website Permission Request</title>
   <style>
@@ -17,7 +18,7 @@
       height: 100vh;
       overflow: hidden;
       background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--sh-font);
       user-select: none;
       display: flex;
       flex-direction: column;
@@ -27,10 +28,10 @@
     .bubble-container {
       width: 100%;
       height: 100%;
-      background: #1e293b;
-      border: 1px solid rgba(59, 130, 246, 0.45);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 12px;
-      box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75);
+      box-shadow: var(--sh-shadow);
       display: flex;
       flex-direction: column;
       padding: 14px 16px;
@@ -60,7 +61,7 @@
     .bubble-origin {
       font-size: 13.5px;
       font-weight: 600;
-      color: #ffffff;
+      color: var(--sh-text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -68,14 +69,14 @@
 
     .bubble-desc {
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       line-height: 1.3;
     }
 
     .bubble-close-btn {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       font-size: 15px;
       cursor: pointer;
       padding: 2px 6px;
@@ -84,13 +85,13 @@
     }
 
     .bubble-close-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--sh-text);
+      background: var(--sh-hover);
     }
 
     .bubble-options {
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       padding-left: 2px;
     }
 
@@ -102,7 +103,7 @@
     }
 
     .remember-label input {
-      accent-color: #3b82f6;
+      accent-color: var(--sh-accent);
       cursor: pointer;
     }
 
@@ -114,8 +115,8 @@
     }
 
     .btn-block {
-      background: #334155;
-      color: #e2e8f0;
+      background: var(--sh-surface-2);
+      color: var(--sh-text);
       border: none;
       padding: 6px 14px;
       border-radius: 6px;
@@ -126,12 +127,12 @@
     }
 
     .btn-block:hover {
-      background: #475569;
+      background: var(--sh-border-strong);
     }
 
     .btn-allow {
-      background: #2563eb;
-      color: #ffffff;
+      background: var(--sh-accent);
+      color: var(--sh-on-accent);
       border: none;
       padding: 6px 16px;
       border-radius: 6px;
@@ -142,19 +143,19 @@
     }
 
     .btn-allow:hover {
-      background: #3b82f6;
+      background: var(--sh-accent);
     }
   </style>
 </head>
 <body>
   <div class="bubble-container">
     <div class="bubble-header">
-      <span id="perm-icon" class="bubble-icon">🔒</span>
+      <span id="perm-icon" class="bubble-icon"><span class="sh-icon" data-icon="lock" aria-hidden="true"></span></span>
       <div class="bubble-info">
         <strong id="perm-origin" class="bubble-origin">Website</strong>
         <span id="perm-desc" class="bubble-desc">wants permission</span>
       </div>
-      <button id="btn-close" class="bubble-close-btn" title="Dismiss">✕</button>
+      <button id="btn-close" class="bubble-close-btn" title="Dismiss" aria-label="Dismiss"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     </div>
 
     <div class="bubble-options">
@@ -170,6 +171,8 @@
     </div>
   </div>
 
+  <script src="icons.js"></script>
+  <script src="theme.js"></script>
   <script>
     const api = window.mtcAPI || window.shmmothAPI;
     let currentRequestId = null;
@@ -205,22 +208,23 @@
         permOrigin.textContent = data.origin || 'Website';
 
         let desc = `wants to use ${data.permission}`;
-        let icon = '🔒';
+        let icon = 'lock';
         if (data.permission === 'media') {
-          icon = '📷';
+          icon = 'camera';
           desc = 'wants to use your camera and microphone';
         } else if (data.permission === 'geolocation') {
-          icon = '📍';
+          icon = 'map-pin';
           desc = 'wants to know your location';
         } else if (data.permission === 'notifications') {
-          icon = '🔔';
+          icon = 'bell';
           desc = 'wants to show notifications';
         } else if (data.permission === 'pointerLock') {
-          icon = '🖱️';
+          icon = 'pointer';
           desc = 'wants to lock your mouse pointer';
         }
 
-        permIcon.textContent = icon;
+        const svg = window.ShIcons ? window.ShIcons.create(icon) : null;
+        if (svg) permIcon.replaceChildren(svg);
         permDesc.textContent = desc;
       });
     }

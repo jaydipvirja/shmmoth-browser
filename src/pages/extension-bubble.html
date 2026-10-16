@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Extensions</title>
   <style>
@@ -17,7 +18,7 @@
       height: 100vh;
       overflow: hidden;
       background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--sh-font);
       user-select: none;
       display: flex;
       flex-direction: column;
@@ -27,10 +28,10 @@
     .bubble-container {
       width: 100%;
       height: 100%;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border-strong);
       border-radius: 12px;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.75);
+      box-shadow: var(--sh-shadow);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -39,12 +40,12 @@
     /* Header */
     .bubble-header {
       height: 44px;
-      background: #182234;
+      background: var(--sh-surface);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--sh-border);
       flex-shrink: 0;
     }
 
@@ -54,7 +55,7 @@
       gap: 8px;
       font-size: 13.5px;
       font-weight: 600;
-      color: #f8fafc;
+      color: var(--sh-text);
     }
 
     .bubble-title-icon {
@@ -64,7 +65,7 @@
     .btn-close {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       font-size: 14px;
       cursor: pointer;
       padding: 2px 6px;
@@ -72,8 +73,8 @@
     }
 
     .btn-close:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.1);
+      color: var(--sh-text);
+      background: var(--sh-hover);
     }
 
     /* List Area */
@@ -90,7 +91,7 @@
     }
 
     .bubble-body::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.2);
+      background: var(--sh-hover);
       border-radius: 3px;
     }
 
@@ -105,7 +106,7 @@
     }
 
     .ext-item:hover {
-      background: rgba(255, 255, 255, 0.06);
+      background: var(--sh-hover);
     }
 
     .ext-item-main {
@@ -135,7 +136,7 @@
 
     .ext-item-name {
       font-size: 13px;
-      color: #f1f5f9;
+      color: var(--sh-text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -156,23 +157,27 @@
       cursor: pointer;
       padding: 3px 6px;
       border-radius: 4px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       transition: all 0.15s ease;
     }
 
     .btn-pin:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #ffffff;
+      background: var(--sh-hover);
+      color: var(--sh-text);
     }
 
     .btn-pin.pinned {
-      color: #38bdf8;
+      color: var(--sh-accent-text);
+    }
+
+    .btn-pin.pinned svg {
+      fill: currentColor;
     }
 
     .empty-state {
       padding: 28px 16px;
       text-align: center;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       font-size: 13px;
       line-height: 1.5;
     }
@@ -180,8 +185,8 @@
     /* Footer */
     .bubble-footer {
       height: 44px;
-      background: #182234;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--sh-surface);
+      border-top: 1px solid var(--sh-border);
       display: flex;
       align-items: center;
       padding: 0 12px;
@@ -191,10 +196,10 @@
     .btn-manage-ext {
       width: 100%;
       height: 32px;
-      background: rgba(255, 255, 255, 0.06);
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--sh-hover);
+      border: 1px solid var(--sh-border);
       border-radius: 6px;
-      color: #f1f5f9;
+      color: var(--sh-text);
       font-size: 12.5px;
       font-weight: 500;
       display: flex;
@@ -206,9 +211,9 @@
     }
 
     .btn-manage-ext:hover {
-      background: rgba(255, 255, 255, 0.12);
-      color: #ffffff;
-      border-color: rgba(255, 255, 255, 0.2);
+      background: var(--sh-hover);
+      color: var(--sh-text);
+      border-color: var(--sh-border-strong);
     }
   </style>
 </head>
@@ -216,10 +221,10 @@
   <div class="bubble-container">
     <div class="bubble-header">
       <div class="bubble-title">
-        <span class="bubble-title-icon">🧩</span>
+        <span class="bubble-title-icon"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span></span>
         <span>Extensions</span>
       </div>
-      <button id="btn-close" class="btn-close" title="Close">✕</button>
+      <button id="btn-close" class="btn-close" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     </div>
 
     <div id="ext-list" class="bubble-body">
@@ -228,12 +233,14 @@
 
     <div class="bubble-footer">
       <button id="btn-manage" class="btn-manage-ext">
-        <span>🧩</span>
+        <span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span>
         <span>Manage extensions</span>
       </button>
     </div>
   </div>
 
+  <script src="icons.js"></script>
+  <script src="theme.js"></script>
   <script>
     const api = window.mtcAPI || window.shmmothAPI;
     const extListContainer = document.getElementById('ext-list');
@@ -271,11 +278,11 @@
         const item = document.createElement('div');
         item.className = 'ext-item';
 
-        let iconHtml = '🧩';
+        let iconHtml = '<span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span>';
         if (ext.icons && (ext.icons['32'] || ext.icons['16'] || ext.icons['48'])) {
           const rel = ext.icons['32'] || ext.icons['16'] || ext.icons['48'];
           const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${rel.replace(/^[\\\/]+/, '')}`;
-          iconHtml = `<img src="${iconPath}" onerror="this.parentElement.textContent='🧩'"/>`;
+          iconHtml = `<img src="${escapeHtml(iconPath)}" alt="" onerror="this.replaceWith(window.ShIcons.create('puzzle'))"/>`;
         }
 
         item.innerHTML = `
@@ -284,8 +291,8 @@
             <span class="ext-item-name">${escapeHtml(ext.name)}</span>
           </div>
           <div class="ext-item-actions">
-            <button class="btn-pin ${ext.pinned ? 'pinned' : ''}" title="${ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar'}">
-              ${ext.pinned ? '📌' : '📍'}
+            <button class="btn-pin ${ext.pinned ? 'pinned' : ''}" aria-label="${ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar'}" title="${ext.pinned ? 'Unpin from toolbar' : 'Pin to toolbar'}">
+              <span class="sh-icon" data-icon="pin" aria-hidden="true"></span>
             </button>
           </div>
         `;
@@ -305,13 +312,13 @@
             ext.pinned = nextPinned;
             await api.togglePinExtension(ext.id, nextPinned);
             pinBtn.classList.toggle('pinned', nextPinned);
-            pinBtn.textContent = nextPinned ? '📌' : '📍';
             pinBtn.title = nextPinned ? 'Unpin from toolbar' : 'Pin to toolbar';
           }
         });
 
         extListContainer.appendChild(item);
       });
+      if (window.ShIcons) window.ShIcons.drawAll(extListContainer);
     }
 
     btnManage.addEventListener('click', () => {

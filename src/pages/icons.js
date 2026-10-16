@@ -46,7 +46,14 @@
     'volume':    [['path', { d: 'M4 9h4l5-4v14l-5-4H4z' }], ['path', { d: 'M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12' }]],
     'volume-off':[['path', { d: 'M4 9h4l5-4v14l-5-4H4z' }], ['path', { d: 'm17 9 5 6M22 9l-5 6' }]],
     sleep:       [['path', { d: 'M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z' }], ['path', { d: 'M15 4h4l-4 4h4' }]],
-    warning:     [['path', { d: 'M12 3 2 20h20z' }], ['path', { d: 'M12 10v4M12 17v.01' }]]
+    warning:     [['path', { d: 'M12 3 2 20h20z' }], ['path', { d: 'M12 10v4M12 17v.01' }]],
+    pause:       [['path', { d: 'M8 5v14M16 5v14' }]],
+    play:        [['path', { d: 'M7 4v16l13-8z' }]],
+    pin:         [['path', { d: 'M9 3h6l-1 6 4 4H6l4-4zM12 13v8' }]],
+    camera:      [['path', { d: 'M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }], ['circle', { cx: 12, cy: 13, r: 3.5 }]],
+    'map-pin':   [['path', { d: 'M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z' }], ['circle', { cx: 12, cy: 9, r: 2.5 }]],
+    bell:        [['path', { d: 'M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0' }]],
+    pointer:     [['path', { d: 'M5 3l14 7-6 2-2 6z' }]]
   };
 
   function create(name, size) {

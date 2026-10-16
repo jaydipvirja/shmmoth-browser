@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Downloads</title>
   <style>
@@ -17,7 +18,7 @@
       height: 100vh;
       overflow: hidden;
       background: transparent;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: var(--sh-font);
       user-select: none;
       display: flex;
       flex-direction: column;
@@ -26,10 +27,10 @@
     .bubble-container {
       width: 100%;
       height: 100%;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.16);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border-strong);
       border-radius: 12px;
-      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.7);
+      box-shadow: var(--sh-shadow);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -38,12 +39,12 @@
     /* Header */
     .bubble-header {
       height: 46px;
-      background: #182234;
+      background: var(--sh-surface);
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 0 14px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      border-bottom: 1px solid var(--sh-border);
       flex-shrink: 0;
     }
 
@@ -53,12 +54,12 @@
       gap: 8px;
       font-size: 13.5px;
       font-weight: 600;
-      color: #f8fafc;
+      color: var(--sh-text);
     }
 
     .bubble-title-icon {
       font-size: 14px;
-      color: #38bdf8;
+      color: var(--sh-accent-text);
     }
 
     .bubble-header-actions {
@@ -70,7 +71,7 @@
     .btn-header {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       width: 28px;
       height: 28px;
       border-radius: 6px;
@@ -83,8 +84,8 @@
     }
 
     .btn-header:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: #ffffff;
+      background: var(--sh-hover);
+      color: var(--sh-text);
     }
 
     /* List Area */
@@ -106,12 +107,12 @@
     }
 
     .bubble-body::-webkit-scrollbar-thumb {
-      background: #334155;
+      background: var(--sh-surface-2);
       border-radius: 3px;
     }
 
     .bubble-body::-webkit-scrollbar-thumb:hover {
-      background: #475569;
+      background: var(--sh-border-strong);
     }
 
     /* Empty state */
@@ -121,7 +122,7 @@
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      color: #64748b;
+      color: var(--sh-text-2);
       font-size: 13px;
       gap: 8px;
       padding: 40px 0;
@@ -134,8 +135,8 @@
 
     /* Download Item Card */
     .download-card {
-      background: rgba(255, 255, 255, 0.03);
-      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: var(--sh-hover);
+      border: 1px solid var(--sh-border);
       border-radius: 8px;
       padding: 10px 12px;
       display: flex;
@@ -145,15 +146,23 @@
     }
 
     .download-card:hover {
-      background: rgba(255, 255, 255, 0.07);
-      border-color: rgba(255, 255, 255, 0.12);
+      background: var(--sh-hover);
+      border-color: var(--sh-border);
     }
 
     .card-icon {
-      font-size: 24px;
       flex-shrink: 0;
-      width: 28px;
-      text-align: center;
+      width: 34px;
+      height: 34px;
+      border-radius: 8px;
+      background: var(--sh-surface-2);
+      color: var(--sh-text-2);
+      font-size: 9.5px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
     }
 
     .card-content {
@@ -167,7 +176,7 @@
     .card-filename {
       font-size: 12.5px;
       font-weight: 600;
-      color: #f1f5f9;
+      color: var(--sh-text);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -175,27 +184,27 @@
 
     .card-progress-bg {
       height: 4px;
-      background: rgba(255, 255, 255, 0.12);
+      background: var(--sh-hover);
       border-radius: 2px;
       overflow: hidden;
     }
 
     .card-progress-bar {
       height: 100%;
-      background: #38bdf8;
+      background: var(--sh-accent);
       border-radius: 2px;
       width: 0%;
       transition: width 0.2s ease;
     }
 
-    .card-progress-bar.completed   { background: #10b981; }
-    .card-progress-bar.paused      { background: #f59e0b; }
-    .card-progress-bar.cancelled   { background: #64748b; }
-    .card-progress-bar.interrupted { background: #ef4444; }
+    .card-progress-bar.completed   { background: var(--sh-success); }
+    .card-progress-bar.paused      { background: var(--sh-warning); }
+    .card-progress-bar.cancelled   { background: var(--sh-track); }
+    .card-progress-bar.interrupted { background: var(--sh-danger-bg); }
 
     .card-meta {
       font-size: 11px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -209,9 +218,9 @@
     }
 
     .btn-card-action {
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.12);
-      color: #e2e8f0;
+      background: var(--sh-hover);
+      border: 1px solid var(--sh-border);
+      color: var(--sh-text);
       font-size: 11.5px;
       padding: 4px 8px;
       border-radius: 6px;
@@ -223,9 +232,9 @@
     }
 
     .btn-card-action:hover {
-      background: #38bdf8;
-      border-color: #38bdf8;
-      color: #0f172a;
+      background: var(--sh-accent);
+      border-color: var(--sh-accent);
+      color: var(--sh-on-accent);
       font-weight: 600;
     }
 
@@ -237,16 +246,16 @@
     }
 
     .btn-card-action.danger:hover {
-      background: #ef4444;
-      border-color: #ef4444;
-      color: #ffffff;
+      background: var(--sh-danger-bg);
+      border-color: var(--sh-danger);
+      color: var(--sh-on-accent);
     }
 
     /* Footer */
     .bubble-footer {
       height: 40px;
-      background: #141c2b;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--sh-surface-2);
+      border-top: 1px solid var(--sh-border);
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -257,7 +266,7 @@
     .btn-footer-link {
       background: transparent;
       border: none;
-      color: #38bdf8;
+      color: var(--sh-accent-text);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
@@ -267,16 +276,16 @@
     }
 
     .btn-footer-link:hover {
-      color: #7dd3fc;
+      color: var(--sh-accent-text);
       text-decoration: underline;
     }
 
     .btn-footer-link.secondary {
-      color: #94a3b8;
+      color: var(--sh-text-2);
     }
 
     .btn-footer-link.secondary:hover {
-      color: #cbd5e1;
+      color: var(--sh-text-2);
     }
   </style>
 </head>
@@ -285,12 +294,12 @@
     <!-- Header -->
     <div class="bubble-header">
       <div class="bubble-title">
-        <span class="bubble-title-icon">⬇️</span>
+        <span class="bubble-title-icon"><span class="sh-icon" data-icon="download" aria-hidden="true"></span></span>
         <span>Downloads</span>
       </div>
       <div class="bubble-header-actions">
-        <button id="btn-open-folder" class="btn-header" title="Open Downloads Folder">📁</button>
-        <button id="btn-close-bubble" class="btn-header" title="Close">✕</button>
+        <button id="btn-open-folder" class="btn-header" title="Open Downloads Folder" aria-label="Open Downloads Folder"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span></button>
+        <button id="btn-close-bubble" class="btn-header" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
     </div>
 
@@ -306,6 +315,8 @@
     </div>
   </div>
 
+  <script src="icons.js"></script>
+  <script src="theme.js"></script>
   <script>
     const api = window.mtcAPI || window.shmmothAPI;
     const bubbleList = document.getElementById('bubble-list');
@@ -339,40 +350,10 @@
       return `${hrs}h ${mins % 60}m left`;
     }
 
+    // the file type as a short label (ZIP, PDF …), escaped by the caller like everything from a download
     function getFileIcon(filename) {
-      if (!filename) return '📁';
-      const ext = filename.split('.').pop().toLowerCase();
-      switch (ext) {
-        case 'mkv':
-        case 'mp4':
-        case 'avi':
-        case 'mov':
-        case 'webm':
-        case 'm4v': return '🎬';
-        case 'mp3':
-        case 'wav':
-        case 'flac':
-        case 'aac': return '🎵';
-        case 'zip':
-        case 'rar':
-        case '7z':
-        case 'tar':
-        case 'gz': return '📦';
-        case 'pdf': return '📕';
-        case 'exe':
-        case 'msi':
-        case 'apk':
-        case 'dmg': return '⚙️';
-        case 'png':
-        case 'jpg':
-        case 'jpeg':
-        case 'gif':
-        case 'webp': return '🖼️';
-        case 'txt':
-        case 'doc':
-        case 'docx': return '📄';
-        default: return '📁';
-      }
+      const ext = String(filename || '').includes('.') ? String(filename).split('.').pop().slice(0, 4).toUpperCase() : '';
+      return ext || 'FILE';
     }
 
     function escapeHtml(str) {
@@ -399,7 +380,7 @@
       if (list.length === 0) {
         bubbleList.innerHTML = `
           <div class="bubble-empty">
-            <span class="bubble-empty-icon">⬇️</span>
+            <span class="bubble-empty-icon"><span class="sh-icon" data-icon="download" aria-hidden="true"></span></span>
             <span>No recent downloads</span>
           </div>
         `;
@@ -443,28 +424,28 @@
         if (d.state === 'progressing') {
           if (d.isPaused) {
             buttonsHtml = `
-              <button class="btn-card-action icon-only btn-resume" data-id="${escapeHtml(d.id)}" title="Resume">▶️</button>
-              <button class="btn-card-action icon-only danger btn-cancel" data-id="${escapeHtml(d.id)}" title="Cancel">✕</button>
+              <button class="btn-card-action icon-only btn-resume" data-id="${escapeHtml(d.id)}" title="Resume" aria-label="Resume"><span class="sh-icon" data-icon="play" aria-hidden="true"></span></button>
+              <button class="btn-card-action icon-only danger btn-cancel" data-id="${escapeHtml(d.id)}" title="Cancel" aria-label="Cancel"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
             `;
           } else {
             buttonsHtml = `
-              <button class="btn-card-action icon-only btn-pause" data-id="${escapeHtml(d.id)}" title="Pause">⏸️</button>
-              <button class="btn-card-action icon-only danger btn-cancel" data-id="${escapeHtml(d.id)}" title="Cancel">✕</button>
+              <button class="btn-card-action icon-only btn-pause" data-id="${escapeHtml(d.id)}" title="Pause" aria-label="Pause"><span class="sh-icon" data-icon="pause" aria-hidden="true"></span></button>
+              <button class="btn-card-action icon-only danger btn-cancel" data-id="${escapeHtml(d.id)}" title="Cancel" aria-label="Cancel"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
             `;
           }
         } else if (d.state === 'completed') {
           buttonsHtml = `
             <button class="btn-card-action btn-open" data-id="${escapeHtml(d.id)}">Open</button>
-            <button class="btn-card-action icon-only btn-folder" data-id="${escapeHtml(d.id)}" title="Show in folder">📁</button>
+            <button class="btn-card-action icon-only btn-folder" data-id="${escapeHtml(d.id)}" title="Show in folder" aria-label="Show in folder"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span></button>
           `;
         } else if (d.state === 'cancelled' || d.state === 'interrupted') {
           buttonsHtml = `
-            <button class="btn-card-action icon-only btn-retry" data-url="${escapeHtml(d.url)}" title="Retry download">🔄</button>
+            <button class="btn-card-action icon-only btn-retry" data-url="${escapeHtml(d.url)}" title="Retry download" aria-label="Retry download"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span></button>
           `;
         }
 
         card.innerHTML = `
-          <div class="card-icon">${icon}</div>
+          <div class="card-icon">${escapeHtml(icon)}</div>
           <div class="card-content">
             <div class="card-filename" title="${escapeHtml(d.turboNote ? d.filename + ' — ' + d.turboNote : d.filename)}">${escapeHtml(d.filename)}</div>
             <div class="card-progress-bg">
@@ -479,6 +460,7 @@
 
         bubbleList.appendChild(card);
       });
+      if (window.ShIcons) window.ShIcons.drawAll(bubbleList);
     }
 
     // Load initial downloads

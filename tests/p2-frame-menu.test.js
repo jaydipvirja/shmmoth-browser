@@ -98,6 +98,29 @@ test('updates: a dot on ⋮ while one is coming or ready, and the menu entry say
   assert(/Restart to update/.test(menuJs));
 });
 
+console.log('\n📋 3. Bubbles (1.3.1)');
+const BUBBLES = ['shield-bubble.html', 'download-bubble.html', 'extension-bubble.html', 'permission-bubble.html', 'menu-bubble.html'];
+const EMOJI = /[\u{1F300}-\u{1FAFF}\u2600-\u27BF\u2B00-\u2BFF\u23E9-\u23FA]/u;
+test('every bubble follows the theme, uses the tokens, the Inter font and the icon set', () => {
+  for (const f of BUBBLES) {
+    const html = read('src', 'pages', f);
+    assert(/<script src="icons\.js"><\/script>/.test(html) && /<script src="theme\.js"><\/script>/.test(html), f + ': icons.js / theme.js');
+    assert(/href="design-tokens\.css"/.test(html) && /href="fonts\.css"/.test(html), f + ': tokens / font');
+    const style = (html.match(/<style>([\s\S]*?)<\/style>/) || ['', ''])[1];
+    assert(!/background(-color)?: (#1e293b|#0f172a|#182234|#141c2b)/i.test(style), f + ': dark surfaces left');
+    assert(!/box-shadow: 0 16px \d+px rgba\(0, 0, 0, 0\.7/.test(style), f + ': old heavy shadow');
+  }
+});
+test('no emoji in the bubbles: icons, and the file type as a short label in the downloads list', () => {
+  for (const f of BUBBLES) {
+    const html = read('src', 'pages', f);
+    assert(!EMOJI.test(html), f + ' still has emoji: ' + (html.match(EMOJI) || [])[0]);
+  }
+  const dl = read('src', 'pages', 'download-bubble.html');
+  assert(/<div class="card-icon">\$\{escapeHtml\(icon\)\}<\/div>/.test(dl), 'the file label is escaped');
+  assert(/window\.ShIcons\.drawAll\(bubbleList\)/.test(dl) && /window\.ShIcons\.drawAll\(extListContainer\)/.test(read('src', 'pages', 'extension-bubble.html')));
+});
+
 console.log('\n══════════════════════════════════════════════════════');
 console.log(`  Results: ${passed} passed, ${failed} failed`);
 console.log('══════════════════════════════════════════════════════\n');
