@@ -14,6 +14,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const http = require('http');
 const fs = require('fs');
 const os = require('os');
@@ -466,7 +467,7 @@ async function main() {
   });
 
   await test('the Turbo state IPC waits for the network list (a Promise inside the answer made the whole call fail)', async () => {
-    const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'main.js'), 'utf8');
+    const src = mainSource();
     assert(/interfaces:\s*await this\.downloads\.getNetworkInterfaces\(\)/.test(src), 'getTurboState must await getNetworkInterfaces()');
   });
 

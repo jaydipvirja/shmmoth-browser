@@ -5,6 +5,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
@@ -37,7 +38,7 @@ Module._load = function (request, ...args) {
 const StorageService  = require('../src/services/storage');
 const DownloadManager = require('../src/services/downloadManager');
 const RamSaverService = require('../src/services/ramSaver');
-const mainJs = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+const mainJs = mainSource();
 
 function newStorage(tag) {
   const s = new StorageService();

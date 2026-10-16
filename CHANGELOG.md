@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.2.0
+
+Groundwork for the redesign (`docs/redesign-plan.md`). Nothing changes in how the browser looks or works.
+- **The main process is split into files by area.** `src/main.js` (4,600 lines) now holds only the start-up; tabs, windows, bubbles, network, passwords, session and the IPC handlers each have their own file in `src/browser/`. The code was moved unchanged, so every existing test passes as before. The redesign can now change the browser frame without touching one 4,600-line file.
+- **Every screen is photographed by the tests**, in the dark and the light theme: the browser frame, New Tab, Settings, History, Bookmarks, Downloads, Extensions, Notes, the error and crash pages, and the four bubbles. CI keeps the pictures, so each redesign step can be compared with the one before. The first pictures already show what the redesign has to fix: in the light theme the Settings cards stay dark with dark text (hard to read), History stays dark, and the New Tab search box stays dark.
+
 ## 1.1.15
 
 ### Google sign-in — "Couldn't sign you in: This browser or app may not be secure"

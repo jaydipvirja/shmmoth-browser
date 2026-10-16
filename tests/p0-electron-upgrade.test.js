@@ -12,6 +12,7 @@
 
 'use strict';
 
+const { mainSource, mainSourceFiles } = require('./helpers/main-source');
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
@@ -77,7 +78,7 @@ const ExtensionManager = require('../src/services/extensionManager');
   });
 
   await test('no direct call to the deprecated session.loadExtension / removeExtension remains', async () => {
-    for (const f of ['services/extensionManager.js', 'main.js']) {
+    for (const f of ['services/extensionManager.js', ...mainSourceFiles()]) {
       const code = stripComments(read(f));
       assert(!/sessionInstance\.(loadExtension|removeExtension)\(/.test(code), `${f} calls the deprecated session API directly`);
       assert(!/session\.(defaultSession\.)?(loadExtension|removeExtension)\(/.test(code), `${f} calls the deprecated session API directly`);
@@ -88,7 +89,7 @@ const ExtensionManager = require('../src/services/extensionManager');
   console.log('\n📋 2. console-message listener (login capture)');
   // ═══════════════════════════════════════════════════════════════════════════
 
-  const main = read('main.js');
+  const main = mainSource();
 
   await test('listener reads the new details object (event.message), declares one parameter, and keeps the app binding', async () => {
     const m = /wc\.on\('console-message', function (\w+)\(([^)]*)\) \{([\s\S]*?)\n    \}\);/.exec(main);
@@ -105,7 +106,7 @@ const ExtensionManager = require('../src/services/extensionManager');
   // ═══════════════════════════════════════════════════════════════════════════
 
   await test('no hard-coded Chrome/130 (or v="130") anywhere in the shipped code', async () => {
-    for (const f of ['main.js', 'preload-internal.js', 'preload-external.js', 'services/turboDownloadEngine.js']) {
+    for (const f of [...mainSourceFiles(), 'preload-internal.js', 'preload-external.js', 'services/turboDownloadEngine.js']) {
       const code = stripComments(read(f));
       assert(!/Chrome\/130/.test(code), `${f} still hard-codes Chrome/130`);
       assert(!/v="130"/.test(code), `${f} still hard-codes v="130"`);

@@ -5,6 +5,7 @@
 
 'use strict';
 
+const { mainSource } = require('./helpers/main-source');
 const fs   = require('fs');
 const path = require('path');
 
@@ -19,7 +20,7 @@ function assert(c, m) { if (!c) throw new Error(m || 'Assertion failed'); }
 const SRC = path.join(__dirname, '..', 'src');
 const { shouldShowErrorPage, buildErrorPageUrl, displayUrl, MAX_URL } = require('../src/utils/errorPage');
 const { buildSnapshot } = require('../src/services/sessionStore');
-const mainJs  = fs.readFileSync(path.join(SRC, 'main.js'), 'utf8');
+const mainJs  = mainSource();
 const pageJs  = fs.readFileSync(path.join(SRC, 'pages', 'error.js'), 'utf8');
 const pageHtml = fs.readFileSync(path.join(SRC, 'pages', 'error.html'), 'utf8');
 
