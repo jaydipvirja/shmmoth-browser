@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Settings - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
@@ -20,16 +21,16 @@
       </div>
 
       <nav class="nav-links">
-        <a href="#general" class="nav-item active" data-tab="general">🔍 Search & General</a>
-        <a href="#privacy" class="nav-item" data-tab="privacy">🛡️ Ad-Blocker & Privacy</a>
-        <a href="#passwords" class="nav-item" data-tab="passwords">🔑 Passwords</a>
-        <a href="#autofill" class="nav-item" data-tab="autofill">📝 Autofill</a>
-        <a href="#network" class="nav-item" data-tab="network">🌐 Network & Proxy</a>
-        <a href="#downloads" class="nav-item" data-tab="downloads">📥 Downloads</a>
-        <a href="mtc://extensions" class="nav-item">🧩 Extensions</a>
-        <a href="#performance" class="nav-item" data-tab="performance">⚡ Performance & RAM</a>
-        <a href="#appearance" class="nav-item" data-tab="appearance">🎨 Appearance</a>
-        <a href="#about" class="nav-item" data-tab="about">ℹ️ About SHMMOTH</a>
+        <a href="#general" class="nav-item active" data-tab="general"><span class="sh-icon" data-icon="search" aria-hidden="true"></span>Search & General</a>
+        <a href="#privacy" class="nav-item" data-tab="privacy"><span class="sh-icon" data-icon="shield" aria-hidden="true"></span>Ad-Blocker & Privacy</a>
+        <a href="#passwords" class="nav-item" data-tab="passwords"><span class="sh-icon" data-icon="key" aria-hidden="true"></span>Passwords</a>
+        <a href="#autofill" class="nav-item" data-tab="autofill"><span class="sh-icon" data-icon="form" aria-hidden="true"></span>Autofill</a>
+        <a href="#network" class="nav-item" data-tab="network"><span class="sh-icon" data-icon="globe" aria-hidden="true"></span>Network & Proxy</a>
+        <a href="#downloads" class="nav-item" data-tab="downloads"><span class="sh-icon" data-icon="download" aria-hidden="true"></span>Downloads</a>
+        <a href="mtc://extensions" class="nav-item"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span>Extensions</a>
+        <a href="#performance" class="nav-item" data-tab="performance"><span class="sh-icon" data-icon="bolt" aria-hidden="true"></span>Performance & RAM</a>
+        <a href="#appearance" class="nav-item" data-tab="appearance"><span class="sh-icon" data-icon="palette" aria-hidden="true"></span>Appearance</a>
+        <a href="#about" class="nav-item" data-tab="about"><span class="sh-icon" data-icon="info" aria-hidden="true"></span>About SHMMOTH</a>
       </nav>
 
       <div class="sidebar-footer">
@@ -568,13 +569,13 @@
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Theme Mode</label>
-              <span class="setting-desc">Select dark, light, or midnight slate aesthetic.</span>
+              <span class="setting-desc">"Follow Windows" switches with Windows' own dark / light setting.</span>
             </div>
             <div class="setting-control">
               <select id="select-theme" class="select-dropdown">
-                <option value="dark" selected>Dark Glass (Recommended)</option>
-                <option value="light">Classic Light</option>
-                <option value="midnight">Midnight OLED</option>
+                <option value="system" selected>Follow Windows</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
               </select>
             </div>
           </div>
@@ -871,6 +872,8 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="settings.js"></script>
 </body>

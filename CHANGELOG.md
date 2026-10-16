@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.2.1
+
+Redesign, Phase 1: one design system for the whole browser (`docs/redesign-plan.md`).
+- **The light theme works on every page.** Settings showed dark cards with dark, unreadable text; History, Bookmarks, Downloads and Notes stayed dark; the Extensions page kept a dark box; the New Tab search box stayed dark. All of them now take their colours from one set of design tokens (`src/pages/design-tokens.css`), so light is light and dark is dark everywhere.
+- **New theme choice: Follow Windows.** Settings → Appearance → Theme: *Follow Windows*, *Light* or *Dark*. *Follow Windows* switches together with Windows' own dark / light setting, at once, also on pages that are already open. New installations start with *Follow Windows*; an existing choice is kept (the old *Midnight OLED* shows as Dark).
+- **Icons instead of emoji** in the Settings menu and on the New Tab page: one clean SVG icon set that takes the theme's colours.
+- **Easier to use with the keyboard and easier to read:** a clear focus ring on whatever the keyboard is on, text contrast of at least 4.5 : 1 in every theme (checked by the tests), and no animations when Windows' *Animation effects* are off.
+- A slightly deeper navy for the dark theme and a calmer selected item in the Settings menu, as in the approved mockup.
+
 ## 1.2.0
 
 Groundwork for the redesign (`docs/redesign-plan.md`). Nothing changes in how the browser looks or works.

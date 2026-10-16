@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bookmarks - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
@@ -19,23 +21,23 @@
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       cursor: pointer;
       transition: all 0.15s;
     }
     .folder-item:hover {
-      background: rgba(255, 255, 255, 0.08);
-      color: #ffffff;
+      background: var(--sh-hover);
+      color: var(--sh-text);
     }
     .folder-item.active {
-      background: #3b82f6;
-      color: #ffffff;
+      background: var(--sh-accent);
+      color: var(--sh-on-accent);
       font-weight: 600;
     }
     .folder-count {
       font-size: 11px;
       opacity: 0.75;
-      background: rgba(0, 0, 0, 0.2);
+      background: var(--sh-surface-2);
       padding: 1px 6px;
       border-radius: 10px;
     }
@@ -52,7 +54,7 @@
     }
     .delete-folder-btn:hover {
       opacity: 1;
-      color: #ef4444;
+      color: var(--sh-danger);
     }
     .bookmarks-toolbar {
       display: flex;
@@ -71,23 +73,23 @@
     }
     .search-box input {
       width: 100%;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.12);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 8px;
       padding: 9px 14px 9px 36px;
-      color: #ffffff;
+      color: var(--sh-text);
       font-size: 13.5px;
       outline: none;
       transition: border-color 0.2s;
     }
     .search-box input:focus {
-      border-color: #3b82f6;
+      border-color: var(--sh-accent);
     }
     .search-box .icon {
       position: absolute;
       left: 12px;
       font-size: 14px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
     }
     .bookmarks-grid {
       display: grid;
@@ -96,8 +98,8 @@
       margin-top: 14px;
     }
     .bookmark-card {
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 10px;
       padding: 14px;
       display: flex;
@@ -109,7 +111,7 @@
       position: relative;
     }
     .bookmark-card:hover {
-      background: #334155;
+      background: var(--sh-surface-2);
       transform: translateY(-2px);
       border-color: rgba(59, 130, 246, 0.4);
     }
@@ -135,7 +137,7 @@
     .bm-title {
       font-size: 13.5px;
       font-weight: 600;
-      color: #ffffff;
+      color: var(--sh-text);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -143,7 +145,7 @@
     }
     .bm-url {
       font-size: 11.5px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
@@ -157,8 +159,8 @@
       font-size: 11px;
     }
     .bm-folder-badge {
-      background: rgba(255, 255, 255, 0.08);
-      color: #cbd5e1;
+      background: var(--sh-hover);
+      color: var(--sh-text-2);
       padding: 2px 7px;
       border-radius: 6px;
     }
@@ -169,7 +171,7 @@
     .bm-action-btn {
       background: transparent;
       border: none;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       cursor: pointer;
       padding: 3px 6px;
       border-radius: 4px;
@@ -177,18 +179,18 @@
       transition: all 0.15s;
     }
     .bm-action-btn:hover {
-      color: #ffffff;
-      background: rgba(255, 255, 255, 0.12);
+      color: var(--sh-text);
+      background: var(--sh-hover);
     }
     .bm-action-btn.delete:hover {
-      color: #ef4444;
-      background: rgba(239, 68, 68, 0.15);
+      color: var(--sh-danger);
+      background: var(--sh-danger-soft);
     }
     /* Modal styles */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0, 0, 0, 0.65);
+      background: var(--sh-overlay);
       backdrop-filter: blur(4px);
       display: flex;
       align-items: center;
@@ -196,8 +198,8 @@
       z-index: 1000;
     }
     .modal-card {
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border-strong);
       border-radius: 12px;
       padding: 24px;
       width: 420px;
@@ -208,7 +210,7 @@
       font-size: 16px;
       font-weight: 700;
       margin-bottom: 16px;
-      color: #ffffff;
+      color: var(--sh-text);
     }
     .form-group {
       display: flex;
@@ -218,20 +220,20 @@
     }
     .form-group label {
       font-size: 12px;
-      color: #94a3b8;
+      color: var(--sh-text-2);
       font-weight: 600;
     }
     .form-group input, .form-group select {
-      background: #0f172a;
-      border: 1px solid #334155;
-      color: #ffffff;
+      background: var(--sh-field);
+      border: 1px solid var(--sh-border);
+      color: var(--sh-text);
       padding: 8px 12px;
       border-radius: 6px;
       font-size: 13px;
       outline: none;
     }
     .form-group input:focus, .form-group select:focus {
-      border-color: #3b82f6;
+      border-color: var(--sh-accent);
     }
     .modal-actions {
       display: flex;
@@ -241,17 +243,17 @@
     }
     .btn-cancel {
       background: transparent;
-      border: 1px solid #475569;
-      color: #cbd5e1;
+      border: 1px solid var(--sh-border);
+      color: var(--sh-text-2);
       padding: 6px 14px;
       border-radius: 6px;
       font-size: 12.5px;
       cursor: pointer;
     }
     .btn-primary {
-      background: #3b82f6;
+      background: var(--sh-accent);
       border: 1px solid #60a5fa;
-      color: #ffffff;
+      color: var(--sh-on-accent);
       padding: 6px 16px;
       border-radius: 6px;
       font-size: 12.5px;
@@ -348,6 +350,7 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
   <script src="safe-html.js"></script>
   <script src="bookmarks.js"></script>
 </body>

@@ -2,14 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Page can't be loaded - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="fonts.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background-color: #0f172a;
-      color: #f1f5f9;
+      background-color: var(--sh-bg);
+      color: var(--sh-text);
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
       min-height: 100vh;
       display: flex;
@@ -20,35 +21,35 @@
     .card {
       max-width: 580px;
       width: 100%;
-      background: #1e293b;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 16px;
       padding: 36px;
       box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
     }
     .icon { font-size: 44px; margin-bottom: 16px; display: inline-block; }
-    h1 { font-size: 24px; font-weight: 700; color: #ffffff; margin-bottom: 8px; }
+    h1 { font-size: 24px; font-weight: 700; color: var(--sh-text); margin-bottom: 8px; }
     .address {
-      font-size: 13.5px; color: #94a3b8; margin-bottom: 18px;
+      font-size: 13.5px; color: var(--sh-text-2); margin-bottom: 18px;
       word-break: break-all; user-select: text;
     }
-    .address b { color: #cbd5e1; font-weight: 600; }
-    .desc { font-size: 14.5px; line-height: 1.6; color: #94a3b8; margin-bottom: 14px; }
-    ul.hints { margin: 0 0 22px 20px; font-size: 14px; line-height: 1.7; color: #94a3b8; }
+    .address b { color: var(--sh-text-2); font-weight: 600; }
+    .desc { font-size: 14.5px; line-height: 1.6; color: var(--sh-text-2); margin-bottom: 14px; }
+    ul.hints { margin: 0 0 22px 20px; font-size: 14px; line-height: 1.7; color: var(--sh-text-2); }
     .code {
-      display: inline-block; font-size: 12px; font-family: monospace; color: #64748b;
-      background: #0f172a; padding: 4px 10px; border-radius: 6px;
-      border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 24px; user-select: text;
+      display: inline-block; font-size: 12px; font-family: monospace; color: var(--sh-text-2);
+      background: var(--sh-field); padding: 4px 10px; border-radius: 6px;
+      border: 1px solid var(--sh-border); margin-bottom: 24px; user-select: text;
     }
     .actions { display: flex; gap: 12px; }
     button {
       border: none; padding: 10px 20px; border-radius: 8px; font-size: 14px; cursor: pointer;
       font-family: inherit; transition: background 0.2s;
     }
-    .btn-primary { background: #2563eb; color: #ffffff; font-weight: 600; }
-    .btn-primary:hover { background: #3b82f6; }
-    .btn-secondary { background: #334155; color: #e2e8f0; font-weight: 500; }
-    .btn-secondary:hover { background: #475569; }
+    .btn-primary { background: var(--sh-accent); color: var(--sh-on-accent); font-weight: 600; }
+    .btn-primary:hover { background: var(--sh-accent); }
+    .btn-secondary { background: var(--sh-surface-2); color: var(--sh-text); font-weight: 500; }
+    .btn-secondary:hover { background: var(--sh-border-strong); }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -66,6 +67,7 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
   <script src="error.js"></script>
 </body>
 </html>

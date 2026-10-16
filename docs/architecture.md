@@ -70,6 +70,9 @@ SHMMOTH Browser is an Electron desktop browser built on Chromium (Blink/V8) — 
 | `src/agent/` | Future SHMMOTH agent interface and action schema (stub, **not wired in yet**) |
 | `src/renderer/` | Browser chrome HTML/JS/CSS |
 | `src/pages/` | Internal mtc:// page files |
+| `src/pages/design-tokens.css` | Design tokens: colours (Dark / Light / Incognito), type, spacing, corners, shadows, motion, focus ring, reduced motion; loaded first by the frame, every page and every bubble |
+| `src/pages/theme.js`, `src/services/theme.js` | The Theme setting (*Follow Windows* / Light / Dark): the page class that switches the tokens, live; `nativeTheme.themeSource` |
+| `src/pages/icons.js` | The SVG icon set (`data-icon="shield"`), drawn with DOM calls |
 
 ## The main process, file by file
 

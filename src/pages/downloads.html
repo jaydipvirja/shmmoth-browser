@@ -2,14 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="fonts.css">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Downloads - SHMMOTH BROWSER</title>
   <link rel="stylesheet" href="settings.css">
   <style>
     .dl-list { display: flex; flex-direction: column; gap: 12px; margin-top: 14px; }
     .dl-item {
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 10px;
       padding: 14px 18px;
       display: flex;
@@ -18,8 +20,8 @@
       transition: border-color 0.15s, background 0.15s;
     }
     .dl-item:hover {
-      background: #253347;
-      border-color: rgba(255,255,255,0.15);
+      background: var(--sh-hover);
+      border-color: var(--sh-border-strong);
     }
     .dl-icon-container {
       font-size: 28px;
@@ -36,7 +38,7 @@
     }
     .dl-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .dl-title-row { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
-    .dl-filename { font-size: 14.5px; font-weight: 600; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-filename { font-size: 14.5px; font-weight: 600; color: var(--sh-text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     .badge-turbo {
       display: inline-flex;
@@ -46,32 +48,32 @@
       font-weight: 700;
       padding: 2px 7px;
       border-radius: 4px;
-      background: rgba(59,130,246,0.25);
-      color: #60a5fa;
+      background: var(--sh-selected);
+      color: var(--sh-accent-text);
       border: 1px solid rgba(96,165,250,0.4);
       letter-spacing: 0.5px;
       text-transform: uppercase;
       white-space: nowrap;
     }
     .badge-bonding {
-      background: rgba(16,185,129,0.25);
-      color: #34d399;
+      background: var(--sh-success-bg);
+      color: var(--sh-success);
       border-color: rgba(52,211,153,0.4);
     }
 
     .dl-state { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 12px; text-transform: capitalize; }
-    .dl-state.progressing { background: rgba(59,130,246,0.2); color: #60a5fa; border: 1px solid rgba(96,165,250,0.3); }
+    .dl-state.progressing { background: var(--sh-selected); color: var(--sh-accent-text); border: 1px solid rgba(96,165,250,0.3); }
     .dl-state.paused      { background: rgba(234,179,8,0.2);  color: #facc15; border: 1px solid rgba(250,204,21,0.3); }
-    .dl-state.completed   { background: rgba(16,185,129,0.2); color: #34d399; border: 1px solid rgba(52,211,153,0.3); }
-    .dl-state.cancelled   { background: rgba(100,116,139,0.2); color: #94a3b8; border: 1px solid rgba(148,163,184,0.3); }
-    .dl-note { color: #94a3b8; font-size: 12px; margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dl-error { color: #f87171; font-size: 12px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dl-state.interrupted { background: rgba(239,68,68,0.2);   color: #f87171; border: 1px solid rgba(248,113,113,0.3); }
-    .dl-url { font-size: 11px; color: #64748b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-state.completed   { background: var(--sh-success-bg); color: var(--sh-success); border: 1px solid rgba(52,211,153,0.3); }
+    .dl-state.cancelled   { background: rgba(100,116,139,0.2); color: var(--sh-text-2); border: 1px solid rgba(148,163,184,0.3); }
+    .dl-note { color: var(--sh-text-2); font-size: 12px; margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-error { color: var(--sh-danger); font-size: 12px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-state.interrupted { background: var(--sh-danger-soft);   color: var(--sh-danger); border: 1px solid rgba(248,113,113,0.3); }
+    .dl-url { font-size: 11px; color: var(--sh-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     /* Single flat progress bar (standard mode) */
-    .dl-progress-bar { height: 6px; background: #0f172a; border-radius: 3px; overflow: hidden; }
-    .dl-progress-fill { height: 100%; background: #3b82f6; border-radius: 3px; transition: width 0.25s ease-out; }
+    .dl-progress-bar { height: 6px; background: var(--sh-field); border-radius: 3px; overflow: hidden; }
+    .dl-progress-fill { height: 100%; background: var(--sh-accent); border-radius: 3px; transition: width 0.25s ease-out; }
     .dl-progress-fill.paused { background: #eab308; }
 
     /* IDM-Style Multi-Segment Visualizer Bar */
@@ -79,17 +81,17 @@
       display: flex;
       height: 12px;
       gap: 2px;
-      background: #0b1120;
+      background: var(--sh-field);
       border-radius: 4px;
       padding: 2px;
       overflow: hidden;
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--sh-border);
       margin: 4px 0;
     }
     .dl-segment-slot {
       flex: 1;
       height: 100%;
-      background: #1e293b;
+      background: var(--sh-surface);
       border-radius: 2px;
       overflow: hidden;
       position: relative;
@@ -97,34 +99,34 @@
     .dl-segment-fill {
       height: 100%;
       width: 0%;
-      background: #3b82f6;
+      background: var(--sh-accent);
       transition: width 0.2s linear;
     }
-    .dl-segment-fill.iface-0 { background: #3b82f6; } /* Blue (e.g. Wi-Fi) */
+    .dl-segment-fill.iface-0 { background: var(--sh-accent); } /* Blue (e.g. Wi-Fi) */
     .dl-segment-fill.iface-1 { background: #10b981; } /* Emerald (e.g. Mobile USB) */
     .dl-segment-fill.iface-2 { background: #f59e0b; } /* Amber (e.g. LAN) */
     .dl-segment-fill.iface-3 { background: #a855f7; } /* Purple */
 
-    .dl-footer { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: #64748b; flex-wrap: wrap; gap: 8px; }
-    .dl-meta { display: flex; align-items: center; gap: 10px; color: #94a3b8; flex-wrap: wrap; }
-    .dl-speed { color: #60a5fa; font-weight: 600; }
-    .dl-eta { color: #cbd5e1; }
+    .dl-footer { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--sh-text-2); flex-wrap: wrap; gap: 8px; }
+    .dl-meta { display: flex; align-items: center; gap: 10px; color: var(--sh-text-2); flex-wrap: wrap; }
+    .dl-speed { color: var(--sh-accent-text); font-weight: 600; }
+    .dl-eta { color: var(--sh-text-2); }
     .dl-interfaces-chips { display: inline-flex; gap: 6px; }
     .iface-chip {
       font-size: 10.5px;
       padding: 1px 6px;
       border-radius: 4px;
-      background: rgba(255,255,255,0.06);
-      color: #94a3b8;
-      border: 1px solid rgba(255,255,255,0.1);
+      background: var(--sh-hover);
+      color: var(--sh-text-2);
+      border: 1px solid var(--sh-border);
     }
-    .iface-chip.active { color: #34d399; border-color: rgba(52,211,153,0.3); }
+    .iface-chip.active { color: var(--sh-success); border-color: rgba(52,211,153,0.3); }
 
     .dl-actions { display: flex; gap: 6px; align-items: center; }
     .btn-dl-action {
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.14);
-      color: #cbd5e1;
+      background: var(--sh-hover);
+      border: 1px solid var(--sh-border);
+      color: var(--sh-text-2);
       padding: 5px 12px;
       border-radius: 6px;
       font-size: 11.5px;
@@ -133,14 +135,14 @@
       transition: all 0.15s;
     }
     .btn-dl-action:hover {
-      background: #3b82f6;
+      background: var(--sh-accent);
       border-color: #60a5fa;
-      color: #ffffff;
+      color: var(--sh-text);
     }
     .btn-dl-action.danger:hover {
-      background: #ef4444;
+      background: var(--sh-danger-bg);
       border-color: #ef4444;
-      color: #ffffff;
+      color: var(--sh-text);
     }
     .toolbar {
       display: flex;
@@ -153,18 +155,18 @@
     .search-downloads-input {
       flex: 1;
       min-width: 240px;
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.12);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 8px;
       padding: 8px 12px;
-      color: #ffffff;
+      color: var(--sh-text);
       font-size: 13px;
       outline: none;
     }
     .search-downloads-input:focus {
-      border-color: #3b82f6;
+      border-color: var(--sh-accent);
     }
-    .empty-state { color: #64748b; padding: 48px 0; text-align: center; font-size: 14px; }
+    .empty-state { color: var(--sh-text-2); padding: 48px 0; text-align: center; font-size: 14px; }
 
     /* Turbo Status Card */
     .network-sources-bar {
@@ -173,7 +175,7 @@
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 12px;
-      color: #cbd5e1;
+      color: var(--sh-text-2);
       margin-bottom: 16px;
       display: flex;
       align-items: center;
@@ -191,7 +193,7 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      background: rgba(255,255,255,0.06);
+      background: var(--sh-hover);
       padding: 3px 8px;
       border-radius: 4px;
       font-size: 11px;
@@ -220,14 +222,14 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #ef4444;
+      background: var(--sh-danger-bg);
     }
 
     /* Modal for Add Download */
     .modal-overlay {
       position: fixed;
       top: 0; left: 0; right: 0; bottom: 0;
-      background: rgba(0,0,0,0.7);
+      background: var(--sh-overlay);
       display: flex;
       align-items: center;
       justify-content: center;
@@ -241,28 +243,28 @@
       opacity: 1;
     }
     .modal-box {
-      background: #1e293b;
-      border: 1px solid rgba(255,255,255,0.15);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border-strong);
       border-radius: 12px;
       width: 500px;
       max-width: 90vw;
       padding: 24px;
       box-shadow: 0 20px 40px rgba(0,0,0,0.5);
     }
-    .modal-box h3 { margin: 0 0 12px 0; color: #f1f5f9; font-size: 16px; }
+    .modal-box h3 { margin: 0 0 12px 0; color: var(--sh-text); font-size: 16px; }
     .modal-box input {
       width: 100%;
-      background: #0f172a;
-      border: 1px solid rgba(255,255,255,0.15);
+      background: var(--sh-field);
+      border: 1px solid var(--sh-border-strong);
       border-radius: 6px;
       padding: 10px 12px;
-      color: #ffffff;
+      color: var(--sh-text);
       font-size: 13px;
       box-sizing: border-box;
       margin-bottom: 14px;
       outline: none;
     }
-    .modal-box input:focus { border-color: #3b82f6; }
+    .modal-box input:focus { border-color: var(--sh-accent); }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
   </style>
 </head>
@@ -330,6 +332,7 @@
     </div>
   </div>
 
+  <script src="theme.js"></script>
   <script src="safe-html.js"></script>
   <script src="downloads.js"></script>
 </body>

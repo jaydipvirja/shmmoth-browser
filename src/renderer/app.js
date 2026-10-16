@@ -189,18 +189,18 @@ function updateThemeToggleButton(themeName) {
   }
 }
 
+// "Follow Windows": this query reports Windows' own dark / light setting, and changes when Windows switches
+const prefersLight = window.matchMedia ? window.matchMedia('(prefers-color-scheme: light)') : null;
+if (prefersLight) {
+  prefersLight.addEventListener('change', () => { if (settings.theme === 'system') applyTheme('system'); });
+}
+
 function applyTheme(themeName) {
   if (document.body.classList.contains('theme-incognito')) return;
+  const light = themeName === 'light' || (themeName === 'system' && Boolean(prefersLight && prefersLight.matches));
   document.body.classList.remove('theme-dark', 'theme-light');
-  if (themeName === 'light') {
-    document.body.classList.add('theme-light');
-  } else if (themeName === 'system') {
-    const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    document.body.classList.add(prefersDark ? 'theme-dark' : 'theme-light');
-  } else {
-    document.body.classList.add('theme-dark');
-  }
-  updateThemeToggleButton(themeName);
+  document.body.classList.add(light ? 'theme-light' : 'theme-dark');
+  updateThemeToggleButton(light ? 'light' : 'dark');
 }
 
 async function loadSettings() {
@@ -975,8 +975,8 @@ function setupEventListeners() {
   // Quick Light / Dark Mode Toggle Button
   if (btnToggleTheme) {
     btnToggleTheme.addEventListener('click', async () => {
-      const current = settings.theme || 'dark';
-      const next = (current === 'light') ? 'dark' : 'light';
+      // switches away from what is shown (also when the setting is "Follow Windows")
+      const next = document.body.classList.contains('theme-light') ? 'dark' : 'light';
       settings.theme = next;
       applyTheme(next);
       if (api && api.updateSettings) {

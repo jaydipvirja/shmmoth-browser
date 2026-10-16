@@ -56,6 +56,12 @@ must be its own small window, as the bubbles already are. The page area starts a
   wiring) with no behaviour change. This takes the layout code out of the 4,500-line file before Phase 2 touches it.
 
 ### Phase 1 — Design system
+Done in 1.2.1: the tokens with Dark, Light and Incognito sets, the Theme setting *Follow Windows / Light / Dark*
+(`services/theme.js`, `pages/theme.js`), the light theme fixed on Settings, History, Bookmarks, Downloads, Notes,
+Extensions and the New Tab search box, `pages/icons.js` (Settings menu and New Tab), focus ring and reduced motion.
+The frame, the bubbles and the rest of the emoji move to the tokens and icons with their redesign (Phases 2–4).
+Mockup: the "SHMMOTH Design System" canvas.
+
 - One `src/pages/design-tokens.css`, loaded by the frame, every internal page and every bubble. It defines colours,
   type scale, spacing, radii, shadows and motion, with Dark, Light and Incognito sets. All hard-coded colours are
   replaced by tokens.
