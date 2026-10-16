@@ -32,7 +32,7 @@ runSuite('SHMMOTH Browser — E2E 09: error pages', async (t) => {
   const downloadsDir = tmpDir('shmmoth-e2e-errors-dl-');
   await api(chrome, 'updateSettings', { startupBehavior: 'restore', downloadPath: downloadsDir });
 
-  const omnibox = () => chrome.evaluate(() => ({ value: document.getElementById('omnibox-input').value, icon: document.getElementById('omnibox-security').textContent, hint: document.getElementById('omnibox-security').title }));
+  const omnibox = () => chrome.evaluate(() => ({ value: document.getElementById('omnibox-input').value, icon: ['secure', 'warn', 'internal', 'neutral'].find((c) => document.getElementById('omnibox-security').classList.contains(c)), hint: document.getElementById('omnibox-security').title }));
   const errorPage = (needle) => waitFor(async () => (await listWebContents(app)).find((w) => w.url.startsWith('mtc://error') && (!needle || decodeURIComponent(w.url).includes(needle)) && !w.loading),
     { timeout: 20000, message: `the error page for ${needle || 'a failed load'}` });
   const text = (prefix, id) => evalIn(app, prefix, `document.getElementById(${JSON.stringify(id)}).textContent`);
@@ -52,7 +52,7 @@ runSuite('SHMMOTH Browser — E2E 09: error pages', async (t) => {
     await t.test('the address bar keeps the failed address (with a warning icon, never a padlock)', async () => {
       const o = await waitFor(async () => { const x = await omnibox(); return x.value.startsWith(dead) ? x : null; }, { message: 'omnibox to show the failed address' });
       assertEqual(o.value, `${dead}/article?id=7`);
-      assertEqual(o.icon, '⚠️');
+      assertEqual(o.icon, 'warn', 'the warning icon (since 1.3.0 an SVG icon with the "warn" state)');
       assertEqual(o.hint, 'This page could not be loaded');
     });
 
