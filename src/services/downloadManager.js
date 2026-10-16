@@ -888,10 +888,15 @@ class DownloadManager {
     let probe = null;
     let reason = '';
     try { probe = await this.turboEngine.probe(url, headers, { timeout: 6000, session: sess || undefined }); } catch (_) { probe = null; }
-    if (record.settled) return;                 // the item ended meanwhile (and was reported by its 'done' handler)
     if (!probe || !probe.acceptsRanges) reason = describeNoTurbo(probe);
     else if (probe.totalBytes < this.turboEngine.minTurboSize) reason = 'the file is under ' + Math.round(this.turboEngine.minTurboSize / 1048576) + ' MB, splitting it would not be faster';
     else if (total > 0 && probe.totalBytes !== total) reason = 'the size reported by the test request differs from the announced size';
+    if (record.settled) {
+      // The item ended meanwhile (its 'done' handler reported it): it stays as it is, but the card still says why the
+      // fast engine was not used
+      if (reason) { record.turboNote = `Normal download: ${reason}.`; this._notify(record); this._persist(); }
+      return;
+    }
 
     if (!reason) {
       // Cancel the held native download (Chromium removes its placeholder file) and let the fast engine have it
