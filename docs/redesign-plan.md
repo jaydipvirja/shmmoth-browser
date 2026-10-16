@@ -72,7 +72,8 @@ Mockup: the "SHMMOTH Design System" canvas.
 ### Phase 2 — Browser frame (largest)
 Done in 1.3.0: tab strip, toolbar, address bar and bookmarks bar on the tokens and icons; the ⋮ main menu
 (`pages/menu-bubble.html`, a bubble window) with the actions that left the toolbar, theme and zoom. Header height
-unchanged (114 / 86 px). Next, 1.3.1: the shield, downloads, extensions and permission bubbles.
+unchanged (114 / 86 px). Done in 1.3.1: the shield, downloads, extensions and permission bubbles on the tokens,
+the theme and the icon set.
 
 - Tabs: new shape, audio/mute indicator, pinned tabs, hover preview. The tab strip becomes vertical if direction B is
   chosen.

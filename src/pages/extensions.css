@@ -171,7 +171,7 @@
 
 .btn-dev-action.primary {
   background: var(--sh-accent);
-  color: var(--sh-text);
+  color: var(--sh-on-accent);
 }
 
 .btn-dev-action.primary:hover {
@@ -652,7 +652,7 @@
 .btn-modal-confirm {
   background: var(--sh-accent);
   border: none;
-  color: var(--sh-text);
+  color: var(--sh-on-accent);
   padding: 8px 18px;
   border-radius: 6px;
   font-size: 13px;
