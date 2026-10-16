@@ -1,6 +1,8 @@
 name: Release (draft)
 
 # Pushing a tag like v1.1.0 builds the Windows installer, smoke-tests it and puts it in a DRAFT GitHub release.
+# The same can be started on GitHub without a PC: Actions → Release (draft) → Run workflow (branch: main). That releases
+# the version in package.json on main and creates its tag (vX.Y.Z) once the installer has passed the smoke test.
 # Nothing is public and no browser can see a draft. The installer is NOT signed here: the update-signing key lives only
 # on the publisher's PC (docs/releasing.md). After this job: download the installer from the draft, run
 # `npm run release:sign -- <installer>`, upload the .sig to the draft, publish it.
@@ -8,12 +10,13 @@ name: Release (draft)
 on:
   push:
     tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  workflow_dispatch:   # "Run workflow" on GitHub: only on main (checked below)
 
 permissions:
   contents: write      # create the draft release (this workflow only)
 
 concurrency:
-  group: release-${{ github.ref_name }}
+  group: release
   cancel-in-progress: false
 
 jobs:
@@ -29,10 +32,27 @@ jobs:
           cache: npm
       - run: npm ci
 
+      # The tag to release: the pushed one, or (Run workflow) v + the version in package.json on main, which must not
+      # exist yet
+      - name: Which version?
+        shell: bash
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            if [ "$GITHUB_REF" != "refs/heads/main" ]; then echo "::error::Run this workflow on main"; exit 1; fi
+            TAG="v$(node -p "require('./package.json').version")"
+            if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" > /dev/null; then
+              echo "::error::${TAG} already exists: bump the version in package.json (and CHANGELOG.md) first"; exit 1
+            fi
+          else
+            TAG="$GITHUB_REF_NAME"
+          fi
+          echo "TAG=${TAG}" >> "$GITHUB_ENV"
+
       # Refuses to build a release that could never accept a signed update (no key compiled in), whose version does not
       # match the tag, or that has no changelog entry / icon.
       - name: Is the source ready to release?
-        run: node scripts/release-tool.js check --tag ${{ github.ref_name }}
+        shell: bash
+        run: node scripts/release-tool.js check --tag "$TAG"
 
       - run: npm test
 
@@ -61,13 +81,22 @@ jobs:
             echo "Before signing on your PC, check that the file you downloaded from the draft has exactly this SHA-256 (\`certutil -hashfile ${FILE} SHA256\`). Then: \`npm run release:sign -- ${FILE}\`, upload \`${FILE}.sig\` to the draft and publish it."
           } >> "$GITHUB_STEP_SUMMARY"
 
+      # Run workflow: the tag is created only now, on the commit that was built and tested (a tag pushed with this
+      # workflow's token does not start the workflow a second time)
+      - name: Create the tag (Run workflow only)
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          git tag "$TAG" "$GITHUB_SHA"
+          git push origin "refs/tags/${TAG}"
+
       - name: Create the draft release
         shell: bash
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          gh release create "${{ github.ref_name }}" \
+          gh release create "$TAG" \
             "dist/SHMMOTH-Browser-Setup-${VERSION}.exe" "dist/SHA256SUMS.txt" \
             --draft --verify-tag \
             --title "SHMMOTH Browser ${VERSION}" \
