@@ -265,10 +265,22 @@ function startServer(handler, { port: wanted = 0 } = {}) {
 }
 
 /** Serves `size` bytes with Range support (so the Turbo engine accepts it) as an attachment. */
-function fileHandler({ size = 3 * 1024 * 1024, filename = 'file.bin', onRequest } = {}) {
+// `slowFullBodyMs`: a request without Range gets its first 64 KiB at once and the rest only after this delay, so the
+// browser's own download cannot finish before the fast engine has been tried (the parts it asks for come at once).
+function fileHandler({ size = 3 * 1024 * 1024, filename = 'file.bin', onRequest, slowFullBodyMs = 0 } = {}) {
   const body = Buffer.alloc(size, 7);
   return (req, res) => {
     if (onRequest) onRequest(req);
+    if (slowFullBodyMs > 0 && !req.headers.range) {
+      res.writeHead(200, {
+        'Content-Type': 'application/octet-stream', 'Accept-Ranges': 'bytes',
+        'Content-Disposition': `attachment; filename="${filename}"`, 'Content-Length': body.length
+      });
+      res.write(body.subarray(0, 65536));
+      const timer = setTimeout(() => res.end(body.subarray(65536)), slowFullBodyMs);
+      res.on('close', () => clearTimeout(timer));
+      return;
+    }
     const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
     const start = m ? Number(m[1]) : 0;
     const end = m && m[2] ? Number(m[2]) : body.length - 1;

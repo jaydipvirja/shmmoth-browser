@@ -30,7 +30,9 @@ runSuite('SHMMOTH Browser — E2E 21: toolbar and main menu', async (t) => {
     return waitFor(menuUrl, { message: 'the main menu' });
   };
   const inMenu = async (code) => evalIn(app, await openMenu(), code);
-  const choose = async (action) => inMenu(`document.querySelector('[data-action="${action}"]').click(), true`);
+  // clicked after the call returns: an entry that closes the menu destroys its window, and a call still running in a
+  // destroyed window never answers
+  const choose = async (action) => inMenu(`setTimeout(() => document.querySelector('[data-action="${action}"]').click(), 0), true`);
   const menuShows = (code, want, message) => waitFor(async () => (await inMenu(code)) === want, { message });
   const tabCount = () => chrome.evaluate(() => document.querySelectorAll('#tabs-strip .browser-tab').length);
 
@@ -99,7 +101,7 @@ runSuite('SHMMOTH Browser — E2E 21: toolbar and main menu', async (t) => {
 
     await t.test('Escape closes the menu', async () => {
       await openMenu();
-      await inMenu("document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), true");
+      await inMenu("setTimeout(() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 0), true");
       await waitFor(async () => !(await menuUrl()), { message: 'the menu to close' });
     });
 
