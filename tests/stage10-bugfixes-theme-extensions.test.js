@@ -124,7 +124,7 @@ runTest('10. Internal pages (settings, extensions, newtab) have theme-light styl
   // settings.css (also History, Bookmarks, Downloads, Notes) takes light and dark from the design tokens (1.2.1)
   assert(/background: var\(--sh-bg\)/.test(setCss) && /\.card \{[^}]*background: var\(--sh-surface\)/.test(setCss), 'settings.css uses the design tokens');
   assert(/background-color: var\(--sh-bg\)/.test(extCss) && !/#0b1120|#162032/.test(extCss), 'extensions.css uses the design tokens');
-  assert(ntCss.includes('body.theme-light'),  'Missing body.theme-light in newtab.css');
+  assert(/body \{[^}]*background: var\(--sh-bg\)/.test(ntCss) && !/#0f172a/.test(ntCss), 'newtab.css uses the design tokens (1.4.0)');
 });
 
 // 11. Theme broadcasting and live synchronization

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.3.2
+
+Redesign, Phase 3: the New Tab page and Settings (`docs/redesign-plan.md`).
+- **New Tab:** the SHMMOTH logo and name above a larger search box; the clock is now small and sits on one line with the date and the greeting; shortcuts show the site's first letter on a colour of its own instead of emoji (nothing is fetched from the web for them); the status at the bottom (ad blocker, RAM saver, engine) is shown as three small chips with icons. The Incognito notice got the same calm look.
+- **Settings → Search settings:** type a word (e.g. "proxy", "theme", "password") and only the matching settings of every section are shown; if nothing matches it says so; Escape or clearing the box goes back to the section that was open.
+- **Settings → Appearance → Theme:** three buttons, *Follow Windows*, *Light*, *Dark*, instead of a drop-down.
+- Settings cards have a thin line between their rows, the logo heads the side menu, and the add-shortcut dialog follows the theme.
+
 ## 1.3.1
 
 Redesign, Phase 2 (second part): the small windows next to the toolbar (`docs/redesign-plan.md`).

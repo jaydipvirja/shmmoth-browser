@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="newtab.css">
   <link rel="stylesheet" href="fonts.css">
 </head>
-<body class="dark-theme">
+<body>
   <div class="background-overlay"></div>
 
   <div class="newtab-container">
@@ -21,9 +21,9 @@
 
     <!-- Center Section: Brand, Clock, Greeting, Search -->
     <main class="center-content">
-      <div class="brand-badge">
-        <span class="brand-dot"></span>
-        <span class="brand-text">SHMMOTH BROWSER</span>
+      <div class="brand">
+        <img src="logo.svg" alt="" width="44" height="44">
+        <span class="brand-name">SHMMOTH</span>
       </div>
 
       <div class="clock-section">
@@ -35,13 +35,13 @@
       <!-- Google Search Form -->
       <form id="search-form" class="search-box">
         <span class="search-icon sh-icon" data-icon="search" aria-hidden="true"></span>
-        <input type="text" id="search-input" placeholder="Search Google or type a URL..." autofocus autocomplete="off">
+        <input type="text" id="search-input" placeholder="Search Google or type a web address" aria-label="Search Google or type a web address" autofocus autocomplete="off">
         <button type="submit" class="search-submit-btn" title="Search" aria-label="Search"><span class="sh-icon" data-icon="arrow-right" aria-hidden="true"></span></button>
       </form>
 
       <!-- Incognito Notice (Stage 4) -->
       <div id="incognito-panel" class="incognito-panel hidden">
-        <div class="incognito-hero-icon">🕵️</div>
+        <div class="incognito-hero-icon"><span class="sh-icon" data-icon="incognito" aria-hidden="true"></span></div>
         <h2 class="incognito-title">You've gone Incognito</h2>
         <p class="incognito-desc">
           Pages you view in incognito tabs won't stick around in your browser's history, cookie store, or search history after you've closed all your incognito tabs.
@@ -72,7 +72,7 @@
           <!-- Dynamically filled -->
         </div>
         <button id="btn-add-shortcut" class="add-shortcut-card" title="Add Shortcut">
-          <span class="plus-icon">+</span>
+          <span class="plus-icon"><span class="sh-icon" data-icon="plus" aria-hidden="true"></span></span>
           <span class="card-label">Add Shortcut</span>
         </button>
       </section>
@@ -80,16 +80,16 @@
 
     <!-- Footer Stats / Status -->
     <footer class="footer-bar">
-      <div class="footer-stat">
-        <span class="shield-icon">🛡️</span>
+      <div class="footer-stat shield">
+        <span class="sh-icon" data-icon="shield" aria-hidden="true"></span>
         <span id="stat-ads-blocked">Ad-Blocker: Active</span>
       </div>
       <div class="footer-stat">
-        <span class="stat-icon">⚡</span>
+        <span class="sh-icon" data-icon="bolt" aria-hidden="true"></span>
         <span id="stat-ram-saver">RAM Saver: On</span>
       </div>
       <div class="footer-stat">
-        <span class="stat-icon">🌐</span>
+        <span class="sh-icon" data-icon="globe" aria-hidden="true"></span>
         <span id="stat-engine">Engine: Chromium</span>
       </div>
     </footer>

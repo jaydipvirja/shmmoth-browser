@@ -19,9 +19,9 @@ function updateClock() {
   const h = now.getHours();
   if (h >= 12 && h < 17) greeting = "Good Afternoon";
   else if (h >= 17 && h < 21) greeting = "Good Evening";
-  else if (h >= 21 || h < 5) greeting = "Welcome to SHMMOTH Browser";
+  else if (h >= 21 || h < 5) greeting = "Good Night";
 
-  document.getElementById('live-greeting').textContent = `${greeting}, Boss`;
+  document.getElementById('live-greeting').textContent = greeting;
 }
 
 setInterval(updateClock, 1000);
@@ -48,6 +48,19 @@ async function loadShortcuts() {
   renderShortcuts();
 }
 
+// A tile for a shortcut: the first letter of its name on a colour picked from its address, so each site keeps its colour.
+// Nothing is fetched (no favicon service learns which sites are on the page). The colours all carry white text at
+// 4.5 : 1 or more.
+const TILE_COLORS = ['#c5221f', '#1d4ed8', '#0b7a3e', '#7c3aed', '#a15c00', '#0e7490', '#be185d', '#475569'];
+function tileFor(item) {
+  let host = '';
+  try { host = new URL(item.url).hostname.replace(/^www\./, ''); } catch (_) { host = String(item.url || ''); }
+  const name = String(item.title || host || '?').trim();
+  let h = 0;
+  for (const ch of host || name) h = (h * 31 + ch.codePointAt(0)) >>> 0;
+  return { letter: (name.match(/[\p{L}\p{N}]/u) || ['?'])[0].toUpperCase(), color: TILE_COLORS[h % TILE_COLORS.length] };
+}
+
 function renderShortcuts() {
   const grid = document.getElementById('shortcuts-grid');
   grid.innerHTML = '';
@@ -55,11 +68,15 @@ function renderShortcuts() {
   shortcuts.forEach(item => {
     const card = document.createElement('div');
     card.className = 'shortcut-card';
+    const tile = tileFor(item);
+    card.tabIndex = 0;
+    card.setAttribute('role', 'link');
     card.innerHTML = `
-      <span class="card-icon">${escapeHtml(item.icon || '🌐')}</span>
+      <span class="tile-letter" style="background: ${tile.color}">${escapeHtml(tile.letter)}</span>
       <span class="card-label">${escapeHtml(item.title)}</span>
-      <button class="delete-shortcut-btn" title="Delete">✕</button>
+      <button class="delete-shortcut-btn" title="Remove" aria-label="Remove ${escapeHtml(item.title)}"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     `;
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter') navigateTo(item.url); });
 
     card.addEventListener('click', (e) => {
       if (e.target.classList.contains('delete-shortcut-btn')) return;
@@ -79,6 +96,7 @@ function renderShortcuts() {
 
     grid.appendChild(card);
   });
+  if (window.ShIcons) window.ShIcons.drawAll(grid);
 }
 
 // Navigation Helper
@@ -171,7 +189,7 @@ btnSaveModal.addEventListener('click', async () => {
     url = 'https://' + url;
   }
 
-  const newShortcut = { title, url, icon: '🔗' };
+  const newShortcut = { title, url, icon: '' };
   if (window.mtcAPI && window.mtcAPI.addShortcut) {
     shortcuts = await window.mtcAPI.addShortcut(newShortcut);
   } else {
