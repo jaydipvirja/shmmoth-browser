@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.4.3
+
+- **New logo: the moth.** SHMMOTH has a logo of its own: a simple moth on an indigo tile (SHM-*MOTH*). It replaces the blue "S" everywhere: the app icon on the taskbar, desktop and Start menu, the installer, the tab of the New Tab page, the top of the New Tab page, Settings and the other pages. It stays clear down to 16 px.
+
 ## 1.4.2
 
 - **Import from Chrome, Edge or Brave.** *Settings → Search Engine & General → Import Bookmarks & History* lists the browsers and profiles on this computer and brings over their bookmarks (into a folder *Imported from …*) and their most recent 2,000 pages of history, with the original visit times. On first start, the Welcome card offers it in one click (*Import from Google Chrome*). Importing again never doubles anything. Passwords and cookies are not imported: the other browsers keep them encrypted for themselves.

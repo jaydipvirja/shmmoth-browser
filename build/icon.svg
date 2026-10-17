@@ -1,27 +1,30 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="SHMMOTH Browser">
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 512 512" role="img" aria-label="SHMMOTH Browser">
   <title>SHMMOTH Browser</title>
   <defs>
     <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#0b1220"/>
-      <stop offset="0.55" stop-color="#16348f"/>
-      <stop offset="1" stop-color="#2563eb"/>
+      <stop offset="0" stop-color="#1e1b4b"/>
+      <stop offset="1" stop-color="#4f46e5"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.28" cy="0.2" r="0.75">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.22"/>
+    <radialGradient id="glow" cx="0.3" cy="0.22" r="0.8">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16"/>
       <stop offset="1" stop-color="#ffffff" stop-opacity="0"/>
     </radialGradient>
-    <linearGradient id="ink" gradientUnits="userSpaceOnUse" x1="0" y1="140" x2="0" y2="870">
+    <linearGradient id="wing" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#ffffff"/>
-      <stop offset="0.38" stop-color="#ffffff"/>
-      <stop offset="0.62" stop-color="#7dd3fc"/>
-      <stop offset="1" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#7dd3fc"/>
     </linearGradient>
-    <filter id="soft" filterUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1024">
-      <feDropShadow dx="0" dy="14" stdDeviation="14" flood-color="#020617" flood-opacity="0.45"/>
-    </filter>
   </defs>
-  <rect width="1024" height="1024" rx="232" fill="url(#tile)"/>
-  <rect width="1024" height="1024" rx="232" fill="url(#glow)"/>
-  <path d="M 700 345 C 700 255 620 205 512 205 C 400 205 325 262 325 345 C 325 425 395 458 512 490 C 629 522 699 555 699 645 C 699 735 622 800 512 800 C 400 800 325 745 325 680"
-        fill="none" stroke="url(#ink)" stroke-width="132" stroke-linecap="round" stroke-linejoin="round" filter="url(#soft)"/>
+  <rect width="512" height="512" rx="116" fill="url(#tile)"/>
+  <rect width="512" height="512" rx="116" fill="url(#glow)"/>
+  <!-- the moth: two pairs of wings, the body and the antennae -->
+  <g fill="url(#wing)">
+    <path d="M246 240 C200 150 112 116 84 160 C60 202 116 262 240 264 Z"/>
+    <path d="M244 276 C172 284 118 324 134 364 C150 400 214 382 250 300 Z"/>
+    <g transform="translate(512,0) scale(-1,1)">
+      <path d="M246 240 C200 150 112 116 84 160 C60 202 116 262 240 264 Z"/>
+      <path d="M244 276 C172 284 118 324 134 364 C150 400 214 382 250 300 Z"/>
+    </g>
+  </g>
+  <rect x="241" y="180" width="30" height="190" rx="15" fill="#e0f2fe"/>
+  <path d="M250 188 C240 152 216 132 194 126 M262 188 C272 152 296 132 318 126" fill="none" stroke="#e0f2fe" stroke-width="12" stroke-linecap="round"/>
 </svg>
