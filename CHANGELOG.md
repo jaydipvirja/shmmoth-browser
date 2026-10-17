@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.3.3
+
+Redesign, Phase 4: History, Bookmarks, Downloads, Extensions, Notes and the error and crash pages (`docs/redesign-plan.md`).
+- **Icons instead of emoji on every one of these pages:** search, folders, edit / delete, pause / resume / retry, the Turbo and network status, the extension icons and dialogs, the Notes title and "saved" mark, and one clear icon for each kind of error page (server not found, no internet, timed out, proxy, blocked by the ad blocker, certificate …). A site without its own icon shows a globe; a download shows its file type as a short label (ZIP, PDF, EXE …), as in the downloads window.
+- **The same rounded search box with a search icon** on History, Bookmarks, Downloads and Extensions, and the SHMMOTH logo at the top of each page.
+- **Empty lists say what to do** ("Pages you visit will show up here", "Files you download will show up here", "No bookmark matches your search") with an icon, instead of a grey line.
+- Fixed: the blue main buttons on these pages and in Settings (*Add Turbo Download*, *Add Password*, *Save & Apply* …) had no style of their own and looked like plain grey buttons; the Extensions page's messages were white on white in the light theme; status colours on Downloads and Notes were fixed dark-theme colours, now they follow the theme.
+
 ## 1.3.2
 
 Redesign, Phase 3: the New Tab page and Settings (`docs/redesign-plan.md`).

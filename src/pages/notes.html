@@ -32,8 +32,9 @@
       gap: 8px;
       font-size: 15px;
       font-weight: 700;
-      color: var(--sh-accent-text);
+      color: var(--sh-text);
     }
+    .notes-title .sh-icon { color: var(--sh-accent-text); width: 17px; height: 17px; }
     .header-actions {
       display: flex;
       gap: 6px;
@@ -54,7 +55,8 @@
     }
     .action-btn.danger:hover {
       background: var(--sh-danger-bg);
-      border-color: #ef4444;
+      border-color: var(--sh-danger);
+      color: var(--sh-on-accent);
     }
     .notes-body {
       flex: 1;
@@ -79,6 +81,7 @@
     }
     textarea:focus {
       border-color: var(--sh-accent);
+      box-shadow: 0 0 0 3px var(--sh-selected);
     }
     .notes-footer {
       display: flex;
@@ -94,12 +97,15 @@
       gap: 6px;
       color: var(--sh-success);
     }
+    .save-status.saving { color: var(--sh-warning); }
+    .save-status .sh-icon { width: 13px; height: 13px; }
+    .save-status.saving .sh-icon { visibility: hidden; }
   </style>
 </head>
 <body>
   <div class="notes-header">
     <div class="notes-title">
-      <span>📝</span>
+      <span class="sh-icon" data-icon="notes" aria-hidden="true"></span>
       <span>Quick Scratchpad</span>
     </div>
     <div class="header-actions">
@@ -114,10 +120,11 @@
 
   <div class="notes-footer">
     <span id="stats">0 words | 0 chars</span>
-    <span id="status" class="save-status">✓ All changes saved</span>
+    <span id="status" class="save-status"><span class="sh-icon" data-icon="check" aria-hidden="true"></span><span id="status-text">All changes saved</span></span>
   </div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="notes.js"></script>
 </body>
 </html>

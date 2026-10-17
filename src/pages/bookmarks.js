@@ -80,14 +80,14 @@ function renderFolders() {
     let deleteBtnHtml = '';
     // Protected folders cannot be deleted
     if (folderName !== 'All Bookmarks' && folderName !== 'Bookmarks Bar' && folderName !== 'Other Bookmarks') {
-      deleteBtnHtml = `<button class="delete-folder-btn" title="Delete Folder">✕</button>`;
+      deleteBtnHtml = `<button class="delete-folder-btn" title="Delete Folder" aria-label="Delete folder"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>`;
     }
 
-    const folderIcon = folderName === 'Bookmarks Bar' ? '⭐' : (folderName === 'All Bookmarks' ? '📁' : '📑');
+    const folderIcon = folderName === 'Bookmarks Bar' ? 'star' : 'folder';
 
     item.innerHTML = `
       <span style="display:flex; align-items:center; gap:6px;">
-        <span>${folderIcon}</span>
+        <span class="sh-icon" data-icon="${folderIcon}" aria-hidden="true"></span>
         <span>${escapeHtml(folderName)}</span>
       </span>
       <span style="display:flex; align-items:center;">
@@ -97,7 +97,7 @@ function renderFolders() {
     `;
 
     item.addEventListener('click', (e) => {
-      if (e.target.classList.contains('delete-folder-btn')) return;
+      if (e.target.closest('.delete-folder-btn')) return;
       activeFolder = folderName;
       currentFolderTitle.textContent = folderName;
       renderFolders();
@@ -118,6 +118,7 @@ function renderFolders() {
       });
     }
 
+    window.ShIcons.drawAll(item);
     folderList.appendChild(item);
   });
 }
@@ -144,7 +145,8 @@ function renderBookmarks() {
   }
 
   if (!filtered || filtered.length === 0) {
-    bookmarksContainer.innerHTML = '<p style="color:#64748b; padding:36px 0; grid-column: 1 / -1; text-align:center;">No bookmarks found.</p>';
+    bookmarksContainer.innerHTML = `<div class="empty-state" style="grid-column: 1 / -1;"><span class="sh-icon" data-icon="star" aria-hidden="true"></span><p>${query ? 'No bookmark matches your search.' : 'No bookmarks here yet. Press the star in the address bar to add one.'}</p></div>`;
+    window.ShIcons.drawAll(bookmarksContainer);
     return;
   }
 
@@ -153,9 +155,9 @@ function renderBookmarks() {
     card.className = 'bookmark-card';
     card.dataset.id = bm.id;
 
-    let iconHtml = '⭐';
+    let iconHtml = '<span class="sh-icon" data-icon="globe" aria-hidden="true"></span>';
     if (bm.favicon) {
-      iconHtml = `<img src="${escapeHtml(bm.favicon)}" data-fallback="⭐"/>`;
+      iconHtml = `<img src="${escapeHtml(bm.favicon)}" alt="" data-fallback-icon="globe"/>`;
     }
 
     const folderTag = escapeHtml(bm.folder || 'Bookmarks Bar');
@@ -167,10 +169,10 @@ function renderBookmarks() {
       </div>
       <div class="bm-url" title="${escapeHtml(bm.url)}">${escapeHtml(bm.url)}</div>
       <div class="bm-footer">
-        <span class="bm-folder-badge">📁 ${folderTag}</span>
+        <span class="bm-folder-badge"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span>${folderTag}</span>
         <div class="bm-actions">
-          <button class="bm-action-btn edit" title="Edit Bookmark">✏️</button>
-          <button class="bm-action-btn delete" title="Delete Bookmark">🗑️</button>
+          <button class="bm-action-btn edit" title="Edit Bookmark" aria-label="Edit bookmark"><span class="sh-icon" data-icon="edit" aria-hidden="true"></span></button>
+          <button class="bm-action-btn delete" title="Delete Bookmark" aria-label="Delete bookmark"><span class="sh-icon" data-icon="trash" aria-hidden="true"></span></button>
         </div>
       </div>
     `;
@@ -201,6 +203,7 @@ function renderBookmarks() {
       }
     });
 
+    window.ShIcons.drawAll(card);
     bookmarksContainer.appendChild(card);
   });
 }

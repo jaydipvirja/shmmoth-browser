@@ -38,7 +38,9 @@
 }
 
 .ext-logo-icon {
-  font-size: 22px;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
 }
 
 .ext-logo-text {
@@ -48,22 +50,33 @@
   letter-spacing: -0.3px;
 }
 
-.ext-search-wrapper input {
+.ext-search-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 300px;
+  height: 38px;
+  padding: 0 14px;
+  border-radius: var(--sh-radius-pill);
   background: var(--sh-surface);
   border: 1px solid var(--sh-border);
-  border-radius: 8px;
-  padding: 8px 16px;
-  color: var(--sh-text);
-  font-size: 13.5px;
-  width: 280px;
-  outline: none;
-  transition: all 0.2s ease;
+  color: var(--sh-text-2);
+  transition: border-color var(--sh-motion-fast), box-shadow var(--sh-motion-fast);
 }
 
-.ext-search-wrapper input:focus {
+.ext-search-wrapper:focus-within {
   border-color: var(--sh-accent);
-  background: var(--sh-field);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+  box-shadow: 0 0 0 3px var(--sh-selected);
+}
+
+.ext-search-wrapper input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sh-text);
+  font: 400 13.5px var(--sh-font);
 }
 
 .ext-header-right {
@@ -240,9 +253,16 @@
 }
 
 .ext-empty-state .empty-icon {
-  font-size: 48px;
-  margin-bottom: 16px;
-  opacity: 0.8;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 16px;
+  border-radius: 16px;
+  background: var(--sh-surface-2);
+  color: var(--sh-text-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
 }
 
 .ext-empty-state h3 {
@@ -275,13 +295,13 @@
   flex-direction: column;
   justify-content: space-between;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--sh-shadow-s);
 }
 
 .ext-card:hover {
   border-color: var(--sh-border-strong);
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+  box-shadow: var(--sh-shadow);
 }
 
 .ext-card-header {
@@ -298,7 +318,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  font-size: 22px;
+  color: var(--sh-text-2);
   flex-shrink: 0;
   overflow: hidden;
   border: 1px solid var(--sh-border);
@@ -342,9 +363,9 @@
 
 /* Status & MV2 Badges */
 .badge-mv2 {
-  background: rgba(147, 51, 234, 0.18);
-  color: #c084fc;
-  border: 1px solid rgba(147, 51, 234, 0.35);
+  background: var(--sh-warning-bg);
+  color: var(--sh-warning);
+  border: 1px solid var(--sh-border);
   font-size: 10.5px;
   padding: 1px 7px;
   border-radius: 10px;
@@ -375,8 +396,8 @@
 }
 
 .badge-status.missing {
-  background: rgba(245, 158, 11, 0.2);
-  color: #fbbf24;
+  background: var(--sh-warning-bg);
+  color: var(--sh-warning);
 }
 
 .ext-card-desc {
@@ -476,7 +497,7 @@
   border-radius: 14px;
   width: 100%;
   max-width: 540px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+  box-shadow: var(--sh-shadow);
   display: flex;
   flex-direction: column;
   max-height: 85vh;
@@ -506,6 +527,7 @@
 
 .modal-icon {
   font-size: 20px;
+  color: var(--sh-accent-text);
 }
 
 .modal-icon.error {
@@ -562,7 +584,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 26px;
+  font-size: 24px;
+  color: var(--sh-text-2);
 }
 
 .install-ext-meta h4 {
@@ -595,6 +618,7 @@
 .alert-banner .alert-icon {
   font-size: 20px;
   flex-shrink: 0;
+  color: var(--sh-danger);
 }
 
 .alert-content strong {
@@ -676,7 +700,7 @@
 
 .btn-danger-outline:hover {
   background: var(--sh-danger-soft);
-  border-color: #ef4444;
+  border-color: var(--sh-danger);
 }
 
 /* Details Modal */
@@ -780,7 +804,7 @@
 
 .error-log-entry {
   background: var(--sh-field);
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid var(--sh-danger);
   border-radius: 6px;
   padding: 12px 14px;
 }
@@ -831,11 +855,11 @@
 .toast {
   background: var(--sh-surface);
   border: 1px solid var(--sh-border-strong);
-  color: var(--sh-on-accent);
+  color: var(--sh-text);
   padding: 12px 18px;
   border-radius: 8px;
   font-size: 13px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  box-shadow: var(--sh-shadow);
   animation: toastIn 0.2s ease-out;
 }
 
@@ -843,6 +867,14 @@
   from { opacity: 0; transform: translateY(12px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+/* icons inside buttons (Load unpacked, Errors …) */
+.btn-dev-action,
+.btn-card-action { display: inline-flex; align-items: center; gap: 6px; }
+.btn-dev-action .sh-icon,
+.btn-card-action .sh-icon { width: 14px; height: 14px; }
+.modal-close-btn { display: inline-flex; align-items: center; justify-content: center; }
+.muted { color: var(--sh-text-2); }
 
 /* ── Crucial Utility: Hidden ── */
 .hidden {

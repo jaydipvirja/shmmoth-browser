@@ -27,21 +27,23 @@
       width: 100%;
       background: var(--sh-surface);
       border: 1px solid var(--sh-border);
-      border-radius: 8px;
-      padding: 9px 14px 9px 36px;
+      border-radius: var(--sh-radius-pill);
+      height: 42px;
+      padding: 0 16px 0 42px;
       color: var(--sh-text);
-      font-size: 13.5px;
+      font: 400 14px var(--sh-font);
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
     .history-search-box input:focus {
       border-color: var(--sh-accent);
-      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+      box-shadow: 0 0 0 3px var(--sh-selected);
     }
     .history-search-box .search-icon {
       position: absolute;
-      left: 12px;
-      font-size: 14px;
+      left: 16px;
+      width: 16px;
+      height: 16px;
       color: var(--sh-text-2);
       pointer-events: none;
     }
@@ -50,7 +52,7 @@
       align-items: center;
       justify-content: space-between;
       background: var(--sh-selected);
-      border: 1px solid rgba(59, 130, 246, 0.3);
+      border: 1px solid var(--sh-accent);
       border-radius: 8px;
       padding: 8px 14px;
       margin-bottom: 14px;
@@ -100,9 +102,10 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 14px;
+      color: var(--sh-text-2);
       flex-shrink: 0;
     }
+    .history-favicon .sh-icon-svg { width: 16px; height: 16px; }
     .history-favicon img {
       width: 16px;
       height: 16px;
@@ -154,9 +157,9 @@
       border: none;
       color: var(--sh-text-2);
       cursor: pointer;
-      font-size: 14px;
-      padding: 4px 8px;
-      border-radius: 4px;
+      display: inline-flex;
+      padding: 6px;
+      border-radius: 6px;
       transition: color 0.15s, background 0.15s;
     }
     .delete-item-btn:hover {
@@ -183,7 +186,7 @@
       padding: 24px;
       width: 380px;
       max-width: 90vw;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--sh-shadow);
     }
     .modal-title {
       font-size: 16px;
@@ -224,7 +227,7 @@
     }
     .btn-confirm-delete {
       background: var(--sh-danger-bg);
-      border: 1px solid #ef4444;
+      border: 1px solid var(--sh-danger);
       color: var(--sh-on-accent);
       padding: 6px 16px;
       border-radius: 6px;
@@ -238,11 +241,10 @@
   <div class="settings-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand-badge">
-          <span class="brand-dot"></span>
-          <span>SHMMOTH BROWSER</span>
+        <div class="sidebar-brand">
+          <img src="logo.svg" alt="" width="30" height="30">
+          <h2>History</h2>
         </div>
-        <h2>History</h2>
       </div>
       <div style="padding: 0 8px;">
         <button id="btn-open-clear-modal" class="btn-danger" style="width: 100%; margin-bottom: 10px;">Clear Browsing Data</button>
@@ -259,8 +261,8 @@
       <!-- Search & Toolbar -->
       <div class="history-toolbar">
         <div class="history-search-box">
-          <span class="search-icon">🔍</span>
-          <input type="text" id="history-search-input" placeholder="Search history by title or URL..." autocomplete="off">
+          <span class="search-icon sh-icon" data-icon="search" aria-hidden="true"></span>
+          <input type="search" id="history-search-input" placeholder="Search history" aria-label="Search history" autocomplete="off" spellcheck="false">
         </div>
       </div>
 
@@ -300,6 +302,7 @@
   </div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="history.js"></script>
 </body>
