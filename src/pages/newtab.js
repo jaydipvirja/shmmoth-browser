@@ -253,6 +253,33 @@ function markPressed(group, value) {
   for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.value === value));
 }
 
+// "Import from Chrome": the first browser found on this computer, both bookmarks and history
+async function setupWelcomeImport(api) {
+  if (!api.detectImportSources || !api.importFromBrowser) return;
+  let sources = [];
+  try { sources = await api.detectImportSources(); } catch (_) { return; }
+  const source = sources[0];
+  if (!source) return;
+  const row = document.getElementById('welcome-import-row');
+  const label = document.getElementById('welcome-import-label');
+  const btn = document.getElementById('welcome-import');
+  btn.textContent = `Import from ${source.name}`;
+  row.classList.remove('hidden');
+  btn.addEventListener('click', async () => {
+    btn.disabled = true;
+    btn.textContent = 'Importing…';
+    const res = await api.importFromBrowser({ browserId: source.id, profileDir: source.profiles[0].dir }).catch((err) => ({ success: false, error: err.message }));
+    if (res && res.success) {
+      label.textContent = `Imported ${res.bookmarks} bookmarks and ${res.history} pages of history`;
+      btn.textContent = 'Done';
+    } else {
+      label.textContent = (res && res.error) || 'The import did not work.';
+      btn.textContent = 'Try again';
+      btn.disabled = false;
+    }
+  });
+}
+
 async function setupWelcome() {
   const api = window.mtcAPI;
   if (!api || !api.getSettings || !api.updateSettings) return;
@@ -281,6 +308,7 @@ async function setupWelcome() {
     showEngineInPlaceholder(b.dataset.value);
     await api.updateSettings({ searchEngine: b.dataset.value });
   });
+  setupWelcomeImport(api);
   document.getElementById('welcome-done').addEventListener('click', async () => {
     card.classList.add('hidden');
     await api.updateSettings({ welcomeDone: true });

@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.4.2
+
+- **Import from Chrome, Edge or Brave.** *Settings → Search Engine & General → Import Bookmarks & History* lists the browsers and profiles on this computer and brings over their bookmarks (into a folder *Imported from …*) and their most recent 2,000 pages of history, with the original visit times. On first start, the Welcome card offers it in one click (*Import from Google Chrome*). Importing again never doubles anything. Passwords and cookies are not imported: the other browsers keep them encrypted for themselves.
+- The other browser's files are only read: its history database is copied and opened read-only, so the browser can stay open (if it holds the file, SHMMOTH says to close it and try again).
+
 ## 1.4.1
 
 - **SHMMOTH can be your default browser.** The installer now registers SHMMOTH with Windows as a web browser for http and https links, so it appears in *Settings → Apps → Default apps*. In SHMMOTH, *Settings → Search Engine & General → Default Browser* says whether it is your default; *Make default* opens Windows' Default apps page right at SHMMOTH (Windows 10 and 11 let only you make this choice). Links from other apps (mail, chat, documents) then open in a new SHMMOTH tab. Uninstalling removes the registration.

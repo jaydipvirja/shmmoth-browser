@@ -385,6 +385,59 @@ if (btnMakeDefault) {
   refreshDefaultBrowser();
 }
 
+// Import bookmarks and history from Chrome / Edge / Brave on this computer
+const modalImport = document.getElementById('modal-import');
+const selectImportSource = document.getElementById('select-import-source');
+const importStatus = document.getElementById('import-status');
+const btnRunImport = document.getElementById('btn-run-import');
+let importSources = [];
+
+function setImportLine(kind, text) {
+  importStatus.style.display = 'block';
+  importStatus.className = 'status-line ' + kind;
+  importStatus.textContent = text;
+}
+
+async function openImportModal() {
+  importStatus.style.display = 'none';
+  selectImportSource.textContent = '';
+  try { importSources = await window.mtcAPI.detectImportSources(); } catch (_) { importSources = []; }
+  for (const b of importSources) {
+    for (const p of b.profiles) {
+      const opt = document.createElement('option');
+      opt.value = JSON.stringify({ browserId: b.id, profileDir: p.dir });
+      opt.textContent = b.profiles.length > 1 ? `${b.name} — ${p.name}` : b.name;
+      selectImportSource.appendChild(opt);
+    }
+  }
+  btnRunImport.disabled = importSources.length === 0;
+  if (!importSources.length) setImportLine('error', 'No Chrome, Edge or Brave profile was found on this computer.');
+  modalImport.classList.remove('hidden');
+}
+
+function closeImportModal() { modalImport.classList.add('hidden'); }
+
+if (modalImport && window.mtcAPI && window.mtcAPI.detectImportSources) {
+  document.getElementById('btn-open-import').addEventListener('click', openImportModal);
+  document.getElementById('btn-close-import-modal').addEventListener('click', closeImportModal);
+  document.getElementById('btn-cancel-import').addEventListener('click', closeImportModal);
+  btnRunImport.addEventListener('click', async () => {
+    const source = JSON.parse(selectImportSource.value || '{}');
+    const bookmarks = document.getElementById('cb-import-bookmarks').checked;
+    const history = document.getElementById('cb-import-history').checked;
+    if (!bookmarks && !history) { setImportLine('error', 'Choose bookmarks, history or both.'); return; }
+    btnRunImport.disabled = true;
+    setImportLine('busy', 'Importing…');
+    const res = await window.mtcAPI.importFromBrowser({ ...source, bookmarks, history }).catch((err) => ({ success: false, error: err.message }));
+    btnRunImport.disabled = false;
+    if (!res || !res.success) { setImportLine('error', (res && res.error) || 'The import did not work.'); return; }
+    const parts = [];
+    if (bookmarks) parts.push(`${res.bookmarks} bookmark${res.bookmarks === 1 ? '' : 's'}${res.bookmarks && res.folder ? ` (in "${res.folder}")` : ''}`);
+    if (history) parts.push(`${res.history} page${res.history === 1 ? '' : 's'} of history`);
+    setImportLine('success', `Imported ${parts.join(' and ')}.`);
+  });
+}
+
 // Windows 11 Mica: the switch is shown only where Windows has it
 if (toggleMica && window.mtcAPI && window.mtcAPI.getPlatformFeatures) {
   window.mtcAPI.getPlatformFeatures().then((f) => {

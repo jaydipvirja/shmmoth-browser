@@ -565,6 +565,20 @@ body {
 
 .welcome-card .btn-primary { height: 38px; padding: 0 20px; }
 
+.welcome-import-btn {
+  height: 32px;
+  padding: 0 14px;
+  border-radius: var(--sh-radius-m);
+  border: 1px solid var(--sh-border);
+  background: var(--sh-surface-2);
+  color: var(--sh-text);
+  font: 600 12.5px var(--sh-font);
+  cursor: pointer;
+}
+
+.welcome-import-btn:hover { background: var(--sh-hover); }
+.welcome-import-btn:disabled { cursor: default; color: var(--sh-text-2); }
+
 .hidden {
   display: none !important;
 }
