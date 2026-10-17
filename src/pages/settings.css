@@ -154,16 +154,21 @@ body {
 .card {
   background: var(--sh-surface);
   border: 1px solid var(--sh-border);
-  border-radius: 12px;
-  padding: 20px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border-radius: var(--sh-radius-l);
+  padding: 8px 20px;
+  box-shadow: var(--sh-shadow-s);
 }
 
 .setting-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 0;
+  gap: 16px;
+  padding: 14px 0;
+}
+
+.setting-row + .setting-row {
+  border-top: 1px solid var(--sh-border);
 }
 
 .setting-info {
@@ -187,7 +192,7 @@ body {
 
 .divider {
   height: 1px;
-  background: var(--sh-hover);
+  background: var(--sh-border);
   margin: 6px 0;
 }
 
@@ -1015,3 +1020,94 @@ body {
 
 /* About page logo */
 .about-logo { width: 40px; height: 40px; vertical-align: middle; margin-right: 12px; border-radius: 10px; }
+
+/* ── Redesign Phase 3 ───────────────────────────────────────────────────── */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sidebar-brand img {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+}
+
+/* Search settings */
+.settings-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 16px;
+  margin-bottom: 26px;
+  border-radius: var(--sh-radius-pill);
+  background: var(--sh-surface);
+  border: 1px solid var(--sh-border);
+  color: var(--sh-text-2);
+}
+
+.settings-search:focus-within {
+  border-color: var(--sh-accent);
+  box-shadow: 0 0 0 3px var(--sh-selected);
+}
+
+.settings-search input {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--sh-text);
+  font: 400 14px var(--sh-font);
+}
+
+.settings-search-empty {
+  color: var(--sh-text-2);
+  font-size: 14px;
+  padding: 8px 2px 24px;
+}
+
+/* while searching: every section that has a hit, only the hits */
+body.searching .tab-pane { display: none; }
+body.searching .tab-pane.search-hit { display: block; margin-bottom: 30px; animation: none; }
+body.searching .search-miss,
+body.searching .divider { display: none !important; }
+body.searching .nav-item.active { background: transparent; color: var(--sh-text-2); font-weight: 500; }
+
+/* Theme: three buttons */
+.segmented {
+  display: flex;
+  padding: 3px;
+  border-radius: var(--sh-radius-m);
+  background: var(--sh-surface-2);
+}
+
+.segmented button {
+  height: 30px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--sh-text-2);
+  font: 600 12.5px var(--sh-font);
+  cursor: pointer;
+}
+
+.segmented button:hover { color: var(--sh-text); }
+
+.segmented button[aria-pressed="true"] {
+  background: var(--sh-surface);
+  color: var(--sh-text);
+  box-shadow: var(--sh-shadow-s);
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

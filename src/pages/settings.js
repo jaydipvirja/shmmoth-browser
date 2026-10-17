@@ -231,6 +231,7 @@ async function initSettings() {
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       // "midnight" (until 1.2.0) is shown as Dark, like the browser does (services/theme.js)
       selectTheme.value = ['system', 'light', 'dark'].includes(currentSettings.theme) ? currentSettings.theme : 'dark';
+      syncThemeButtons();
 
       // Live ad blocked count
       const blockedCount = await window.mtcAPI.getAdsBlockedCount();
@@ -375,7 +376,60 @@ selectRamTimeout.addEventListener('change', () => {
 
 selectTheme.addEventListener('change', () => {
   saveSettingChange({ theme: selectTheme.value });   // the page follows by itself (theme.js)
+  syncThemeButtons();
 });
+
+// Theme: three buttons (Follow Windows / Light / Dark) that set the select above
+const themeButtons = document.querySelectorAll('#theme-buttons [data-theme-value]');
+function syncThemeButtons() {
+  themeButtons.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.themeValue === selectTheme.value)));
+}
+themeButtons.forEach((b) => b.addEventListener('click', () => {
+  if (selectTheme.value === b.dataset.themeValue) return;
+  selectTheme.value = b.dataset.themeValue;
+  selectTheme.dispatchEvent(new Event('change'));
+}));
+
+// ─── Search settings ────────────────────────────────────────────────────────
+// Typing shows every section at once with only the settings whose label or description match; clearing it goes back
+// to the section that was open.
+const searchInput = document.getElementById('settings-search-input');
+const searchEmpty = document.getElementById('settings-search-empty');
+function filterSettings(query) {
+  const q = String(query || '').trim().toLowerCase();
+  document.body.classList.toggle('searching', Boolean(q));
+  let anyShown = false;
+  document.querySelectorAll('.tab-pane').forEach((pane) => {
+    let paneShown = false;
+    pane.querySelectorAll('.card').forEach((card) => {
+      const rows = card.querySelectorAll('.setting-row');
+      let cardShown = false;
+      if (rows.length) {
+        rows.forEach((row) => {
+          const hit = !q || row.textContent.toLowerCase().includes(q);
+          row.classList.toggle('search-miss', !hit);
+          if (hit) cardShown = true;
+        });
+      } else {
+        cardShown = !q || card.textContent.toLowerCase().includes(q);
+      }
+      card.classList.toggle('search-miss', !cardShown);
+      if (cardShown) paneShown = true;
+    });
+    const title = pane.querySelector('.section-title');
+    if (q && title && title.textContent.toLowerCase().includes(q)) {
+      paneShown = true;
+      pane.querySelectorAll('.search-miss').forEach((el) => el.classList.remove('search-miss'));
+    }
+    pane.classList.toggle('search-hit', Boolean(q) && paneShown);
+    if (paneShown && q) anyShown = true;
+  });
+  searchEmpty.classList.toggle('hidden', !q || anyShown);
+}
+if (searchInput) {
+  searchInput.addEventListener('input', () => filterSettings(searchInput.value));
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Escape') { searchInput.value = ''; filterSettings(''); } });
+}
 
 // ─── Download Settings Handlers ─────────────────────────────────────────────
 if (toggleAskWhereToSave) {

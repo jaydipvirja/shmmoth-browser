@@ -13,11 +13,10 @@
     <!-- Sidebar Navigation -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand-badge">
-          <span class="brand-dot"></span>
-          <span>SHMMOTH BROWSER</span>
+        <div class="sidebar-brand">
+          <img src="logo.svg" alt="" width="30" height="30">
+          <h2>Settings</h2>
         </div>
-        <h2>Settings</h2>
       </div>
 
       <nav class="nav-links">
@@ -40,6 +39,12 @@
 
     <!-- Main Content Area -->
     <main class="content-area">
+      <!-- Search across every section (settings-search in settings.js) -->
+      <label class="settings-search">
+        <span class="sh-icon" data-icon="search" aria-hidden="true"></span>
+        <input type="search" id="settings-search-input" placeholder="Search settings" aria-label="Search settings" autocomplete="off" spellcheck="false">
+      </label>
+      <p id="settings-search-empty" class="settings-search-empty hidden">No setting matches your search.</p>
       <!-- Search & General -->
       <section id="tab-general" class="tab-pane active">
         <div class="section-title">
@@ -572,7 +577,13 @@
               <span class="setting-desc">"Follow Windows" switches with Windows' own dark / light setting.</span>
             </div>
             <div class="setting-control">
-              <select id="select-theme" class="select-dropdown">
+              <div class="segmented" role="group" aria-label="Theme" id="theme-buttons">
+                <button type="button" data-theme-value="system" aria-pressed="false">Follow Windows</button>
+                <button type="button" data-theme-value="light" aria-pressed="false">Light</button>
+                <button type="button" data-theme-value="dark" aria-pressed="false">Dark</button>
+              </div>
+              <!-- the value the page saves; the buttons above set it -->
+              <select id="select-theme" class="select-dropdown visually-hidden" tabindex="-1" aria-hidden="true">
                 <option value="system" selected>Follow Windows</option>
                 <option value="light">Light</option>
                 <option value="dark">Dark</option>

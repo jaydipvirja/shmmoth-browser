@@ -43,7 +43,7 @@ must be its own small window, as the bubbles already are. The page area starts a
 | 0 | Groundwork: direction chosen, screenshot baselines, `main.js` split | M | 1.2.0 (no visible change) |
 | 1 | Design system: tokens, components, icon set | M | 1.2.1 |
 | 2 | Browser frame: tabs, address bar, toolbar, bookmarks bar, main menu (1.3.0); bubbles (1.3.1) | L | 1.3.0 / 1.3.1 |
-| 3 | New Tab + Settings | L | 1.3.x |
+| 3 | New Tab + Settings | L | 1.3.2 |
 | 4 | Remaining pages: History, Bookmarks, Downloads, Extensions, Notes, Error, Crash | M | 1.3.x |
 | 5 | Polish: motion, Windows 11 Mica, logo/icon/installer art, first-run screen | M | 1.4.0 |
 | 6 | Optional features: vertical tabs (if not the chosen direction), tab groups, split view, reading mode | L | later |
@@ -83,6 +83,9 @@ the theme and the icon set.
 - The six bubbles restyled with the Phase 1 components.
 
 ### Phase 3 — New Tab + Settings
+Done in 1.3.2: New Tab with logo, small clock, letter tiles (no favicon requests) and status chips; Settings with
+"Search settings" across every section and the Theme as three buttons.
+
 - New Tab: search box, editable shortcuts, optional wallpaper, protection status (ad blocker, pop-ups, secure DNS).
   It must render instantly.
 - Settings (~3,500 lines across html/css/js): left navigation with General, Privacy & security, Passwords,
