@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.4.1
+
+- **SHMMOTH can be your default browser.** The installer now registers SHMMOTH with Windows as a web browser for http and https links, so it appears in *Settings → Apps → Default apps*. In SHMMOTH, *Settings → Search Engine & General → Default Browser* says whether it is your default; *Make default* opens Windows' Default apps page right at SHMMOTH (Windows 10 and 11 let only you make this choice). Links from other apps (mail, chat, documents) then open in a new SHMMOTH tab. Uninstalling removes the registration.
+- Links arrive after `--`, so nothing in a link can be taken as a start-up option of the browser (the precaution Electron recommends for link handlers).
+- The installer is now built and tried on every change (CI job *Installer (Windows)*): silent install, the registration with Windows, a start from a link, uninstall.
+
 ## 1.4.0
 
 Redesign, Phase 5: polish (`docs/redesign-plan.md`).

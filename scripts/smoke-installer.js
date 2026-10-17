@@ -8,8 +8,10 @@
  *   node scripts/smoke-installer.js dist/SHMMOTH-Browser-Setup-1.1.0.exe     silent install → start → check → uninstall (Windows)
  *   node scripts/smoke-installer.js --exe path/to/SHMMOTH\ Browser.exe        skip the installer, test this binary (any OS)
  *
- * Passes when: the app is installed with its asar, carries the production Electron fuses, starts with a throw-away
- * profile, writes its start-up session (so the window and the first tab came up) and is still running seconds later.
+ * Passes when: the app is installed with its asar, carries the production Electron fuses, is registered with Windows
+ * as a browser (build/installer.nsh), starts with a throw-away profile from a link the way Windows hands one over
+ * ("exe" -- "<url>"), writes its start-up session with that link as its tab, is still running seconds later, and the
+ * uninstaller removes the registration again.
  */
 
 'use strict';
@@ -17,6 +19,7 @@
 const fs   = require('fs');
 const os   = require('os');
 const path = require('path');
+const http = require('http');
 const { spawn, spawnSync } = require('child_process');
 
 const { compareFuses, readFuses } = require('./check-fuses');
@@ -30,6 +33,28 @@ function killTree(child) {
     if (process.platform === 'win32') spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
     else child.kill('SIGKILL');
   } catch (_) { /* already gone */ }
+}
+
+// ─── Windows registration as a browser (build/installer.nsh) ────────────────
+function regValue(key, value) {
+  const args = value === null ? ['query', key, '/ve'] : ['query', key, '/v', value];
+  const r = spawnSync('reg', args, { encoding: 'utf8', windowsHide: true });
+  if (r.status !== 0) return null;
+  const line = r.stdout.split(/\r?\n/).find((l) => /\sREG_[A-Z_]+\s/.test(l));
+  return line ? line.replace(/^\s*.*?\s+REG_[A-Z_]+\s+/, '').trim() : '';
+}
+
+function checkRegistration(exe) {
+  const caps = regValue('HKCU\\Software\\RegisteredApplications', 'SHMMOTH Browser');
+  if (!caps || !/StartMenuInternet\\SHMMOTH Browser\\Capabilities$/.test(caps)) fail(`not registered as a browser (RegisteredApplications: ${caps})`);
+  const https = regValue('HKCU\\' + caps + '\\URLAssociations', 'https');
+  if (https !== 'SHMMOTHURL') fail(`https is not offered for SHMMOTH (URLAssociations\\https: ${https})`);
+  const command = regValue('HKCU\\Software\\Classes\\SHMMOTHURL\\shell\\open\\command', null);
+  // "<install dir>\SHMMOTH Browser.exe" -- "%1"  (the folder may be written as a short 8.3 path; compare the file)
+  const m = /^"([^"]+)" -- "%1"$/.exec(command || '');
+  if (!m || !fs.existsSync(m[1]) || fs.realpathSync(m[1]).toLowerCase() !== fs.realpathSync(exe).toLowerCase()) fail(`unexpected link command: ${command}`);
+  log('✔ registered with Windows as a browser for http and https; links are passed after "--"');
+  return command;
 }
 
 function install(installer, dir) {
@@ -70,8 +95,14 @@ async function main() {
   const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'shmmoth-smoke-profile-'));
   const flags = [`--user-data-dir=${profile}`, '--disable-gpu'];
   if (process.platform === 'linux' && typeof process.getuid === 'function' && process.getuid() === 0) flags.push('--no-sandbox');
-  log('▶ first start');
-  const child = spawn(exe, flags, { stdio: 'ignore', windowsHide: false });
+  if (installDir) checkRegistration(exe);
+
+  // started the way Windows opens a link: the address after "--" (a local page, nothing leaves the machine)
+  const server = http.createServer((req, res) => { res.writeHead(200, { 'Content-Type': 'text/html' }); res.end('<title>smoke</title>ok'); });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  const link = `http://127.0.0.1:${server.address().port}/from-a-link`;
+  log('▶ first start, from a link');
+  const child = spawn(exe, [...flags, '--', link], { stdio: 'ignore', windowsHide: false });
   let exited = null;
   child.on('exit', (code, signal) => { exited = { code, signal }; });
 
@@ -88,12 +119,15 @@ async function main() {
   }
   if (!session) { killTree(child); fail('no start-up session was written within 60 s (the window / first tab did not come up)'); }
   log(`✔ started in ${((Date.now() - started) / 1000).toFixed(1)} s, first tab: ${session.tabs[0].url}`);
+  if (!session.tabs.some((t) => t.url === link)) { killTree(child); fail(`the link did not open in a tab (tabs: ${session.tabs.map((t) => t.url).join(', ')})`); }
+  log('✔ the link opened in a tab');
 
   // 3. and it keeps running
   await sleep(6000);
   if (exited) fail(`the app quit by itself after start-up (code ${exited.code}, signal ${exited.signal})`);
   log('✔ still running after 6 s');
   killTree(child);
+  server.close();
   await sleep(1500);
 
   // 4. uninstall (a problem here is reported, not fatal)
@@ -104,6 +138,9 @@ async function main() {
     } else {
       const r = spawnSync(path.join(installDir, un), ['/S', `_?=${installDir}`], { windowsHide: true, timeout: 3 * 60 * 1000 });
       console.log(r.status === 0 ? '✔ uninstalled' : `⚠ the uninstaller returned ${r.status}`);
+      if (regValue('HKCU\\Software\\RegisteredApplications', 'SHMMOTH Browser') !== null) fail('the uninstaller left the browser registration behind');
+      if (regValue('HKCU\\Software\\Classes\\SHMMOTHURL\\shell\\open\\command', null) !== null) fail('the uninstaller left the link handler behind');
+      log('✔ browser registration removed');
     }
   }
   fs.rmSync(profile, { recursive: true, force: true });

@@ -26,6 +26,7 @@ const {
 } = require('./shared');
 const { normalizeTheme } = require('../services/theme');
 const { supportsMica } = require('../services/windowMaterial');
+const defaultBrowser = require('../services/defaultBrowser');
 
 class IpcMethods {
   // ─── IPC Setup (Stage 1 Core) ────────────────────────────────────────────
@@ -61,6 +62,16 @@ class IpcMethods {
 
     // what this computer offers (Settings shows the Mica switch only where Windows has it)
     ipcMain.handle('app:features', secureHandlerRaw(() => ({ mica: supportsMica() })));
+
+    // Default browser (Settings → General): read-only status, and Windows' own page to choose it (fixed address)
+    ipcMain.handle('defaultBrowser:status', secureHandlerRaw(() => defaultBrowser.getStatus()));
+    ipcMain.handle('defaultBrowser:openSettings', secureHandlerRaw(async () => {
+      const status = await defaultBrowser.getStatus();
+      if (!status.supported || !status.registered) return false;
+      const { shell } = require('electron');
+      await shell.openExternal(defaultBrowser.settingsUrl(status.scope));
+      return true;
+    }));
 
     ipcMain.handle('window:isMaximized', secureHandlerRaw((event) => {
       const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;

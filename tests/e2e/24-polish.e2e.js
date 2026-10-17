@@ -7,6 +7,7 @@
  *   - a new tab slides in once; the tabs already there do not move
  *   - Settings and the browser frame are free of emoji
  *   - the Mica switch stays hidden where Windows has no Mica (here: Linux)
+ *   - Settings → General says whether SHMMOTH is the default browser, with "Make default" only where it can work
  *
  * Run: npm run test:e2e   (or: node tests/e2e/24-polish.e2e.js)
  */
@@ -94,6 +95,21 @@ runSuite('SHMMOTH Browser — E2E 24: polish', async (t) => {
         assertEqual(r.emoji, false, 'emoji in Settings');
         assertEqual(r.micaHidden, process.platform !== 'win32' ? true : r.micaHidden, 'Mica switch');
         assert(r.updateIcon, 'the update card shows an icon');
+      });
+
+      await t.test('Settings → General shows the default-browser row; "Make default" only where Windows can use it', async () => {
+        const r = await waitFor(() => evalIn(app, 'mtc://settings', `(() => {
+          const st = document.getElementById('default-browser-status');
+          if (!st || st.textContent === 'Checking…') return null;
+          return { text: st.textContent, button: !document.getElementById('btn-make-default').classList.contains('hidden') };
+        })()`), { message: 'the default-browser status' });
+        if (process.platform !== 'win32') {
+          assertEqual(r.text, 'Available in SHMMOTH Browser installed on Windows.');
+          assertEqual(r.button, false, 'no button off Windows');
+        } else {
+          // a test run is not installed: Windows has no SHMMOTH entry to choose
+          assert(/installer|default browser|another browser/.test(r.text), r.text);
+        }
       });
     } finally {
       try { await api(chrome, 'updateSettings', { theme: 'dark', searchEngine: 'google' }); } catch (_) { /* closing anyway */ }

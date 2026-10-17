@@ -112,3 +112,23 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run test:e2e:packaged
+
+  # The installer users get, built and tried on every change: silent install, browser registration with Windows
+  # (build/installer.nsh), start from a link, uninstall. The release workflow repeats this before it publishes.
+  installer-windows:
+    name: Installer (Windows)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx electron-builder --win nsis --x64 --publish never
+      - name: Install it silently, start it from a link, check it, uninstall
+        shell: bash
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          node scripts/smoke-installer.js "dist/SHMMOTH-Browser-Setup-${VERSION}.exe"
