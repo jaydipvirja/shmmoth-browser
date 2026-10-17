@@ -1207,3 +1207,8 @@ body.searching .nav-item.active { background: transparent; color: var(--sh-text-
 .status-line.error   { color: var(--sh-danger); }
 .status-line.busy    { color: var(--sh-accent-text); }
 .status-line.success { color: var(--sh-success); }
+
+/* Import from another browser */
+.import-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--sh-text); margin: 10px 0; }
+.import-check input { accent-color: var(--sh-accent); width: 16px; height: 16px; }
+.import-note { font-size: 12.5px; margin-top: 12px; }

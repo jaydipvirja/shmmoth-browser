@@ -288,6 +288,30 @@ class StorageService {
     return this.data.bookmarks;
   }
 
+  /**
+   * Bookmarks from another browser (services/browserImport.js) into one folder of their own. Addresses already
+   * bookmarked are left alone. Returns how many were added.
+   */
+  importBookmarks(list, folder) {
+    if (!Array.isArray(list) || !folder) return 0;
+    if (!this.data.bookmarks) this.data.bookmarks = [];
+    const have = new Set(this.data.bookmarks.map((b) => b.url));
+    const now = Date.now();
+    let added = 0;
+    for (const item of list) {
+      if (!item || typeof item.url !== 'string' || have.has(item.url)) continue;
+      have.add(item.url);
+      this.data.bookmarks.push({
+        id: `bm_${now}_${added}_${Math.floor(Math.random() * 1000)}`,
+        title: item.title || item.url, url: item.url, favicon: '', folder, createdAt: now, updatedAt: now
+      });
+      added++;
+    }
+    if (added && !this.data.bookmarkFolders.includes(folder)) this.data.bookmarkFolders.push(folder);
+    if (added) this.save();
+    return added;
+  }
+
   editBookmark(id, updates) {
     if (!id || !updates || !this.data.bookmarks) return null;
     const bm = this.data.bookmarks.find(b => b.id === id);
@@ -376,6 +400,28 @@ class StorageService {
       this.data.history = this.data.history.slice(0, 2000);
     }
     this.saveSoon();
+  }
+
+  /**
+   * History from another browser (services/browserImport.js): pages not in this history yet are added with their
+   * own visit time, then the list is put in time order and kept at 2,000 entries. Returns how many were kept.
+   */
+  importHistory(rows) {
+    if (!Array.isArray(rows)) return 0;
+    if (!this.data.history) this.data.history = [];
+    const have = new Set(this.data.history.map((h) => h.url));
+    const added = [];
+    rows.forEach((r, i) => {
+      if (!r || typeof r.url !== 'string' || have.has(r.url)) return;
+      have.add(r.url);
+      added.push({ id: `hist_imp_${Date.now()}_${i}`, title: r.title || r.url, url: r.url, favicon: '', visitTime: r.visitTime, visitCount: r.visitCount || 1 });
+    });
+    if (!added.length) return 0;
+    const merged = this.data.history.concat(added).sort((a, b) => (b.visitTime || 0) - (a.visitTime || 0)).slice(0, 2000);
+    const kept = new Set(merged);
+    this.data.history = merged;
+    this.save();
+    return added.filter((h) => kept.has(h)).length;
   }
 
   /**

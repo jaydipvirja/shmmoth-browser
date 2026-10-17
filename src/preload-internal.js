@@ -31,6 +31,8 @@ const apiSurface = {
   onWindowMaterial:   (callback) => ipcRenderer.on('window:material', (event, state) => callback(state)),
   getPlatformFeatures: () => ipcRenderer.invoke('app:features'),
   getDefaultBrowserStatus:    () => ipcRenderer.invoke('defaultBrowser:status'),
+  detectImportSources:        () => ipcRenderer.invoke('import:detect'),
+  importFromBrowser:          (req) => ipcRenderer.invoke('import:run', req),
   openDefaultBrowserSettings: () => ipcRenderer.invoke('defaultBrowser:openSettings'),
 
   // ─── Tab Controls ────────────────────────────────────────────────────────────

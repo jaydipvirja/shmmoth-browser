@@ -27,6 +27,7 @@ const {
 const { normalizeTheme } = require('../services/theme');
 const { supportsMica } = require('../services/windowMaterial');
 const defaultBrowser = require('../services/defaultBrowser');
+const browserImport = require('../services/browserImport');
 
 class IpcMethods {
   // ─── IPC Setup (Stage 1 Core) ────────────────────────────────────────────
@@ -342,6 +343,21 @@ class IpcMethods {
 
     ipcMain.handle('bookmarks:removeFolder', secureHandlerRaw((_, name) => {
       return this.storage.removeBookmarkFolder(sanitizeString(name || '', 100, 'name'));
+    }));
+
+    // Import from Chrome / Edge / Brave on this computer: only a browser and profile that detect() offered
+    ipcMain.handle('import:detect', secureHandlerRaw(() => browserImport.detect()));
+    ipcMain.handle('import:run', secureHandlerRaw((_, req) => {
+      if (!req || typeof req !== 'object') throw new Error('Invalid import request');
+      const browserId = sanitizeString(req.browserId, 16, 'browserId');
+      const profileDir = sanitizeString(req.profileDir, 64, 'profileDir');
+      try {
+        const result = browserImport.runImport(this.storage, { browserId, profileDir, bookmarks: req.bookmarks !== false, history: req.history !== false });
+        log.info('Imported from another browser', { browser: browserId, bookmarks: result.bookmarks, history: result.history });
+        return { success: true, ...result };
+      } catch (err) {
+        return { success: false, error: err.message };
+      }
     }));
 
     ipcMain.handle('bookmarks:add', secureHandlerRaw((_, bm) => {

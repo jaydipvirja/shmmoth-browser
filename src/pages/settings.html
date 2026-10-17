@@ -66,6 +66,19 @@
 
           <div class="divider"></div>
 
+          <!-- Import from Chrome / Edge / Brave on this computer (services/browserImport.js) -->
+          <div class="setting-row" id="row-import">
+            <div class="setting-info">
+              <label class="setting-label">Import Bookmarks & History</label>
+              <span class="setting-desc" id="import-row-desc">From Chrome, Edge or Brave on this computer.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-import" class="btn-secondary">Import…</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Default Search Engine</label>
@@ -819,6 +832,30 @@
 
       <div class="modal-actions">
         <button id="btn-done-permissions-modal" class="btn-secondary">Done</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Import from another browser -->
+  <div id="modal-import" class="modal-backdrop hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Import Bookmarks & History</h3>
+        <button id="btn-close-import-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
+      </div>
+      <div class="modal-body">
+        <div class="input-group">
+          <label for="select-import-source">From</label>
+          <select id="select-import-source" class="select-dropdown"></select>
+        </div>
+        <label class="import-check"><input type="checkbox" id="cb-import-bookmarks" checked> Bookmarks <span class="muted">(into a folder of their own)</span></label>
+        <label class="import-check"><input type="checkbox" id="cb-import-history" checked> History <span class="muted">(the most recent 2,000 pages)</span></label>
+        <p class="muted import-note">Passwords are not imported: the other browser keeps them encrypted for itself.</p>
+        <p id="import-status" class="status-line" style="display: none;"></p>
+      </div>
+      <div class="modal-actions">
+        <button id="btn-cancel-import" class="btn-secondary">Close</button>
+        <button id="btn-run-import" class="btn-primary">Import</button>
       </div>
     </div>
   </div>
