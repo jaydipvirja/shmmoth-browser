@@ -52,7 +52,9 @@ class StorageService {
         showBookmarksBar:       true,
         startupBehavior:        'newtab',      // 'newtab' | 'restore' (continue where I left off)
         downloadPath:           '',
-        askWhereToSave:         false
+        askWhereToSave:         false,
+        welcomeDone:            false,         // the first-start card on the New Tab page (Phase 5) has been closed
+        micaEffect:             false          // Windows 11: desktop colour through the tab strip (services/windowMaterial.js)
       },
       bookmarkFolders: ['Bookmarks Bar', 'Other Bookmarks'],
       bookmarks: [
@@ -149,6 +151,8 @@ class StorageService {
         settings: { ...this.defaultData.settings, ...(isPlainObject(parsed.settings) ? parsed.settings : {}) },
         bookmarkFolders: Array.isArray(parsed.bookmarkFolders) ? parsed.bookmarkFolders : this.defaultData.bookmarkFolders
       };
+      // an existing profile from before 1.4.0 has chosen its settings already: no first-start card
+      if (isPlainObject(parsed.settings) && !('welcomeDone' in parsed.settings)) merged.settings.welcomeDone = true;
       log.info('Storage loaded from disk', { path: this.storagePath, source: res.source });
       return merged;
     }

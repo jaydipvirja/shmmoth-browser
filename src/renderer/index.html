@@ -113,16 +113,16 @@
         <input type="text" id="find-input" placeholder="Find in page..." autocomplete="off" spellcheck="false">
         <span id="find-match-count" class="find-match-count">0 of 0</span>
       </div>
-      <button id="btn-find-prev" class="btn-find" title="Previous match (Shift+Enter)">▲</button>
-      <button id="btn-find-next" class="btn-find" title="Next match (Enter)">▼</button>
-      <button id="btn-find-close" class="btn-find btn-find-close" title="Close (Escape)">✕</button>
+      <button id="btn-find-prev" class="btn-find" title="Previous match (Shift+Enter)" aria-label="Previous match"><span class="sh-icon" data-icon="chevron-up" aria-hidden="true"></span></button>
+      <button id="btn-find-next" class="btn-find" title="Next match (Enter)" aria-label="Next match"><span class="sh-icon" data-icon="chevron-down" aria-hidden="true"></span></button>
+      <button id="btn-find-close" class="btn-find btn-find-close" title="Close (Escape)" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     </div>
 
     <!-- Site Information & Permissions Popup (Stage 5) -->
     <div id="site-info-popup" class="site-info-popup hidden">
       <div class="site-info-header">
         <div class="site-security-badge" id="site-security-badge">
-          <span id="site-security-icon">🔒</span>
+          <span id="site-security-icon"><span class="sh-icon" data-icon="lock" aria-hidden="true"></span></span>
           <span id="site-security-title">Connection is secure</span>
         </div>
         <span id="site-security-host" class="site-security-host">example.com</span>
@@ -131,7 +131,7 @@
       <div class="site-info-section">
         <h4 class="site-info-heading">Permissions</h4>
         <div class="site-perm-item">
-          <span class="perm-label">📷 Camera</span>
+          <span class="perm-label"><span class="sh-icon" data-icon="camera" aria-hidden="true"></span> Camera</span>
           <select id="perm-select-camera" class="perm-select" data-perm="media">
             <option value="ask">Ask (Default)</option>
             <option value="allow">Allow</option>
@@ -139,7 +139,7 @@
           </select>
         </div>
         <div class="site-perm-item">
-          <span class="perm-label">🎤 Microphone</span>
+          <span class="perm-label"><span class="sh-icon" data-icon="mic" aria-hidden="true"></span> Microphone</span>
           <select id="perm-select-mic" class="perm-select" data-perm="media">
             <option value="ask">Ask (Default)</option>
             <option value="allow">Allow</option>
@@ -147,7 +147,7 @@
           </select>
         </div>
         <div class="site-perm-item">
-          <span class="perm-label">📍 Location</span>
+          <span class="perm-label"><span class="sh-icon" data-icon="map-pin" aria-hidden="true"></span> Location</span>
           <select id="perm-select-geo" class="perm-select" data-perm="geolocation">
             <option value="ask">Ask (Default)</option>
             <option value="allow">Allow</option>
@@ -155,7 +155,7 @@
           </select>
         </div>
         <div class="site-perm-item">
-          <span class="perm-label">🔔 Notifications</span>
+          <span class="perm-label"><span class="sh-icon" data-icon="bell" aria-hidden="true"></span> Notifications</span>
           <select id="perm-select-notif" class="perm-select" data-perm="notifications">
             <option value="ask">Ask (Default)</option>
             <option value="allow">Allow</option>
@@ -172,12 +172,12 @@
     <!-- Live Permission Request Prompt (Stage 5) -->
     <div id="permission-prompt-card" class="permission-prompt-card hidden">
       <div class="perm-prompt-header">
-        <span id="perm-prompt-icon">🔒</span>
+        <span id="perm-prompt-icon"><span class="sh-icon" data-icon="lock" aria-hidden="true"></span></span>
         <div class="perm-prompt-text-group">
           <strong id="perm-prompt-origin">example.com</strong>
           <span id="perm-prompt-desc">wants to access your camera</span>
         </div>
-        <button id="btn-perm-close" class="perm-close-btn" title="Dismiss">✕</button>
+        <button id="btn-perm-close" class="perm-close-btn" title="Dismiss" aria-label="Dismiss"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="perm-prompt-options">
         <label class="perm-remember-label">
@@ -194,12 +194,12 @@
     <!-- Password Save / Offer Prompt (Stage 6) -->
     <div id="password-save-card" class="password-save-card hidden">
       <div class="password-prompt-header">
-        <span class="password-icon">🔑</span>
+        <span class="password-icon"><span class="sh-icon" data-icon="key" aria-hidden="true"></span></span>
         <div class="password-prompt-info">
           <strong class="password-title">Save Password?</strong>
           <span id="password-prompt-origin" class="password-prompt-origin">example.com</span>
         </div>
-        <button id="btn-password-close" class="password-close-btn" title="Dismiss">✕</button>
+        <button id="btn-password-close" class="password-close-btn" title="Dismiss" aria-label="Dismiss"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="password-prompt-details">
         <div class="password-prompt-field">
@@ -219,10 +219,10 @@
   <aside id="notes-drawer" class="notes-drawer hidden">
     <div class="notes-header">
       <div class="notes-title">
-        <span>📝</span>
+        <span class="sh-icon" data-icon="notes" aria-hidden="true"></span>
         <h3>Quick Scratchpad</h3>
       </div>
-      <button id="btn-close-notes" class="btn-close-drawer">✕</button>
+      <button id="btn-close-notes" class="btn-close-drawer" title="Close" aria-label="Close notes"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     </div>
     <textarea id="notes-textarea" placeholder="Jot down quick links, notes, or thoughts... (Saved automatically)"></textarea>
     <div class="notes-footer">
@@ -289,7 +289,7 @@
     </div>
     <div class="ext-menu-footer">
       <button id="btn-manage-extensions" class="btn-manage-ext">
-        <span>🧩 Manage extensions</span>
+        <span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span><span>Manage extensions</span>
       </button>
     </div>
   </div>
@@ -298,12 +298,12 @@
   <div id="download-tray" class="download-tray hidden">
     <div class="download-tray-header">
       <div class="download-tray-title">
-        <span class="tray-title-icon">⬇️</span>
+        <span class="tray-title-icon"><span class="sh-icon" data-icon="download" aria-hidden="true"></span></span>
         <span class="tray-title-text">Downloads</span>
       </div>
       <div class="download-tray-actions">
-        <button id="btn-tray-open-folder" class="btn-tray-icon" title="Open Downloads Folder">📁</button>
-        <button id="btn-tray-close" class="btn-tray-icon" title="Close">✕</button>
+        <button id="btn-tray-open-folder" class="btn-tray-icon" title="Open Downloads Folder" aria-label="Open Downloads Folder"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span></button>
+        <button id="btn-tray-close" class="btn-tray-icon" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
     </div>
     <div id="download-tray-list" class="download-tray-list">
@@ -317,15 +317,15 @@
 
   <!-- Download Completion Toast -->
   <div id="download-toast" class="download-toast hidden">
-    <div class="download-toast-icon">✅</div>
+    <div class="download-toast-icon"><span class="sh-icon" data-icon="check" aria-hidden="true"></span></div>
     <div class="download-toast-body">
       <strong id="download-toast-title" class="download-toast-title">Download complete</strong>
       <span id="download-toast-filename" class="download-toast-filename">filename.ext</span>
     </div>
     <div class="download-toast-actions">
       <button id="btn-toast-open" class="btn-toast-action">Open</button>
-      <button id="btn-toast-folder" class="btn-toast-action" title="Show in folder">📁</button>
-      <button id="btn-toast-close" class="btn-toast-close" title="Dismiss">✕</button>
+      <button id="btn-toast-folder" class="btn-toast-action" title="Show in folder" aria-label="Show in folder"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span></button>
+      <button id="btn-toast-close" class="btn-toast-close" title="Dismiss" aria-label="Dismiss"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
     </div>
   </div>
 

@@ -29,12 +29,12 @@ updateClock();
 
 // Shortcuts Management
 let shortcuts = [
-  { id: 'sc_1', title: 'Google', url: 'https://www.google.com', icon: '🔍' },
-  { id: 'sc_2', title: 'YouTube', url: 'https://www.youtube.com', icon: '▶️' },
-  { id: 'sc_3', title: 'GitHub', url: 'https://github.com', icon: '💻' },
-  { id: 'sc_4', title: 'Gemini AI', url: 'https://gemini.google.com', icon: '✨' },
-  { id: 'sc_5', title: 'ChatGPT', url: 'https://chatgpt.com', icon: '🤖' },
-  { id: 'sc_6', title: 'Wikipedia', url: 'https://www.wikipedia.org', icon: '📚' }
+  { id: 'sc_1', title: 'Google', url: 'https://www.google.com' },
+  { id: 'sc_2', title: 'YouTube', url: 'https://www.youtube.com' },
+  { id: 'sc_3', title: 'GitHub', url: 'https://github.com' },
+  { id: 'sc_4', title: 'Gemini AI', url: 'https://gemini.google.com' },
+  { id: 'sc_5', title: 'ChatGPT', url: 'https://chatgpt.com' },
+  { id: 'sc_6', title: 'Wikipedia', url: 'https://www.wikipedia.org' }
 ];
 
 async function loadShortcuts() {
@@ -189,7 +189,7 @@ btnSaveModal.addEventListener('click', async () => {
     url = 'https://' + url;
   }
 
-  const newShortcut = { title, url, icon: '' };
+  const newShortcut = { title, url };
   if (window.mtcAPI && window.mtcAPI.addShortcut) {
     shortcuts = await window.mtcAPI.addShortcut(newShortcut);
   } else {
@@ -239,7 +239,58 @@ async function checkIncognito() {
   } catch (_) {}
 }
 
+// First start: theme and search engine, until "Start browsing" (settings.welcomeDone; existing users never see it)
+const ENGINE_NAMES = { google: 'Google', duckduckgo: 'DuckDuckGo', bing: 'Bing', yahoo: 'Yahoo' };
+
+function showEngineInPlaceholder(engine) {
+  const input = document.getElementById('search-input');
+  const name = ENGINE_NAMES[engine] || 'Google';
+  input.placeholder = `Search ${name} or type a web address`;
+  input.setAttribute('aria-label', input.placeholder);
+}
+
+function markPressed(group, value) {
+  for (const b of group.querySelectorAll('button')) b.setAttribute('aria-pressed', String(b.dataset.value === value));
+}
+
+async function setupWelcome() {
+  const api = window.mtcAPI;
+  if (!api || !api.getSettings || !api.updateSettings) return;
+  let settings;
+  try { settings = await api.getSettings(); } catch (_) { return; }
+  showEngineInPlaceholder(settings.searchEngine);
+  if (settings.welcomeDone !== false) return;
+  if (api.isIncognitoWindow && await api.isIncognitoWindow().catch(() => false)) return;
+
+  const card = document.getElementById('welcome-card');
+  const themeGroup = document.getElementById('welcome-theme');
+  const engineGroup = document.getElementById('welcome-engine');
+  markPressed(themeGroup, settings.theme || 'system');
+  markPressed(engineGroup, settings.searchEngine || 'google');
+
+  themeGroup.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-value]');
+    if (!b) return;
+    markPressed(themeGroup, b.dataset.value);
+    await api.updateSettings({ theme: b.dataset.value });      // every page switches at once (theme:changed)
+  });
+  engineGroup.addEventListener('click', async (e) => {
+    const b = e.target.closest('button[data-value]');
+    if (!b) return;
+    markPressed(engineGroup, b.dataset.value);
+    showEngineInPlaceholder(b.dataset.value);
+    await api.updateSettings({ searchEngine: b.dataset.value });
+  });
+  document.getElementById('welcome-done').addEventListener('click', async () => {
+    card.classList.add('hidden');
+    await api.updateSettings({ welcomeDone: true });
+    document.getElementById('search-input').focus();
+  });
+  card.classList.remove('hidden');
+}
+
 checkIncognito();
 loadShortcuts();
 loadStats();
+setupWelcome();
 

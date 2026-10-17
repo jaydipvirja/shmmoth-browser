@@ -116,7 +116,7 @@ runSuite('SHMMOTH Browser — E2E 15: saved logins on sign-in pages', async (t) 
     return win;
   };
   const expectNoBubble = async (why) => { await sleep(900); assert(!bubble(), 'a list opened, but it should not: ' + why); };
-  const entries = (win) => win.evaluate(() => Array.from(document.querySelectorAll('.row')).map((r) => r.textContent.replace('🔑', '').trim()));
+  const entries = (win) => win.evaluate(() => Array.from(document.querySelectorAll('.row')).map((r) => r.textContent.trim()));
   const pick = (win, name) => win.evaluate((name) => {
     const row = Array.from(document.querySelectorAll('.row')).find((r) => r.textContent.includes(name));
     row.click();
@@ -142,6 +142,13 @@ runSuite('SHMMOTH Browser — E2E 15: saved logins on sign-in pages', async (t) 
       assertEqual((await entries(win)).sort().join(','), 'alice@example.com,bob');
       const html = await win.evaluate(() => document.documentElement.outerHTML);
       assert(!html.includes(PASSWORD) && !html.includes('bob-pass-1'), 'the list must not contain passwords');
+      // since 1.4.0 the list follows the theme: design tokens and the key icon load next to the page (CSP 'self')
+      const look = await win.evaluate(() => ({
+        keys: document.querySelectorAll('.row .icon svg').length,
+        bg: getComputedStyle(document.querySelector('.box')).backgroundColor,
+        themed: document.body.classList.contains('theme-dark') || document.body.classList.contains('theme-light')
+      }));
+      assert(look.keys === 2 && look.bg !== 'rgba(0, 0, 0, 0)' && look.themed, 'the list is drawn with tokens and icons: ' + JSON.stringify(look));
       assertEqual(await val(url, 'u'), '');
       assertEqual(await val(url, 'p'), '');
     });

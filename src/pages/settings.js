@@ -27,6 +27,7 @@ const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
 const togglePasswordAutofill = document.getElementById('toggle-password-autofill');
+const toggleMica = document.getElementById('toggle-mica');
 const togglePopups = document.getElementById('toggle-popups');
 const adblockEngineStatus = document.getElementById('adblock-engine-status');
 const adblockEngineFailed = document.getElementById('adblock-engine-failed');
@@ -224,6 +225,7 @@ async function initSettings() {
       toggleBookmarksBar.checked = currentSettings.showBookmarksBar ?? true;
       toggleAdblocker.checked = currentSettings.adBlockerEnabled ?? true;
       if (togglePasswordAutofill) togglePasswordAutofill.checked = currentSettings.passwordAutofillEnabled !== false;
+      if (toggleMica) toggleMica.checked = currentSettings.micaEffect === true;
       if (togglePopups) togglePopups.checked = currentSettings.popupBlockerEnabled !== false;
       if (inputCustomFilters) inputCustomFilters.value = typeof currentSettings.adBlockerCustomFilters === 'string' ? currentSettings.adBlockerCustomFilters : '';
       loadAdBlockerStatus();
@@ -354,6 +356,14 @@ if (btnTestDns && window.mtcAPI && window.mtcAPI.testSecureDns) {
     }
     btnTestDns.disabled = false;
   });
+}
+
+// Windows 11 Mica: the switch is shown only where Windows has it
+if (toggleMica && window.mtcAPI && window.mtcAPI.getPlatformFeatures) {
+  window.mtcAPI.getPlatformFeatures().then((f) => {
+    if (f && f.mica) document.getElementById('row-mica').classList.remove('hidden');
+  }).catch(() => {});
+  toggleMica.addEventListener('change', () => saveSettingChange({ micaEffect: toggleMica.checked }));
 }
 
 if (togglePasswordAutofill) {
@@ -569,7 +579,7 @@ function renderCookies() {
       <div class="cookie-info">
         <span class="cookie-name">${escapeHtml(cookie.name)}</span>
         <span class="cookie-domain">${escapeHtml(cookie.domain)}${escapeHtml(cookie.path || '/')}</span>
-        <span class="cookie-meta">${cookie.secure ? '🔒 Secure' : 'HTTP'} • ${cookie.session ? 'Session' : 'Persistent'}</span>
+        <span class="cookie-meta">${cookie.secure ? 'Secure' : 'HTTP'} • ${cookie.session ? 'Session' : 'Persistent'}</span>
       </div>
       <button class="cookie-del-btn" title="Delete cookie">Remove</button>
     `;
@@ -625,13 +635,18 @@ if (btnOpenSessionImport)   btnOpenSessionImport.addEventListener('click', openS
 if (btnCloseSessionImport)  btnCloseSessionImport.addEventListener('click', closeSessionImportModal);
 if (btnCancelSessionImport) btnCancelSessionImport.addEventListener('click', closeSessionImportModal);
 
+// kind: 'error' | 'busy' | 'success' — the colour comes from the tokens (.status-line in settings.css)
+function setImportStatus(kind, text) {
+  sessionImportStatus.style.display = 'block';
+  sessionImportStatus.className = 'status-line ' + kind;
+  sessionImportStatus.textContent = text;
+}
+
 async function handleSessionImport(targetService = null) {
   if (!inputSessionJson || !sessionImportStatus) return;
   const rawText = inputSessionJson.value.trim();
   if (!rawText) {
-    sessionImportStatus.style.display = 'block';
-    sessionImportStatus.style.color = '#dc2626';
-    sessionImportStatus.textContent = '⚠️ Please paste the exported Cookie-Editor JSON data first.';
+    setImportStatus('error', 'Please paste the exported Cookie-Editor JSON data first.');
     return;
   }
 
@@ -639,28 +654,21 @@ async function handleSessionImport(targetService = null) {
   try {
     cookieData = JSON.parse(rawText);
   } catch (err) {
-    sessionImportStatus.style.display = 'block';
-    sessionImportStatus.style.color = '#dc2626';
-    sessionImportStatus.textContent = '❌ Invalid JSON format: ' + err.message;
+    setImportStatus('error', 'Invalid JSON format: ' + err.message);
     return;
   }
 
   if (!Array.isArray(cookieData) || cookieData.length === 0) {
-    sessionImportStatus.style.display = 'block';
-    sessionImportStatus.style.color = '#dc2626';
-    sessionImportStatus.textContent = '⚠️ JSON must be an array of cookies from Cookie-Editor.';
+    setImportStatus('error', 'JSON must be an array of cookies from Cookie-Editor.');
     return;
   }
 
-  sessionImportStatus.style.display = 'block';
-  sessionImportStatus.style.color = '#2563eb';
-  sessionImportStatus.textContent = '⏳ Importing cookies into session...';
+  setImportStatus('busy', 'Importing cookies into session…');
 
   try {
     if (window.mtcAPI && window.mtcAPI.importCookies) {
       const result = await window.mtcAPI.importCookies(cookieData);
-      sessionImportStatus.style.color = '#16a34a';
-      sessionImportStatus.textContent = `✅ Successfully imported ${result.count} cookies!`;
+      setImportStatus('success', `Imported ${result.count} cookies.`);
       showToast(`Imported ${result.count} cookies!`);
 
       setTimeout(() => {
@@ -675,8 +683,7 @@ async function handleSessionImport(targetService = null) {
       throw new Error('API not available');
     }
   } catch (err) {
-    sessionImportStatus.style.color = '#dc2626';
-    sessionImportStatus.textContent = '❌ Import failed: ' + err.message;
+    setImportStatus('error', 'Import failed: ' + err.message);
   }
 }
 
@@ -739,13 +746,13 @@ function renderPermissions() {
 
     let tagsHtml = '';
     for (const [perm, decision] of Object.entries(perms)) {
-      let icon = '🔒';
-      if (perm === 'media') icon = '📷';
-      else if (perm === 'geolocation') icon = '📍';
-      else if (perm === 'notifications') icon = '🔔';
+      let icon = 'lock';
+      if (perm === 'media') icon = 'camera';
+      else if (perm === 'geolocation') icon = 'map-pin';
+      else if (perm === 'notifications') icon = 'bell';
       tagsHtml += `
         <span class="perm-tag ${escapeHtml(decision)}">
-          <span>${icon} ${escapeHtml(perm)}:</span>
+          <span><span class="sh-icon" data-icon="${icon}" aria-hidden="true"></span> ${escapeHtml(perm)}:</span>
           <strong>${escapeHtml(decision)}</strong>
         </span>
       `;
@@ -757,7 +764,7 @@ function renderPermissions() {
         <button class="perm-origin-reset-btn" title="Reset permissions for this site">Reset Site</button>
       </div>
       <div class="perm-tags-list">
-        ${tagsHtml || '<span style="color:#64748b;font-size:12px;">No active rules</span>'}
+        ${tagsHtml || '<span class="muted" style="font-size:12px;">No active rules</span>'}
       </div>
     `;
 
@@ -771,6 +778,7 @@ function renderPermissions() {
       }
     });
 
+    window.ShIcons.drawAll(card);
     permissionsList.appendChild(card);
   });
 }
@@ -810,6 +818,13 @@ async function loadPasswords() {
   }
 }
 
+// the eye on a hidden password, the crossed-out eye on a shown one
+function setRevealIcon(btn, shown) {
+  const svg = window.ShIcons.create(shown ? 'eye-off' : 'eye');
+  if (svg) btn.replaceChildren(svg);
+  btn.setAttribute('aria-label', shown ? 'Hide password' : 'Reveal password');
+}
+
 /** The hide functions of the passwords currently on screen (see renderPasswords). */
 const shownPasswordHiders = new Set();
 function hideAllShownPasswords() { for (const hide of Array.from(shownPasswordHiders)) hide(); }
@@ -846,13 +861,13 @@ function renderPasswords() {
       </div>
       <div class="password-secret-col">
         <span class="password-val-display" data-revealed="false">••••••••</span>
-        <button class="btn-icon btn-reveal-pw" title="Reveal Password">👁️</button>
+        <button class="btn-icon btn-reveal-pw" title="Reveal Password" aria-label="Reveal password"><span class="sh-icon" data-icon="eye" aria-hidden="true"></span></button>
       </div>
       <div class="password-actions-col">
-        <button class="btn-icon btn-copy-user" title="Copy Username">📋 User</button>
-        <button class="btn-icon btn-copy-pass" title="Copy Password">📋 Pass</button>
-        <button class="btn-icon btn-edit-pw" title="Edit">✏️</button>
-        <button class="btn-icon btn-delete-pw" title="Delete">🗑️</button>
+        <button class="btn-icon btn-copy-user" title="Copy Username"><span class="sh-icon" data-icon="copy" aria-hidden="true"></span>User</button>
+        <button class="btn-icon btn-copy-pass" title="Copy Password"><span class="sh-icon" data-icon="copy" aria-hidden="true"></span>Pass</button>
+        <button class="btn-icon btn-edit-pw" title="Edit" aria-label="Edit"><span class="sh-icon" data-icon="edit" aria-hidden="true"></span></button>
+        <button class="btn-icon btn-delete-pw" title="Delete" aria-label="Delete"><span class="sh-icon" data-icon="trash" aria-hidden="true"></span></button>
       </div>
     `;
 
@@ -872,7 +887,7 @@ function renderPasswords() {
       hideTimer = null;
       valDisplay.textContent = '••••••••';
       valDisplay.dataset.revealed = 'false';
-      btnReveal.textContent = '👁️';
+      setRevealIcon(btnReveal, false);
       shownPasswordHiders.delete(hide);
     };
 
@@ -883,7 +898,7 @@ function renderPasswords() {
       if (res && res.success) {
         valDisplay.textContent = res.password;
         valDisplay.dataset.revealed = 'true';
-        btnReveal.textContent = '🔒';
+        setRevealIcon(btnReveal, true);
         shownPasswordHiders.add(hide);
         hideTimer = setTimeout(hide, Number(res.hideAfterMs) > 0 ? Number(res.hideAfterMs) : 15000);
       } else if (res && !res.cancelled) {
@@ -927,6 +942,7 @@ function renderPasswords() {
       }
     });
 
+    window.ShIcons.drawAll(row);
     passwordsList.appendChild(row);
   });
 }
@@ -1054,14 +1070,14 @@ function renderAutofillProfiles() {
         <span class="autofill-name">${escapeHtml(prof.name || 'Unnamed Profile')}</span>
       </div>
       <div class="autofill-card-details">
-        ${prof.email ? `<div>✉️ ${escapeHtml(prof.email)}</div>` : ''}
-        ${prof.phone ? `<div>📞 ${escapeHtml(prof.phone)}</div>` : ''}
-        ${prof.address ? `<div>🏠 ${escapeHtml(prof.address)}</div>` : ''}
-        ${locParts ? `<div>📍 ${escapeHtml(locParts)}</div>` : ''}
+        ${prof.email ? `<div><span class="sh-icon" data-icon="mail" aria-hidden="true"></span> ${escapeHtml(prof.email)}</div>` : ''}
+        ${prof.phone ? `<div><span class="sh-icon" data-icon="phone" aria-hidden="true"></span> ${escapeHtml(prof.phone)}</div>` : ''}
+        ${prof.address ? `<div><span class="sh-icon" data-icon="home" aria-hidden="true"></span> ${escapeHtml(prof.address)}</div>` : ''}
+        ${locParts ? `<div><span class="sh-icon" data-icon="map-pin" aria-hidden="true"></span> ${escapeHtml(locParts)}</div>` : ''}
       </div>
       <div class="autofill-actions">
-        <button class="btn-icon btn-edit-prof" title="Edit Profile">✏️ Edit</button>
-        <button class="btn-icon btn-delete-prof" title="Delete Profile">🗑️ Delete</button>
+        <button class="btn-icon btn-edit-prof" title="Edit Profile"><span class="sh-icon" data-icon="edit" aria-hidden="true"></span>Edit</button>
+        <button class="btn-icon btn-delete-prof" title="Delete Profile"><span class="sh-icon" data-icon="trash" aria-hidden="true"></span>Delete</button>
       </div>
     `;
 
@@ -1091,6 +1107,7 @@ function renderAutofillProfiles() {
       }
     });
 
+    window.ShIcons.drawAll(card);
     autofillList.appendChild(card);
   });
 }
@@ -1244,14 +1261,14 @@ function setupProxyController() {
         const res = await window.mtcAPI.testProxyConnection(testRules);
         if (res && res.success) {
           proxyTestStatus.className = 'proxy-test-status success';
-          proxyTestStatus.textContent = res.latencyMs !== undefined ? `✅ Connected (${res.latencyMs} ms)` : '✅ Connection active';
+          proxyTestStatus.textContent = res.latencyMs !== undefined ? `Connected (${res.latencyMs} ms)` : 'Connection active';
         } else {
           proxyTestStatus.className = 'proxy-test-status error';
-          proxyTestStatus.textContent = `❌ ${res && res.error ? res.error : 'Connection failed'}`;
+          proxyTestStatus.textContent = res && res.error ? res.error : 'Connection failed';
         }
       } catch (err) {
         proxyTestStatus.className = 'proxy-test-status error';
-        proxyTestStatus.textContent = `❌ ${err.message}`;
+        proxyTestStatus.textContent = err.message;
       }
     });
   }
@@ -1372,6 +1389,11 @@ function setupAutoUpdateController() {
   const updateStatusDesc = document.getElementById('update-status-desc');
   const updateStatusIcon = document.getElementById('update-status-icon');
   const updateSpinner = document.getElementById('update-spinner');
+  // the status icon of the update card (an icon of icons.js; the frame of the card colours it)
+  const setUpdateIcon = (name) => {
+    const svg = window.ShIcons.create(name);
+    if (updateStatusIcon && svg) { updateStatusIcon.replaceChildren(svg); updateStatusIcon.dataset.state = name; }
+  };
   const updateProgressContainer = document.getElementById('update-progress-container');
   const updateProgressBar = document.getElementById('update-progress-bar');
   const updateProgressText = document.getElementById('update-progress-text');
@@ -1405,7 +1427,7 @@ function setupAutoUpdateController() {
       case 'available':
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '📥';
+          setUpdateIcon('download');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = `Update available: v${status.availableVersion || ''}`;
@@ -1424,7 +1446,7 @@ function setupAutoUpdateController() {
       case 'downloading':
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '⏳';
+          setUpdateIcon('download');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = 'Downloading update...';
@@ -1440,7 +1462,7 @@ function setupAutoUpdateController() {
       case 'downloaded':
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '🎉';
+          setUpdateIcon('check');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = 'Update ready to install!';
@@ -1453,7 +1475,7 @@ function setupAutoUpdateController() {
       case 'not-available':
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '✅';
+          setUpdateIcon('check');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = 'SHMMOTH Browser is up to date';
@@ -1469,7 +1491,7 @@ function setupAutoUpdateController() {
       case 'error':
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '⚠️';
+          setUpdateIcon('warning');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = 'Could not check for updates';
@@ -1484,7 +1506,7 @@ function setupAutoUpdateController() {
       default:
         if (updateSpinner) updateSpinner.classList.add('hidden');
         if (updateStatusIcon) {
-          updateStatusIcon.textContent = '🚀';
+          setUpdateIcon('check');
           updateStatusIcon.classList.remove('hidden');
         }
         if (updateStatusTitle) updateStatusTitle.textContent = 'SHMMOTH Browser is up to date';

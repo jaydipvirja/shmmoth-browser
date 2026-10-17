@@ -239,7 +239,7 @@ function renderBookmarksBar() {
     item.className = 'bookmark-item';
     let iconHtml = iconMarkup('globe');
     if (bm.favicon) {
-      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" alt="" data-fallback="⭐" data-fallback-icon="globe"/>`;
+      iconHtml = `<img src="${escapeHtml(bm.favicon)}" class="bookmark-favicon" alt="" data-fallback-icon="globe"/>`;
     }
     item.innerHTML = `
       <span class="bookmark-icon">${iconHtml}</span>
@@ -317,14 +317,21 @@ function showBookmarkFolderDropdown(anchorEl, items) {
 }
 
 // ─── Tab Rendering (Stage 1 Core) ──────────────────────────────────────────
+// Tabs this window has drawn before: a tab not among them is new and slides in once (the strip is redrawn on every
+// update, so the animation must not replay). Nothing animates on the first drawing (start-up, restored session).
+let knownTabIds = null;
+
 function renderTabs(tabs, activeId) {
   currentTabs = tabs || [];
   activeTabId = activeId;
   tabsStrip.innerHTML = '';
+  const previousTabIds = knownTabIds;
+  knownTabIds = new Set(currentTabs.map((t) => t.id));
 
   currentTabs.forEach((tab, index) => {
     const tabEl = document.createElement('div');
     tabEl.className = `browser-tab ${tab.id === activeTabId ? 'active' : ''} ${tab.isPinned ? 'pinned' : ''}`;
+    if (previousTabIds && !previousTabIds.has(tab.id)) tabEl.classList.add('tab-enter');
     tabEl.title = tab.title || 'New Tab';
     tabEl.dataset.tabId = tab.id;
     tabEl.dataset.index = index;
@@ -341,7 +348,7 @@ function renderTabs(tabs, activeId) {
       let icon = iconMarkup('globe');
       if (page && page[1] === 'newtab') icon = '<img src="../pages/logo.svg" alt=""/>';
       else if (page && PAGE_ICONS[page[1]]) icon = iconMarkup(PAGE_ICONS[page[1]]);
-      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" alt="" data-fallback="🌐" data-fallback-icon="globe"/>`;
+      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" alt="" data-fallback-icon="globe"/>`;
 
       iconHtml = `<div class="tab-favicon">${icon}</div>`;
     }
@@ -365,7 +372,7 @@ function renderTabs(tabs, activeId) {
       <div class="tab-title">${escapeHtml(tab.title || 'New Tab')}</div>
       ${audioHtml}
       ${badgeHtml}
-      <button class="tab-close-btn" title="Close Tab (Ctrl+W)">✕</button>
+      <button class="tab-close-btn" title="Close Tab (Ctrl+W)" aria-label="Close tab">${iconMarkup('close')}</button>
     `;
 
     // Audio button click (mute / unmute toggle)
@@ -1000,6 +1007,11 @@ function setupEventListeners() {
     btnWinMax.setAttribute('aria-label', btnWinMax.title);
   }
 
+  // Windows 11 Mica: the tab strip lets the desktop colour through (services/windowMaterial.js)
+  if (api && api.onWindowMaterial) {
+    api.onWindowMaterial((state) => document.body.classList.toggle('mica', Boolean(state && state.mica)));
+  }
+
   if (api && api.onWindowState) {
     api.onWindowState((state) => {
       if (state && typeof state.isMaximized === 'boolean') {
@@ -1206,13 +1218,14 @@ function renderExtensionChrome() {
       btn.title = (ext.action && ext.action.default_title) ? ext.action.default_title : ext.name;
       btn.dataset.id = ext.id;
 
-      let iconHtml = '🧩';
+      let iconHtml = iconMarkup('puzzle');
       if (ext.icons && (ext.icons['16'] || ext.icons['32'] || ext.icons['48'])) {
         const iconRel = ext.icons['16'] || ext.icons['32'] || ext.icons['48'];
         const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-        iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
+        iconHtml = `<img src="${escapeHtml(iconPath)}" alt="" data-fallback-icon="puzzle">`;
       }
       btn.innerHTML = iconHtml;
+      drawIcons(btn);
 
       btn.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -1242,11 +1255,11 @@ function renderExtensionChrome() {
         const item = document.createElement('div');
         item.className = 'ext-menu-item';
 
-        let iconHtml = '🧩';
+        let iconHtml = iconMarkup('puzzle');
         if (ext.icons && (ext.icons['16'] || ext.icons['32'] || ext.icons['48'])) {
           const iconRel = ext.icons['16'] || ext.icons['32'] || ext.icons['48'];
           const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-          iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
+          iconHtml = `<img src="${escapeHtml(iconPath)}" alt="" data-fallback-icon="puzzle">`;
         }
 
         item.innerHTML = `
@@ -1255,7 +1268,7 @@ function renderExtensionChrome() {
             <span class="ext-menu-item-name">${escapeHtml(ext.name)}</span>
           </div>
           <button class="btn-ext-pin ${ext.pinned ? 'pinned' : ''}" title="${ext.pinned ? 'Unpin extension' : 'Pin extension'}">
-            ${ext.pinned ? '📌' : '📍'}
+            ${iconMarkup('pin')}
           </button>
         `;
 
@@ -1288,6 +1301,7 @@ function renderExtensionChrome() {
           } catch (_) {}
         });
 
+        drawIcons(item);
         extMenuList.appendChild(item);
       }
     }
@@ -1449,42 +1463,11 @@ function formatDownloadETA(seconds) {
   return `${hours}h ${remMins}m left`;
 }
 
+// The file type as a short label (PDF, ZIP, EXE …), as in the downloads window and page
 function getDownloadFileIcon(filename) {
-  if (!filename) return '📁';
-  const ext = filename.split('.').pop().toLowerCase();
-  switch (ext) {
-    case 'pdf': return '📄';
-    case 'zip':
-    case 'rar':
-    case '7z':
-    case 'tar':
-    case 'gz': return '📦';
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'webp':
-    case 'svg': return '🖼️';
-    case 'mp4':
-    case 'webm':
-    case 'mkv':
-    case 'mov':
-    case 'mp3':
-    case 'wav':
-    case 'flac': return '🎬';
-    case 'exe':
-    case 'msi':
-    case 'bat':
-    case 'cmd':
-    case 'dmg': return '⚙️';
-    case 'js':
-    case 'ts':
-    case 'json':
-    case 'html':
-    case 'css':
-    case 'py': return '📝';
-    default: return '📁';
-  }
+  const name = String(filename || '');
+  const ext = name.includes('.') ? name.split('.').pop().slice(0, 4).toUpperCase() : '';
+  return ext || 'FILE';
 }
 
 function getDownloadPercent(record) {
@@ -1632,28 +1615,28 @@ function renderDownloadTray() {
     if (d.state === 'progressing') {
       if (d.isPaused) {
         buttonsHtml = `
-          <button class="btn-tray-action btn-tray-resume" data-id="${escapeHtml(d.id)}" title="Resume">▶️</button>
-          <button class="btn-tray-action btn-tray-cancel" data-id="${escapeHtml(d.id)}" title="Cancel">✕</button>
+          <button class="btn-tray-action btn-tray-resume" data-id="${escapeHtml(d.id)}" title="Resume" aria-label="Resume">${iconMarkup('play')}</button>
+          <button class="btn-tray-action btn-tray-cancel" data-id="${escapeHtml(d.id)}" title="Cancel" aria-label="Cancel">${iconMarkup('close')}</button>
         `;
       } else {
         buttonsHtml = `
-          <button class="btn-tray-action btn-tray-pause" data-id="${escapeHtml(d.id)}" title="Pause">⏸️</button>
-          <button class="btn-tray-action btn-tray-cancel" data-id="${escapeHtml(d.id)}" title="Cancel">✕</button>
+          <button class="btn-tray-action btn-tray-pause" data-id="${escapeHtml(d.id)}" title="Pause" aria-label="Pause">${iconMarkup('pause')}</button>
+          <button class="btn-tray-action btn-tray-cancel" data-id="${escapeHtml(d.id)}" title="Cancel" aria-label="Cancel">${iconMarkup('close')}</button>
         `;
       }
     } else if (d.state === 'completed') {
       buttonsHtml = `
         <button class="btn-tray-action btn-open btn-tray-open" data-id="${escapeHtml(d.id)}">Open</button>
-        <button class="btn-tray-action btn-tray-folder" data-id="${escapeHtml(d.id)}" title="Show in folder">📁</button>
+        <button class="btn-tray-action btn-tray-folder" data-id="${escapeHtml(d.id)}" title="Show in folder" aria-label="Show in folder">${iconMarkup('folder')}</button>
       `;
     } else if (d.state === 'cancelled' || d.state === 'interrupted') {
       buttonsHtml = `
-        <button class="btn-tray-action btn-tray-retry" data-url="${escapeHtml(d.url)}" title="Retry download">🔄</button>
+        <button class="btn-tray-action btn-tray-retry" data-url="${escapeHtml(d.url)}" title="Retry download" aria-label="Retry download">${iconMarkup('reload')}</button>
       `;
     }
 
     item.innerHTML = `
-      <div class="download-tray-icon">${icon}</div>
+      <div class="download-tray-icon">${escapeHtml(icon)}</div>
       <div class="download-tray-details">
         <div class="download-tray-filename" title="${escapeHtml(d.turboNote ? d.filename + ' — ' + d.turboNote : d.filename)}">${escapeHtml(d.filename)}</div>
         <div class="download-tray-progress-bg">
@@ -1666,6 +1649,7 @@ function renderDownloadTray() {
       </div>
     `;
 
+    drawIcons(item);
     downloadTrayList.appendChild(item);
   });
 }
