@@ -358,6 +358,33 @@ if (btnTestDns && window.mtcAPI && window.mtcAPI.testSecureDns) {
   });
 }
 
+// Default browser: what Windows opens links with; Windows lets only the user change it, on its own page
+const defaultBrowserStatus = document.getElementById('default-browser-status');
+const btnMakeDefault = document.getElementById('btn-make-default');
+
+async function refreshDefaultBrowser() {
+  if (!defaultBrowserStatus || !window.mtcAPI || !window.mtcAPI.getDefaultBrowserStatus) return;
+  let s;
+  try { s = await window.mtcAPI.getDefaultBrowserStatus(); } catch (_) { return; }
+  let text;
+  if (!s.supported) text = 'Available in SHMMOTH Browser installed on Windows.';
+  else if (!s.registered) text = 'Install SHMMOTH Browser with its installer to make it your default browser.';
+  else if (s.isDefault) text = 'SHMMOTH is your default browser. Links from other apps open here.';
+  else text = 'Links from other apps open in another browser.';
+  defaultBrowserStatus.textContent = text;
+  btnMakeDefault.classList.toggle('hidden', !(s.supported && s.registered && !s.isDefault));
+}
+
+if (btnMakeDefault) {
+  btnMakeDefault.addEventListener('click', async () => {
+    const opened = await window.mtcAPI.openDefaultBrowserSettings().catch(() => false);
+    if (opened) showToast('In Windows Settings, choose SHMMOTH Browser for HTTP and HTTPS');
+  });
+  // the choice is made in Windows Settings: check again when the user comes back
+  window.addEventListener('focus', refreshDefaultBrowser);
+  refreshDefaultBrowser();
+}
+
 // Windows 11 Mica: the switch is shown only where Windows has it
 if (toggleMica && window.mtcAPI && window.mtcAPI.getPlatformFeatures) {
   window.mtcAPI.getPlatformFeatures().then((f) => {

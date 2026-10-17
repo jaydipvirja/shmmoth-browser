@@ -53,6 +53,19 @@
         </div>
 
         <div class="card">
+          <!-- Default browser: status from Windows, "Make default" opens Windows' Default apps (services/defaultBrowser.js) -->
+          <div class="setting-row" id="row-default-browser">
+            <div class="setting-info">
+              <label class="setting-label">Default Browser</label>
+              <span class="setting-desc" id="default-browser-status">Checking…</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-make-default" class="btn-primary hidden">Make default</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Default Search Engine</label>

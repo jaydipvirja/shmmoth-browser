@@ -1,6 +1,6 @@
 {
   "name": "mtc-browser",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "SHMMOTH Browser - A Fast, Modern, Personal Desktop Browser powered by Chromium",
   "main": "src/main.js",
   "scripts": {
@@ -74,7 +74,8 @@
       "artifactName": "SHMMOTH-Browser-Setup-${version}.${ext}",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "SHMMOTH Browser"
+      "shortcutName": "SHMMOTH Browser",
+      "include": "build/installer.nsh"
     }
   }
 }

@@ -30,6 +30,8 @@ const apiSurface = {
   onFullScreenChange: (callback) => ipcRenderer.on('window:fullscreen-change', (event, state) => callback(state)),
   onWindowMaterial:   (callback) => ipcRenderer.on('window:material', (event, state) => callback(state)),
   getPlatformFeatures: () => ipcRenderer.invoke('app:features'),
+  getDefaultBrowserStatus:    () => ipcRenderer.invoke('defaultBrowser:status'),
+  openDefaultBrowserSettings: () => ipcRenderer.invoke('defaultBrowser:openSettings'),
 
   // ─── Tab Controls ────────────────────────────────────────────────────────────
   createTab:              (url)                => ipcRenderer.invoke('tab:create', url),
