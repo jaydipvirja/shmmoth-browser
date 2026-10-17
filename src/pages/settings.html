@@ -203,11 +203,11 @@
 
           <div class="setting-row">
             <div class="setting-info">
-              <label class="setting-label">🔑 1-Click Google & YouTube Session Importer</label>
+              <label class="setting-label">1-Click Google & YouTube Session Importer</label>
               <span class="setting-desc">Instantly log into Google, YouTube, and Gmail without typing passwords or triggering Google's security block.</span>
             </div>
             <div class="setting-control">
-              <button id="btn-open-session-import" class="btn-primary" style="background: #2563eb; color: #fff;">Import Google Session...</button>
+              <button id="btn-open-session-import" class="btn-primary">Import Google Session...</button>
             </div>
           </div>
 
@@ -476,7 +476,7 @@
           <!-- Turbo Download Engine -->
           <div class="setting-row">
             <div class="setting-info">
-              <label class="setting-label">⚡ Turbo Download Engine (IDM Speed)</label>
+              <label class="setting-label">Turbo Download Engine (IDM Speed)</label>
               <span class="setting-desc">Downloads files up to 5x faster by partitioning files into concurrent segmented streams.</span>
             </div>
             <div class="setting-control">
@@ -492,7 +492,7 @@
           <!-- Multi-Source Internet Bonding -->
           <div class="setting-row">
             <div class="setting-info">
-              <label class="setting-label">🌐 Multi-Source Internet Bonding (Multi-WAN)</label>
+              <label class="setting-label">Multi-Source Internet Bonding (Multi-WAN)</label>
               <span class="setting-desc">Combine bandwidth across all active internet connections (Wi-Fi + LAN / 5G Mobile USB) for maximum speed.</span>
             </div>
             <div class="setting-control">
@@ -590,6 +590,19 @@
               </select>
             </div>
           </div>
+          <!-- Windows 11 only: shown when the computer has Mica (settings.js asks app:features) -->
+          <div class="setting-row hidden" id="row-mica">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-mica">Windows 11 Mica</label>
+              <span class="setting-desc">Lets your desktop colour show faintly through the tab strip.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-mica">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -604,8 +617,8 @@
         <div class="card update-card" id="update-card">
           <div class="update-header">
             <div class="update-status-row">
-              <span id="update-spinner" class="update-spinner hidden">🔄</span>
-              <span id="update-status-icon" class="update-status-icon">🚀</span>
+              <span id="update-spinner" class="update-spinner hidden"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span></span>
+              <span id="update-status-icon" class="update-status-icon" data-state="check"><span class="sh-icon" data-icon="check" aria-hidden="true"></span></span>
               <div class="update-info">
                 <h4 id="update-status-title">SHMMOTH Browser is up to date</h4>
                 <p id="update-status-desc">Version <strong id="about-browser-version">1.0.0</strong> (Official 64-bit Build)</p>
@@ -614,8 +627,8 @@
             <div class="update-actions">
               <button id="btn-check-updates" class="btn-primary">Check for updates</button>
               <button id="btn-relaunch-update" class="btn-success hidden">Relaunch to update</button>
-              <button id="btn-download-installer" class="btn-primary" style="background:#2563eb; color:#fff;" title="Download the latest SHMMOTH Browser setup executable (.exe)">📥 Download Latest Installer (.exe)</button>
-              <button id="btn-manual-download" class="btn-secondary" title="Open the releases page on GitHub">🌐 View releases</button>
+              <button id="btn-download-installer" class="btn-primary btn-icon-text" title="Download the latest SHMMOTH Browser setup executable (.exe)"><span class="sh-icon" data-icon="download" aria-hidden="true"></span>Download Latest Installer (.exe)</button>
+              <button id="btn-manual-download" class="btn-secondary btn-icon-text" title="Open the releases page on GitHub"><span class="sh-icon" data-icon="globe" aria-hidden="true"></span>View releases</button>
             </div>
           </div>
           <div id="update-progress-container" class="update-progress-container hidden">
@@ -630,9 +643,7 @@
         </div>
 
         <div class="card about-card">
-          <div class="about-logo">
-            <span class="about-icon">🌐</span>
-          </div>
+          <img class="about-card-logo" src="logo.svg" alt="" width="56" height="56">
           <h3>SHMMOTH BROWSER</h3>
           <p class="about-tagline">Fast, Private & Secure Desktop Web Browser</p>
           <div class="about-meta">
@@ -656,7 +667,7 @@
     <div class="modal-card clear-data-card">
       <div class="modal-header">
         <h3>Clear Browsing Data</h3>
-        <button id="btn-close-clear-modal" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-clear-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       
       <div class="modal-body">
@@ -721,7 +732,7 @@
           <h3>Cookies & Site Data</h3>
           <span class="modal-subtitle" id="cookies-count-label">Loading stored cookies...</span>
         </div>
-        <button id="btn-close-cookies-modal" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-cookies-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
 
       <div class="cookies-toolbar">
@@ -747,14 +758,14 @@
           <h3>Import Google / Site Session</h3>
           <span class="modal-subtitle">Log in to Google, YouTube, and Gmail with 1-click using Cookie-Editor JSON</span>
         </div>
-        <button id="btn-close-session-import" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-session-import" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
 
       <div class="modal-body" style="padding: 18px 24px;">
-        <div style="background: rgba(37, 99, 235, 0.08); border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 6px; margin-bottom: 16px; font-size: 13px; line-height: 1.6; color: var(--text-color, #1e293b);">
-          <strong>💡 How to export cookies from Chrome or Edge (in 10 seconds):</strong><br>
-          1. In Chrome, install the <strong><a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank" style="color: #2563eb; text-decoration: underline;">Cookie-Editor extension</a></strong>.<br>
-          2. Open <a href="https://youtube.com" target="_blank" style="color: #2563eb; text-decoration: underline;">youtube.com</a> or <a href="https://google.com" target="_blank" style="color: #2563eb; text-decoration: underline;">google.com</a> in Chrome where you are logged in.<br>
+        <div class="info-callout">
+          <strong>How to export cookies from Chrome or Edge (in 10 seconds):</strong><br>
+          1. In Chrome, install the <strong><a href="https://chromewebstore.google.com/detail/cookie-editor/hlkenndednhfkekhgcdicdfddnkalmdm" target="_blank" class="callout-link">Cookie-Editor extension</a></strong>.<br>
+          2. Open <a href="https://youtube.com" target="_blank" class="callout-link">youtube.com</a> or <a href="https://google.com" target="_blank" class="callout-link">google.com</a> in Chrome where you are logged in.<br>
           3. Click the <strong>Cookie-Editor</strong> icon → click <strong>Export</strong> → click <strong>Export as JSON</strong>.<br>
           4. Paste the copied text below and click <strong>Import & Open</strong>!
         </div>
@@ -762,13 +773,13 @@
         <label style="font-weight: 600; font-size: 13px; display: block; margin-bottom: 6px;">Cookie-Editor JSON Data:</label>
         <textarea id="input-session-json" class="text-input" style="width: 100%; height: 160px; font-family: monospace; font-size: 12px; resize: vertical; box-sizing: border-box; padding: 10px; border-radius: 6px;" placeholder='[{"name": "SID", "value": "..."}, {"name": "LOGIN_INFO", "value": "..."}]'></textarea>
 
-        <div id="session-import-status" style="margin-top: 12px; font-size: 13px; font-weight: 500; display: none;"></div>
+        <div id="session-import-status" class="status-line" style="display: none;"></div>
       </div>
 
-      <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--border-color, #e2e8f0);">
+      <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end; padding: 16px 24px; border-top: 1px solid var(--sh-border);">
         <button id="btn-cancel-session-import" class="btn-secondary">Cancel</button>
-        <button id="btn-do-import-youtube" class="btn-primary" style="background: #dc2626; border-color: #dc2626; color: #fff;">▶ Import & Open YouTube</button>
-        <button id="btn-do-import-google" class="btn-primary" style="background: #2563eb; border-color: #2563eb; color: #fff;">🔍 Import & Open Google</button>
+        <button id="btn-do-import-youtube" class="btn-primary btn-icon-text"><span class="sh-icon" data-icon="play" aria-hidden="true"></span>Import & Open YouTube</button>
+        <button id="btn-do-import-google" class="btn-primary btn-icon-text"><span class="sh-icon" data-icon="search" aria-hidden="true"></span>Import & Open Google</button>
       </div>
     </div>
   </div>
@@ -781,7 +792,7 @@
           <h3>Site Permissions</h3>
           <span class="modal-subtitle" id="permissions-count-label">Configured origin permissions</span>
         </div>
-        <button id="btn-close-permissions-modal" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-permissions-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
 
       <div class="permissions-toolbar">
@@ -804,7 +815,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3 id="password-modal-title">Add Saved Password</h3>
-        <button id="btn-close-password-modal" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-password-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="input-password-id">
@@ -833,7 +844,7 @@
     <div class="modal-card">
       <div class="modal-header">
         <h3 id="autofill-modal-title">Add Autofill Profile</h3>
-        <button id="btn-close-autofill-modal" class="modal-close-btn" title="Close">✕</button>
+        <button id="btn-close-autofill-modal" class="modal-close-btn" title="Close" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="modal-body">
         <input type="hidden" id="input-autofill-id">

@@ -99,6 +99,10 @@ states with an icon and a sentence, status colours from the tokens, a styled `.b
   consistent lists, search and empty states.
 
 ### Phase 5 — Polish
+Done in 1.4.0: first-start Welcome card (theme, search engine), Windows 11 Mica as a switch in Appearance (off by
+default), new-tab and bubble motion (off under reduced motion), no emoji left in any page, bubble or the frame.
+Not done: a new logo, app icon and installer art. They are a brand decision and wait for the owner's own design.
+
 - Tab open/close and menu motion, switched off under reduced motion.
 - Windows 11 Mica / acrylic backgrounds (`backgroundMaterial`), with a solid fallback on Windows 10.
 - Refreshed logo, app icon and installer art.

@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.4.0
+
+Redesign, Phase 5: polish (`docs/redesign-plan.md`).
+- **Welcome card on first start.** A new installation opens with two quick choices on the New Tab page, *Look* (Follow Windows / Light / Dark) and *Search with* (Google / DuckDuckGo / Bing); both apply at once, and *Start browsing* closes the card for good. Existing users never see it. The search box now names the engine you chose.
+- **Windows 11 Mica** (Settings → Appearance, off by default): your desktop colour shows faintly through the tab strip. The switch appears only on Windows 11 22H2 and newer.
+- **Calm motion:** a new tab slides into the strip, and the small windows (ad blocker, downloads, extensions, permissions, ⋮ menu, saved logins, save password) drop in from their button. Everything is still when Windows' *Animation effects* are off.
+- **No emoji left anywhere:** the last ones in Settings (passwords, autofill profiles, site permissions, the update card and About, the Google session import), in the save-password and saved-login windows, and in the browser frame (tab close button, find bar, extension pins) are now icons or plain text. The save-password and saved-login windows follow the light theme too.
+- Settings' coloured status lines (session import, proxy test) take their colours from the theme.
+
 ## 1.3.3
 
 Redesign, Phase 4: History, Bookmarks, Downloads, Extensions, Notes and the error and crash pages (`docs/redesign-plan.md`).

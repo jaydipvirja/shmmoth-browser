@@ -18,8 +18,19 @@ const {
   selectPreload,
   SRC_DIR
 } = require('./shared');
+const { applyMica } = require('../services/windowMaterial');
 
 class WindowsMethods {
+  // ─── Windows 11 Mica (Settings → Appearance; services/windowMaterial.js) ───
+
+  /** Applies the Mica setting to the main window and tells its frame page whether to leave the tab strip clear. */
+  applyWindowMaterial() {
+    const win = this.mainWindow;
+    if (!win || win.isDestroyed()) return;
+    const on = applyMica(win, this.storage.getSettings().micaEffect === true, '#0f172a');
+    win.webContents.send('window:material', { mica: on });
+  }
+
   // ─── Windows 10 Lag-Free Resize Throttler ───────────────────────────────────
 
   throttledUpdateViewBounds(targetWin = null) {
@@ -107,6 +118,7 @@ class WindowsMethods {
     this.mainWindow.loadFile(path.join(SRC_DIR, 'renderer', 'index.html'));
 
     this.mainWindow.webContents.on('did-finish-load', () => {
+      this.applyWindowMaterial();
       if (Object.keys(this.tabs).length === 0) {
         this._createStartupTabs();
       } else {

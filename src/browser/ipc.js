@@ -25,6 +25,7 @@ const {
   secureDns
 } = require('./shared');
 const { normalizeTheme } = require('../services/theme');
+const { supportsMica } = require('../services/windowMaterial');
 
 class IpcMethods {
   // ─── IPC Setup (Stage 1 Core) ────────────────────────────────────────────
@@ -57,6 +58,9 @@ class IpcMethods {
       const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : null;
       return Boolean(win && win === this.incognitoWindow);
     }));
+
+    // what this computer offers (Settings shows the Mica switch only where Windows has it)
+    ipcMain.handle('app:features', secureHandlerRaw(() => ({ mica: supportsMica() })));
 
     ipcMain.handle('window:isMaximized', secureHandlerRaw((event) => {
       const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : this.mainWindow;
@@ -296,6 +300,7 @@ class IpcMethods {
       if (delta.adBlockerEnabled !== undefined && this.adBlocker) {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
+      if (delta.micaEffect !== undefined) this.applyWindowMaterial();
       if (delta.showBookmarksBar !== undefined) {
         this.updateHeaderHeight(true);
         this.updateViewBounds();

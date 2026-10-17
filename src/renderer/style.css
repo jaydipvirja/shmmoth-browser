@@ -734,7 +734,7 @@ body.is-fullscreen .browser-chrome {
   gap: 6px;
   background: var(--sh-surface);
   border: 1px solid var(--sh-border-strong);
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--sh-shadow);
   border-radius: 8px;
   padding: 5px 8px;
   backdrop-filter: blur(12px);
@@ -1669,9 +1669,9 @@ body.is-fullscreen .browser-chrome {
   min-width: 320px;
   max-width: 440px;
   background: var(--sh-surface);
-  border: 1px solid rgba(56, 189, 248, 0.4);
+  border: 1px solid var(--sh-border-strong);
   border-radius: 10px;
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55);
+  box-shadow: var(--sh-shadow);
   padding: 12px 16px;
   display: flex;
   align-items: center;
@@ -1759,3 +1759,19 @@ body.is-fullscreen .browser-chrome {
 
 
 
+
+/* ── Redesign Phase 5: motion (off under reduced motion, see design-tokens.css) ── */
+/* a new tab slides up into the strip */
+.browser-tab.tab-enter { animation: sh-tab-in var(--sh-motion) ease-out; }
+
+@keyframes sh-tab-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: none; }
+}
+.btn-find .sh-icon { width: 14px; height: 14px; }
+
+/* Windows 11 Mica (Settings → Appearance): the window is drawn with the Mica material and the tab strip is left
+   clear so it shows through; the toolbar, the active tab and the pages stay solid. */
+body.mica { background-color: transparent; }
+body.mica .browser-chrome,
+body.mica .tabs-header-row { background-color: transparent; }

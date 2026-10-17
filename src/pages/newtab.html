@@ -39,6 +39,30 @@
         <button type="submit" class="search-submit-btn" title="Search" aria-label="Search"><span class="sh-icon" data-icon="arrow-right" aria-hidden="true"></span></button>
       </form>
 
+      <!-- First start (shown until "Start browsing"; settings.welcomeDone) -->
+      <section id="welcome-card" class="welcome-card hidden" aria-labelledby="welcome-title">
+        <h2 id="welcome-title">Welcome to SHMMOTH</h2>
+        <p class="welcome-desc">Two quick choices. You can change both any time in Settings.</p>
+        <div class="welcome-row">
+          <span class="welcome-label">Look</span>
+          <div class="segmented" role="group" aria-label="Theme" id="welcome-theme">
+            <button type="button" data-value="system" aria-pressed="false">Follow Windows</button>
+            <button type="button" data-value="light" aria-pressed="false">Light</button>
+            <button type="button" data-value="dark" aria-pressed="false">Dark</button>
+          </div>
+        </div>
+        <div class="welcome-row">
+          <span class="welcome-label">Search with</span>
+          <div class="segmented" role="group" aria-label="Search engine" id="welcome-engine">
+            <button type="button" data-value="google" aria-pressed="false">Google</button>
+            <button type="button" data-value="duckduckgo" aria-pressed="false">DuckDuckGo</button>
+            <button type="button" data-value="bing" aria-pressed="false">Bing</button>
+          </div>
+        </div>
+        <p class="welcome-note"><span class="sh-icon" data-icon="shield" aria-hidden="true"></span>Ads, trackers and pop-ups are already blocked.</p>
+        <button type="button" id="welcome-done" class="btn-primary">Start browsing</button>
+      </section>
+
       <!-- Incognito Notice (Stage 4) -->
       <div id="incognito-panel" class="incognito-panel hidden">
         <div class="incognito-hero-icon"><span class="sh-icon" data-icon="incognito" aria-hidden="true"></span></div>
