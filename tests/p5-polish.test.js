@@ -115,6 +115,13 @@ test('Mica: Windows 11 22H2+ only, off by default, the tab strip is left clear o
   assert(/id="row-mica"/.test(read('src', 'pages', 'settings.html')) && /if \(f && f\.mica\)/.test(read('src', 'pages', 'settings.js')));
 });
 
+test('the logo is the moth (chosen in 1.4.3), the same file for the app icon and the pages', () => {
+  const svg = read('src', 'pages', 'logo.svg');
+  assert(svg === read('build', 'icon.svg'), 'one logo');
+  assert(/the moth: two pairs of wings/.test(svg) && /stop-color="#4f46e5"/.test(svg), 'moth on the indigo tile');
+  assert(!/M 700 345/.test(svg), 'the old ribbon S is gone');
+});
+
 console.log('\n══════════════════════════════════════════════════════');
 console.log(`  Results: ${passed} passed, ${failed} failed`);
 console.log('══════════════════════════════════════════════════════\n');
