@@ -14,12 +14,13 @@
   <header class="ext-header">
     <div class="ext-header-left">
       <div class="ext-logo">
-        <span class="ext-logo-icon">🧩</span>
+        <img class="ext-logo-icon" src="logo.svg" alt="" width="28" height="28">
         <span class="ext-logo-text">Extensions</span>
       </div>
-      <div class="ext-search-wrapper">
-        <input type="text" id="ext-search-input" placeholder="Search extensions..." autocomplete="off">
-      </div>
+      <label class="ext-search-wrapper">
+        <span class="sh-icon" data-icon="search" aria-hidden="true"></span>
+        <input type="search" id="ext-search-input" placeholder="Search extensions" aria-label="Search extensions" autocomplete="off" spellcheck="false">
+      </label>
     </div>
     <div class="ext-header-right">
       <div class="dev-mode-group">
@@ -36,13 +37,13 @@
   <div id="dev-toolbar" class="dev-toolbar hidden">
     <div class="dev-actions">
       <button id="btn-load-unpacked" class="btn-dev-action primary">
-        <span>📂 Load unpacked</span>
+        <span class="sh-icon" data-icon="folder" aria-hidden="true"></span><span>Load unpacked</span>
       </button>
       <button id="btn-pack-ext" class="btn-dev-action secondary" disabled title="Extension packing is not required for unpacked development">
-        <span>📦 Pack extension</span>
+        <span class="sh-icon" data-icon="package" aria-hidden="true"></span><span>Pack extension</span>
       </button>
       <button id="btn-update-extensions" class="btn-dev-action secondary">
-        <span>🔄 Update</span>
+        <span class="sh-icon" data-icon="reload" aria-hidden="true"></span><span>Update</span>
       </button>
     </div>
     <div class="dev-notice">
@@ -59,7 +60,7 @@
 
     <!-- Empty State -->
     <div id="ext-empty-state" class="ext-empty-state hidden">
-      <div class="empty-icon">🧩</div>
+      <div class="empty-icon"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span></div>
       <h3>No extensions installed</h3>
       <p>Turn on Developer mode above and click "Load unpacked" to install an extension from your local drive.</p>
     </div>
@@ -75,14 +76,14 @@
     <div class="modal-card modal-install">
       <div class="modal-header">
         <div class="modal-title-group">
-          <span class="modal-icon">🛡️</span>
+          <span class="modal-icon sh-icon" data-icon="shield" aria-hidden="true"></span>
           <h3>Install Unpacked Extension?</h3>
         </div>
-        <button id="btn-close-install-modal" class="modal-close-btn">✕</button>
+        <button id="btn-close-install-modal" class="modal-close-btn" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="modal-body">
         <div class="install-preview-header">
-          <div class="install-ext-icon">🧩</div>
+          <div class="install-ext-icon"><span class="sh-icon" data-icon="puzzle" aria-hidden="true"></span></div>
           <div class="install-ext-meta">
             <h4 id="install-ext-name">Extension Name</h4>
             <div class="install-ext-sub">
@@ -96,7 +97,7 @@
 
         <!-- High Risk Warning Banner -->
         <div id="install-high-risk-alert" class="alert-banner danger hidden">
-          <span class="alert-icon">⚠️</span>
+          <span class="alert-icon sh-icon" data-icon="warning" aria-hidden="true"></span>
           <div class="alert-content">
             <strong>High-Risk Permissions Requested</strong>
             <p>This extension requests powerful permissions that allow inspection or modification of sensitive data.</p>
@@ -132,10 +133,10 @@
     <div class="modal-card modal-details">
       <div class="modal-header">
         <div class="modal-title-group">
-          <span id="details-ext-icon" class="modal-icon">🧩</span>
+          <span id="details-ext-icon" class="modal-icon sh-icon" data-icon="puzzle" aria-hidden="true"></span>
           <h3 id="details-ext-title">Extension Details</h3>
         </div>
-        <button id="btn-close-details-modal" class="modal-close-btn">✕</button>
+        <button id="btn-close-details-modal" class="modal-close-btn" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="modal-body">
         <div class="details-section">
@@ -216,10 +217,10 @@
     <div class="modal-card modal-errors">
       <div class="modal-header">
         <div class="modal-title-group">
-          <span class="modal-icon error">⚠️</span>
+          <span class="modal-icon error sh-icon" data-icon="warning" aria-hidden="true"></span>
           <h3 id="errors-ext-title">Extension Errors</h3>
         </div>
-        <button id="btn-close-errors-modal" class="modal-close-btn">✕</button>
+        <button id="btn-close-errors-modal" class="modal-close-btn" aria-label="Close"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       </div>
       <div class="modal-body">
         <div class="errors-summary">
@@ -242,6 +243,7 @@
   <div id="toast-container" class="toast-container"></div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="extensions.js"></script>
 </body>

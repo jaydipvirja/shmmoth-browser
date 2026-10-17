@@ -4,6 +4,7 @@
 
 const textarea = document.getElementById('notes-content');
 const status = document.getElementById('status');
+const statusText = document.getElementById('status-text');
 const stats = document.getElementById('stats');
 const btnCopy = document.getElementById('btn-copy');
 const btnClear = document.getElementById('btn-clear');
@@ -26,16 +27,16 @@ async function loadNotes() {
 }
 
 textarea.addEventListener('input', () => {
-  status.textContent = 'Saving...';
-  status.style.color = '#f59e0b';
+  statusText.textContent = 'Saving…';
+  status.classList.add('saving');
   updateStats();
 
   clearTimeout(debounceTimer);
   debounceTimer = setTimeout(async () => {
     if (window.mtcAPI && window.mtcAPI.saveNotes) {
       await window.mtcAPI.saveNotes(textarea.value);
-      status.textContent = '✓ All changes saved';
-      status.style.color = '#10b981';
+      statusText.textContent = 'All changes saved';
+      status.classList.remove('saving');
     }
   }, 500);
 });

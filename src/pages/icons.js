@@ -53,7 +53,13 @@
     camera:      [['path', { d: 'M3 8a2 2 0 0 1 2-2h2l2-2h6l2 2h2a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z' }], ['circle', { cx: 12, cy: 13, r: 3.5 }]],
     'map-pin':   [['path', { d: 'M12 21s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z' }], ['circle', { cx: 12, cy: 9, r: 2.5 }]],
     bell:        [['path', { d: 'M6 16V11a6 6 0 1 1 12 0v5l2 2H4zM10 20a2 2 0 0 0 4 0' }]],
-    pointer:     [['path', { d: 'M5 3l14 7-6 2-2 6z' }]]
+    pointer:     [['path', { d: 'M5 3l14 7-6 2-2 6z' }]],
+    edit:        [['path', { d: 'M4 20h4L19 9l-4-4L4 16z' }], ['path', { d: 'm13.5 6.5 4 4' }]],
+    check:       [['path', { d: 'm5 12 5 5L20 7' }]],
+    package:     [['path', { d: 'm12 3 8 4.5v9L12 21l-8-4.5v-9z' }], ['path', { d: 'm4 7.5 8 4.5 8-4.5M12 12v9' }]],
+    image:       [['rect', { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ['circle', { cx: 9, cy: 10, r: 1.8 }], ['path', { d: 'm21 16-5-5-9 9' }]],
+    film:        [['rect', { x: 3, y: 4, width: 18, height: 16, rx: 2 }], ['path', { d: 'M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4' }]],
+    'wifi-off':  [['path', { d: 'M2 8.5a15 15 0 0 1 6-3.2M22 8.5A15 15 0 0 0 12.5 5M5 12a10 10 0 0 1 4-2.3M19 12a10 10 0 0 0-3-2M8.5 15.5a5 5 0 0 1 7 0M12 19.5v.01M3 3l18 18' }]]
   };
 
   function create(name, size) {

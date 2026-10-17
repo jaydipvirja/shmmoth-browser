@@ -11,7 +11,7 @@
     body {
       background-color: var(--sh-bg);
       color: var(--sh-text);
-      font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-family: var(--sh-font);
       min-height: 100vh;
       display: flex;
       align-items: center;
@@ -25,9 +25,15 @@
       border: 1px solid var(--sh-border);
       border-radius: 16px;
       padding: 36px;
-      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--sh-shadow);
     }
-    .icon { font-size: 44px; margin-bottom: 16px; display: inline-block; }
+    .icon {
+      width: 52px; height: 52px; margin-bottom: 18px; border-radius: 14px;
+      display: flex; align-items: center; justify-content: center;
+      background: var(--sh-surface-2); color: var(--sh-text-2);
+    }
+    .icon .sh-icon-svg { width: 26px; height: 26px; }
+    .icon.danger { background: var(--sh-danger-soft); color: var(--sh-danger); }
     h1 { font-size: 24px; font-weight: 700; color: var(--sh-text); margin-bottom: 8px; }
     .address {
       font-size: 13.5px; color: var(--sh-text-2); margin-bottom: 18px;
@@ -47,7 +53,7 @@
       font-family: inherit; transition: background 0.2s;
     }
     .btn-primary { background: var(--sh-accent); color: var(--sh-on-accent); font-weight: 600; }
-    .btn-primary:hover { background: var(--sh-accent); }
+    .btn-primary:hover { background: var(--sh-accent-hover); }
     .btn-secondary { background: var(--sh-surface-2); color: var(--sh-text); font-weight: 500; }
     .btn-secondary:hover { background: var(--sh-border-strong); }
     .hidden { display: none !important; }
@@ -55,7 +61,7 @@
 </head>
 <body>
   <div class="card">
-    <div id="icon" class="icon">🌐</div>
+    <div id="icon" class="icon" aria-hidden="true"></div>
     <h1 id="title">This page can't be loaded</h1>
     <p class="address" id="address"></p>
     <p class="desc" id="desc"></p>
@@ -68,6 +74,7 @@
   </div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="error.js"></script>
 </body>
 </html>

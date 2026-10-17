@@ -23,10 +23,20 @@
       background: var(--sh-hover);
       border-color: var(--sh-border-strong);
     }
+    /* the file type as a short label (PDF, ZIP, EXE …) */
     .dl-icon-container {
-      font-size: 28px;
-      line-height: 1;
-      padding-top: 2px;
+      flex-shrink: 0;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: var(--sh-surface-2);
+      color: var(--sh-text-2);
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       user-select: none;
     }
     .dl-body {
@@ -50,7 +60,7 @@
       border-radius: 4px;
       background: var(--sh-selected);
       color: var(--sh-accent-text);
-      border: 1px solid rgba(96,165,250,0.4);
+      border: 1px solid var(--sh-border);
       letter-spacing: 0.5px;
       text-transform: uppercase;
       white-space: nowrap;
@@ -58,23 +68,23 @@
     .badge-bonding {
       background: var(--sh-success-bg);
       color: var(--sh-success);
-      border-color: rgba(52,211,153,0.4);
+      border-color: var(--sh-border);
     }
 
     .dl-state { font-size: 11.5px; font-weight: 600; padding: 3px 9px; border-radius: 12px; text-transform: capitalize; }
-    .dl-state.progressing { background: var(--sh-selected); color: var(--sh-accent-text); border: 1px solid rgba(96,165,250,0.3); }
-    .dl-state.paused      { background: rgba(234,179,8,0.2);  color: #facc15; border: 1px solid rgba(250,204,21,0.3); }
-    .dl-state.completed   { background: var(--sh-success-bg); color: var(--sh-success); border: 1px solid rgba(52,211,153,0.3); }
-    .dl-state.cancelled   { background: rgba(100,116,139,0.2); color: var(--sh-text-2); border: 1px solid rgba(148,163,184,0.3); }
+    .dl-state.progressing { background: var(--sh-selected); color: var(--sh-accent-text); }
+    .dl-state.paused      { background: var(--sh-warning-bg); color: var(--sh-warning); }
+    .dl-state.completed   { background: var(--sh-success-bg); color: var(--sh-success); }
+    .dl-state.cancelled   { background: var(--sh-surface-2); color: var(--sh-text-2); }
     .dl-note { color: var(--sh-text-2); font-size: 12px; margin: 2px 0 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .dl-error { color: var(--sh-danger); font-size: 12px; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .dl-state.interrupted { background: var(--sh-danger-soft);   color: var(--sh-danger); border: 1px solid rgba(248,113,113,0.3); }
+    .dl-state.interrupted { background: var(--sh-danger-soft); color: var(--sh-danger); }
     .dl-url { font-size: 11px; color: var(--sh-text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     
     /* Single flat progress bar (standard mode) */
     .dl-progress-bar { height: 6px; background: var(--sh-field); border-radius: 3px; overflow: hidden; }
     .dl-progress-fill { height: 100%; background: var(--sh-accent); border-radius: 3px; transition: width 0.25s ease-out; }
-    .dl-progress-fill.paused { background: #eab308; }
+    .dl-progress-fill.paused { background: var(--sh-warning); }
 
     /* IDM-Style Multi-Segment Visualizer Bar */
     .dl-segments-container {
@@ -103,9 +113,9 @@
       transition: width 0.2s linear;
     }
     .dl-segment-fill.iface-0 { background: var(--sh-accent); } /* Blue (e.g. Wi-Fi) */
-    .dl-segment-fill.iface-1 { background: #10b981; } /* Emerald (e.g. Mobile USB) */
-    .dl-segment-fill.iface-2 { background: #f59e0b; } /* Amber (e.g. LAN) */
-    .dl-segment-fill.iface-3 { background: #a855f7; } /* Purple */
+    .dl-segment-fill.iface-1 { background: var(--sh-success); } /* e.g. Mobile USB */
+    .dl-segment-fill.iface-2 { background: var(--sh-warning); } /* e.g. LAN */
+    .dl-segment-fill.iface-3 { background: #a855f7; } /* Purple, readable on both themes */
 
     .dl-footer { display: flex; align-items: center; justify-content: space-between; font-size: 11.5px; color: var(--sh-text-2); flex-wrap: wrap; gap: 8px; }
     .dl-meta { display: flex; align-items: center; gap: 10px; color: var(--sh-text-2); flex-wrap: wrap; }
@@ -120,10 +130,13 @@
       color: var(--sh-text-2);
       border: 1px solid var(--sh-border);
     }
-    .iface-chip.active { color: var(--sh-success); border-color: rgba(52,211,153,0.3); }
+    .iface-chip.active { color: var(--sh-success); border-color: var(--sh-success); }
 
     .dl-actions { display: flex; gap: 6px; align-items: center; }
     .btn-dl-action {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       background: var(--sh-hover);
       border: 1px solid var(--sh-border);
       color: var(--sh-text-2);
@@ -136,12 +149,13 @@
     }
     .btn-dl-action:hover {
       background: var(--sh-accent);
-      border-color: #60a5fa;
+      border-color: var(--sh-accent);
       color: var(--sh-on-accent);
     }
+    .btn-dl-action .sh-icon-svg { width: 12px; height: 12px; }
     .btn-dl-action.danger:hover {
       background: var(--sh-danger-bg);
-      border-color: #ef4444;
+      border-color: var(--sh-danger);
       color: var(--sh-on-accent);
     }
     .toolbar {
@@ -152,26 +166,16 @@
       justify-content: space-between;
       flex-wrap: wrap;
     }
-    .search-downloads-input {
+    .search-downloads {
       flex: 1;
       min-width: 240px;
-      background: var(--sh-surface);
-      border: 1px solid var(--sh-border);
-      border-radius: 8px;
-      padding: 8px 12px;
-      color: var(--sh-text);
-      font-size: 13px;
-      outline: none;
+      margin-bottom: 0;
     }
-    .search-downloads-input:focus {
-      border-color: var(--sh-accent);
-    }
-    .empty-state { color: var(--sh-text-2); padding: 48px 0; text-align: center; font-size: 14px; }
 
     /* Turbo Status Card */
     .network-sources-bar {
-      background: linear-gradient(90deg, rgba(30,58,138,0.25), rgba(15,23,42,0.6));
-      border: 1px solid rgba(59,130,246,0.3);
+      background: var(--sh-surface);
+      border: 1px solid var(--sh-border);
       border-radius: 8px;
       padding: 10px 14px;
       font-size: 12px;
@@ -197,8 +201,8 @@
       padding: 3px 8px;
       border-radius: 4px;
       font-size: 11px;
-      color: #93c5fd;
-      border: 1px solid rgba(147,197,253,0.25);
+      color: var(--sh-text);
+      border: 1px solid var(--sh-border);
     }
     .net-badge.dot-green::before {
       content: '';
@@ -206,7 +210,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #10b981;
+      background: var(--sh-success);
     }
     .net-badge.dot-amber::before {
       content: '';
@@ -214,7 +218,7 @@
       width: 6px;
       height: 6px;
       border-radius: 50%;
-      background: #f59e0b;
+      background: var(--sh-warning);
     }
     .net-badge.dot-red::before {
       content: '';
@@ -249,7 +253,7 @@
       width: 500px;
       max-width: 90vw;
       padding: 24px;
-      box-shadow: 0 20px 40px rgba(0,0,0,0.5);
+      box-shadow: var(--sh-shadow);
     }
     .modal-box h3 { margin: 0 0 12px 0; color: var(--sh-text); font-size: 16px; }
     .modal-box input {
@@ -266,24 +270,34 @@
     }
     .modal-box input:focus { border-color: var(--sh-accent); }
     .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+    .modal-desc { font-size: 12.5px; color: var(--sh-text-2); margin: 0 0 12px; line-height: 1.5; }
+    .engine-label { display: inline-flex; align-items: center; gap: 6px; }
+    .engine-label .sh-icon { color: var(--sh-accent-text); width: 14px; height: 14px; }
+    /* Multi-network status line */
+    .bonding-status { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 600; color: var(--sh-text-2); }
+    .bonding-status .sh-icon-svg { width: 13px; height: 13px; flex-shrink: 0; }
+    .bonding-status.ready   { color: var(--sh-success); }
+    .bonding-status.turbo   { color: var(--sh-accent-text); }
+    .bonding-status.offline { color: var(--sh-danger); }
+    .sidebar-actions { padding: 0 8px; display: flex; flex-direction: column; gap: 8px; }
+    .sidebar-actions button { width: 100%; }
   </style>
 </head>
 <body>
   <div class="settings-layout">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand-badge">
-          <span class="brand-dot"></span>
-          <span>SHMMOTH BROWSER</span>
+        <div class="sidebar-brand">
+          <img src="logo.svg" alt="" width="30" height="30">
+          <h2>Downloads</h2>
         </div>
-        <h2>Downloads</h2>
       </div>
-      <div style="padding: 0 8px; display: flex; flex-direction: column; gap: 8px;">
-        <button id="btn-add-download" class="btn-primary" style="width:100%; font-weight:600;">⚡ + Add Turbo Download</button>
-        <button id="btn-open-folder" class="btn-secondary" style="width:100%;">📂 Open Downloads Folder</button>
-        <button id="btn-clear-completed" class="btn-secondary" style="width:100%;">Clear Completed</button>
-        <button id="btn-download-installer-sidebar" class="btn-secondary" style="width:100%; border-color: rgba(59,130,246,0.4); color: #93c5fd;" title="Download the latest SHMMOTH Browser setup executable">📥 Get Latest Installer (.exe)</button>
-        <button id="btn-back" class="btn-return" style="width:100%; margin-top: 8px;">← Back to Browsing</button>
+      <div class="sidebar-actions">
+        <button id="btn-add-download" class="btn-primary btn-icon-text"><span class="sh-icon" data-icon="plus" aria-hidden="true"></span>Add Turbo Download</button>
+        <button id="btn-open-folder" class="btn-secondary btn-icon-text"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span>Open Downloads Folder</button>
+        <button id="btn-clear-completed" class="btn-secondary btn-icon-text"><span class="sh-icon" data-icon="trash" aria-hidden="true"></span>Clear Completed</button>
+        <button id="btn-download-installer-sidebar" class="btn-secondary btn-icon-text" title="Download the latest SHMMOTH Browser setup executable"><span class="sh-icon" data-icon="download" aria-hidden="true"></span>Get Latest Installer (.exe)</button>
+        <button id="btn-back" class="btn-return" style="margin-top: 8px;">← Back to Browsing</button>
       </div>
     </aside>
 
@@ -296,23 +310,24 @@
       <!-- Live Network Sources Status Card -->
       <div id="network-sources-bar" class="network-sources-bar">
         <div style="display: flex; align-items: center; gap: 8px;">
-          <span>⚡ <strong>Multi-Network Engine:</strong></span>
+          <span class="engine-label"><span class="sh-icon" data-icon="bolt" aria-hidden="true"></span><strong>Multi-Network Engine:</strong></span>
           <div id="active-adapters-list" class="network-sources-list">
             <span class="net-badge dot-green">Scanning network adapters...</span>
           </div>
         </div>
-        <div id="bonding-status-badge" style="font-size: 11px; color: #34d399; font-weight: 600;">
-          Multi-WAN Ready
-        </div>
+        <div id="bonding-status-badge" class="bonding-status">Checking networks…</div>
       </div>
 
       <div class="toolbar">
-        <input type="text" id="search-downloads" class="search-downloads-input" placeholder="Search downloads by filename or URL...">
-        <button id="btn-refresh" class="btn-secondary">↻ Refresh</button>
+        <label class="settings-search search-downloads">
+          <span class="sh-icon" data-icon="search" aria-hidden="true"></span>
+          <input type="search" id="search-downloads" placeholder="Search downloads" aria-label="Search downloads" autocomplete="off" spellcheck="false">
+        </label>
+        <button id="btn-refresh" class="btn-secondary btn-icon-text"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span>Refresh</button>
       </div>
 
       <div id="downloads-list" class="dl-list">
-        <p class="empty-state">Loading downloads...</p>
+        <p class="empty-state">Loading downloads…</p>
       </div>
     </main>
   </div>
@@ -320,19 +335,20 @@
   <!-- Add Turbo Download Modal -->
   <div id="modal-add-dl" class="modal-overlay">
     <div class="modal-box">
-      <h3>⚡ Add Turbo Download</h3>
-      <p style="font-size:12px; color:#94a3b8; margin-top:0; margin-bottom:12px;">
+      <h3>Add Turbo Download</h3>
+      <p class="modal-desc">
         Paste any direct file URL. SHMMOTH will split it into parallel sockets across all connected network adapters!
       </p>
       <input type="url" id="input-dl-url" placeholder="https://example.com/largefile.zip" autofocus>
       <div class="modal-actions">
         <button id="btn-modal-cancel" class="btn-secondary">Cancel</button>
-        <button id="btn-modal-start" class="btn-primary" style="font-weight:600;">Download Now 🚀</button>
+        <button id="btn-modal-start" class="btn-primary" style="font-weight:600;">Download Now</button>
       </div>
     </div>
   </div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="downloads.js"></script>
 </body>

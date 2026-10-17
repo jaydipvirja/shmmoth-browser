@@ -44,7 +44,7 @@ must be its own small window, as the bubbles already are. The page area starts a
 | 1 | Design system: tokens, components, icon set | M | 1.2.1 |
 | 2 | Browser frame: tabs, address bar, toolbar, bookmarks bar, main menu (1.3.0); bubbles (1.3.1) | L | 1.3.0 / 1.3.1 |
 | 3 | New Tab + Settings | L | 1.3.2 |
-| 4 | Remaining pages: History, Bookmarks, Downloads, Extensions, Notes, Error, Crash | M | 1.3.x |
+| 4 | Remaining pages: History, Bookmarks, Downloads, Extensions, Notes, Error, Crash | M | 1.3.3 |
 | 5 | Polish: motion, Windows 11 Mica, logo/icon/installer art, first-run screen | M | 1.4.0 |
 | 6 | Optional features: vertical tabs (if not the chosen direction), tab groups, split view, reading mode | L | later |
 
@@ -92,6 +92,9 @@ Done in 1.3.2: New Tab with logo, small clock, letter tiles (no favicon requests
   Appearance, Downloads and Advanced, plus a search box over all settings.
 
 ### Phase 4 — Remaining pages
+Done in 1.3.3: icons instead of emoji on all seven pages, one rounded search box, the logo in each header, empty
+states with an icon and a sentence, status colours from the tokens, a styled `.btn-primary` in `settings.css`.
+
 - History, Bookmarks, Downloads, Extensions, Notes, Error and Crash pages rebuilt from the Phase 1 components:
   consistent lists, search and empty states.
 

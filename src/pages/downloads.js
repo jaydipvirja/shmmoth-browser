@@ -50,53 +50,11 @@ function formatETA(seconds) {
   return `${hours}h ${remMins}m left`;
 }
 
+// The file type as a short label (PDF, ZIP, EXE …) instead of an emoji, as in the downloads bubble.
 function getFileIcon(filename) {
-  if (!filename) return '📁';
-  const ext = filename.split('.').pop().toLowerCase();
-  switch (ext) {
-    case 'pdf':
-      return '📄';
-    case 'zip':
-    case 'rar':
-    case '7z':
-    case 'tar':
-    case 'gz':
-      return '📦';
-    case 'png':
-    case 'jpg':
-    case 'jpeg':
-    case 'gif':
-    case 'webp':
-    case 'svg':
-      return '🖼️';
-    case 'mp4':
-    case 'webm':
-    case 'mkv':
-    case 'mov':
-    case 'mp3':
-    case 'wav':
-    case 'flac':
-      return '🎬';
-    case 'exe':
-    case 'msi':
-    case 'bat':
-    case 'cmd':
-    case 'dmg':
-    case 'iso':
-      return '⚙️';
-    case 'js':
-    case 'ts':
-    case 'json':
-    case 'html':
-    case 'css':
-    case 'py':
-    case 'rs':
-    case 'c':
-    case 'cpp':
-      return '📝';
-    default:
-      return '📁';
-  }
+  const name = String(filename || '');
+  const ext = name.includes('.') ? name.split('.').pop().slice(0, 4).toUpperCase() : '';
+  return ext || 'FILE';
 }
 
 function getProgressPercent(record) {
@@ -105,6 +63,13 @@ function getProgressPercent(record) {
 }
 
 // escapeHtml() comes from safe-html.js (loaded before this script)
+
+// state: '' | 'ready' | 'turbo' | 'offline'; html is built from escaped values only
+function setBondingStatus(state, icon, html) {
+  bondingStatusBadge.className = 'bonding-status' + (state ? ' ' + state : '');
+  bondingStatusBadge.innerHTML = `<span class="sh-icon" data-icon="${icon}" aria-hidden="true"></span><span>${html}</span>`;
+  window.ShIcons.drawAll(bondingStatusBadge);
+}
 
 /**
  * Updates the network status bar showing detected hardware network interfaces.
@@ -117,7 +82,7 @@ async function refreshNetworkInterfaces() {
 
     if (!ifaces || ifaces.length === 0) {
       activeAdaptersList.innerHTML = '<span class="net-badge">No active network adapters</span>';
-      if (bondingStatusBadge) bondingStatusBadge.textContent = 'Offline';
+      if (bondingStatusBadge) setBondingStatus('offline', 'wifi-off', 'Offline');
       return;
     }
 
@@ -145,19 +110,15 @@ async function refreshNetworkInterfaces() {
 
     if (bondingStatusBadge) {
       if (!bondingOn) {
-        bondingStatusBadge.innerHTML = '⏸ <strong>Multi-network downloading is off</strong> (Settings → Downloads)';
-        bondingStatusBadge.style.color = '#94a3b8';
+        setBondingStatus('', 'pause', '<strong>Multi-network downloading is off</strong> (Settings → Downloads)');
       } else if (onlineIfaces.length > 1) {
         const names = onlineIfaces.map(i => i.name).join(' + ');
-        bondingStatusBadge.innerHTML = `⚡ <strong>Multi-network ready (${onlineIfaces.length} networks: ${escapeHtml(names)})</strong> • used when the server can be reached through each`;
-        bondingStatusBadge.style.color = '#34d399';
+        setBondingStatus('ready', 'bolt', `<strong>Multi-network ready (${onlineIfaces.length} networks: ${escapeHtml(names)})</strong> • used when the server can be reached through each`);
       } else if (anyOnline) {
         const only = onlineIfaces[0] || ifaces.find(i => i.isOnline !== false);
-        bondingStatusBadge.innerHTML = `⚡ <strong>Turbo active (${escapeHtml(only.name)})</strong> • connect a 2nd network (Wi-Fi + Ethernet or a phone hotspot) for multi-network speed`;
-        bondingStatusBadge.style.color = '#60a5fa';
+        setBondingStatus('turbo', 'bolt', `<strong>Turbo active (${escapeHtml(only.name)})</strong> • connect a 2nd network (Wi-Fi + Ethernet or a phone hotspot) for multi-network speed`);
       } else {
-        bondingStatusBadge.innerHTML = '⚠️ Offline (No Internet Available)';
-        bondingStatusBadge.style.color = '#f87171';
+        setBondingStatus('offline', 'wifi-off', 'Offline (No Internet Available)');
       }
     }
   } catch (_) {}
@@ -175,7 +136,8 @@ function renderDownloads() {
   }
 
   if (!filtered || filtered.length === 0) {
-    downloadsList.innerHTML = '<p class="empty-state">No downloads found.</p>';
+    downloadsList.innerHTML = `<div class="empty-state"><span class="sh-icon" data-icon="download" aria-hidden="true"></span><p>${query ? 'No download matches your search.' : 'Files you download will show up here.'}</p></div>`;
+    window.ShIcons.drawAll(downloadsList);
     return;
   }
 
@@ -205,35 +167,35 @@ function renderDownloads() {
     let actionButtons = '';
     if (record.state === 'progressing') {
       actionButtons = `
-        <button class="btn-dl-action btn-pause" data-id="${escapeHtml(record.id)}">⏸ Pause</button>
-        <button class="btn-dl-action danger btn-cancel" data-id="${escapeHtml(record.id)}">✕ Cancel</button>
+        <button class="btn-dl-action btn-pause" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="pause" aria-hidden="true"></span>Pause</button>
+        <button class="btn-dl-action danger btn-cancel" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="close" aria-hidden="true"></span>Cancel</button>
       `;
     } else if (record.state === 'paused') {
       actionButtons = `
-        <button class="btn-dl-action btn-resume" data-id="${escapeHtml(record.id)}">▶ Resume</button>
-        <button class="btn-dl-action danger btn-cancel" data-id="${escapeHtml(record.id)}">✕ Cancel</button>
+        <button class="btn-dl-action btn-resume" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="play" aria-hidden="true"></span>Resume</button>
+        <button class="btn-dl-action danger btn-cancel" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="close" aria-hidden="true"></span>Cancel</button>
       `;
     } else if (record.state === 'completed') {
       actionButtons = `
         <button class="btn-dl-action btn-open" data-id="${escapeHtml(record.id)}">Open File</button>
         <button class="btn-dl-action btn-folder" data-id="${escapeHtml(record.id)}">Show in Folder</button>
-        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list">✕</button>
+        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
     } else {
       // Cancelled or Interrupted
       actionButtons = `
-        <button class="btn-dl-action btn-retry" data-url="${escapeHtml(record.url)}">↻ Retry</button>
+        <button class="btn-dl-action btn-retry" data-url="${escapeHtml(record.url)}"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span>Retry</button>
         <button class="btn-dl-action btn-folder" data-id="${escapeHtml(record.id)}">Show Folder</button>
-        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list">✕</button>
+        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
     }
 
     // Turbo & Bonding Badges
     let turboBadges = '';
     if (record.isTurbo) {
-      turboBadges += `<span class="badge-turbo">⚡ Turbo (${record.threadsCount || 8} Streams)</span>`;
+      turboBadges += `<span class="badge-turbo"><span class="sh-icon" data-icon="bolt" aria-hidden="true"></span>Turbo (${record.threadsCount || 8} Streams)</span>`;
       if (record.isMultiSource) {
-        turboBadges += `<span class="badge-turbo badge-bonding">🌐 Multi-Source</span>`;
+        turboBadges += `<span class="badge-turbo badge-bonding"><span class="sh-icon" data-icon="globe" aria-hidden="true"></span>Multi-Source</span>`;
       }
     }
 
@@ -276,7 +238,7 @@ function renderDownloads() {
     }
 
     div.innerHTML = `
-      <div class="dl-icon-container">${fileIcon}</div>
+      <div class="dl-icon-container">${escapeHtml(fileIcon)}</div>
       <div class="dl-body">
         <div class="dl-header">
           <div class="dl-title-row">
@@ -379,6 +341,7 @@ function renderDownloads() {
       });
     }
 
+    window.ShIcons.drawAll(div);
     downloadsList.appendChild(div);
   });
 }
@@ -490,7 +453,7 @@ if (btnModalStart && inputDlUrl) {
         alert('Error: ' + err.message);
       } finally {
         btnModalStart.disabled = false;
-        btnModalStart.textContent = 'Download Now 🚀';
+        btnModalStart.textContent = 'Download Now';
       }
     }
   });

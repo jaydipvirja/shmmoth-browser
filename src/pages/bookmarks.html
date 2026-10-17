@@ -75,21 +75,27 @@
       width: 100%;
       background: var(--sh-surface);
       border: 1px solid var(--sh-border);
-      border-radius: 8px;
-      padding: 9px 14px 9px 36px;
+      border-radius: var(--sh-radius-pill);
+      height: 42px;
+      padding: 0 16px 0 42px;
       color: var(--sh-text);
-      font-size: 13.5px;
+      font: 400 14px var(--sh-font);
       outline: none;
       transition: border-color 0.2s;
     }
     .search-box input:focus {
       border-color: var(--sh-accent);
     }
+    .search-box input:focus {
+      box-shadow: 0 0 0 3px var(--sh-selected);
+    }
     .search-box .icon {
       position: absolute;
-      left: 12px;
-      font-size: 14px;
+      left: 16px;
+      width: 16px;
+      height: 16px;
       color: var(--sh-text-2);
+      pointer-events: none;
     }
     .bookmarks-grid {
       display: grid;
@@ -113,7 +119,8 @@
     .bookmark-card:hover {
       background: var(--sh-surface-2);
       transform: translateY(-2px);
-      border-color: rgba(59, 130, 246, 0.4);
+      border-color: var(--sh-border-strong);
+      box-shadow: var(--sh-shadow-s);
     }
     .bm-header {
       display: flex;
@@ -121,7 +128,7 @@
       gap: 10px;
     }
     .bm-icon {
-      font-size: 18px;
+      color: var(--sh-text-2);
       width: 20px;
       height: 20px;
       display: flex;
@@ -129,6 +136,9 @@
       justify-content: center;
       flex-shrink: 0;
     }
+    .bm-icon .sh-icon-svg { width: 16px; height: 16px; }
+    .bm-folder-badge .sh-icon-svg, .folder-item .sh-icon-svg { width: 13px; height: 13px; }
+    .bm-action-btn .sh-icon-svg { width: 14px; height: 14px; }
     .bm-icon img {
       width: 16px;
       height: 16px;
@@ -159,6 +169,9 @@
       font-size: 11px;
     }
     .bm-folder-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       background: var(--sh-hover);
       color: var(--sh-text-2);
       padding: 2px 7px;
@@ -173,9 +186,9 @@
       border: none;
       color: var(--sh-text-2);
       cursor: pointer;
-      padding: 3px 6px;
-      border-radius: 4px;
-      font-size: 12px;
+      display: inline-flex;
+      padding: 5px;
+      border-radius: 6px;
       transition: all 0.15s;
     }
     .bm-action-btn:hover {
@@ -204,7 +217,7 @@
       padding: 24px;
       width: 420px;
       max-width: 90vw;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+      box-shadow: var(--sh-shadow);
     }
     .modal-title {
       font-size: 16px;
@@ -252,7 +265,7 @@
     }
     .btn-primary {
       background: var(--sh-accent);
-      border: 1px solid #60a5fa;
+      border: 1px solid var(--sh-accent);
       color: var(--sh-on-accent);
       padding: 6px 16px;
       border-radius: 6px;
@@ -267,11 +280,10 @@
     <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
-        <div class="brand-badge">
-          <span class="brand-dot"></span>
-          <span>SHMMOTH BROWSER</span>
+        <div class="sidebar-brand">
+          <img src="logo.svg" alt="" width="30" height="30">
+          <h2>Bookmarks</h2>
         </div>
-        <h2>Bookmarks</h2>
       </div>
 
       <div style="padding: 0 8px;">
@@ -297,8 +309,8 @@
       <!-- Toolbar -->
       <div class="bookmarks-toolbar">
         <div class="search-box">
-          <span class="icon">🔍</span>
-          <input type="text" id="bm-search-input" placeholder="Search bookmarks by title, URL or folder..." autocomplete="off">
+          <span class="icon sh-icon" data-icon="search" aria-hidden="true"></span>
+          <input type="search" id="bm-search-input" placeholder="Search bookmarks" aria-label="Search bookmarks" autocomplete="off" spellcheck="false">
         </div>
         <button id="btn-add-bookmark" class="btn-primary">+ Add Bookmark</button>
       </div>
@@ -351,6 +363,7 @@
   </div>
 
   <script src="theme.js"></script>
+  <script src="icons.js"></script>
   <script src="safe-html.js"></script>
   <script src="bookmarks.js"></script>
 </body>

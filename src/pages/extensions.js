@@ -110,6 +110,7 @@
 
     for (const ext of filtered) {
       const card = createExtensionCard(ext);
+      window.ShIcons.drawAll(card);
       extensionsGrid.appendChild(card);
     }
   }
@@ -124,11 +125,11 @@
     const statusText  = ext.status || (ext.enabled ? 'Active' : 'Disabled');
 
     // Icon handling
-    let iconHtml = '<span class="default-icon">🧩</span>';
+    let iconHtml = '<span class="default-icon sh-icon" data-icon="puzzle" aria-hidden="true"></span>';
     if (ext.icons && (ext.icons['48'] || ext.icons['32'] || ext.icons['128'] || ext.icons['16'])) {
       const iconRel = ext.icons['48'] || ext.icons['128'] || ext.icons['32'] || ext.icons['16'];
       const iconPath = `file:///${ext.path.replace(/\\/g, '/')}/${iconRel.replace(/^[\/\\]+/, '')}`;
-      iconHtml = `<img src="${escapeHtml(iconPath)}" alt="icon" data-fallback="🧩">`;
+      iconHtml = `<img src="${escapeHtml(iconPath)}" alt="" data-fallback-icon="puzzle">`;
     }
 
     card.innerHTML = `
@@ -157,7 +158,7 @@
       <div class="ext-card-footer">
         <div class="ext-card-buttons">
           <button class="btn-card-action btn-details" data-id="${ext.id}">Details</button>
-          ${ext.hasErrors ? `<button class="btn-card-action has-error btn-errors" data-id="${ext.id}">⚠️ Errors (${ext.errorsCount})</button>` : ''}
+          ${ext.hasErrors ? `<button class="btn-card-action has-error btn-errors" data-id="${escapeHtml(ext.id)}"><span class="sh-icon" data-icon="warning" aria-hidden="true"></span>Errors (${ext.errorsCount})</button>` : ''}
           ${isDevMode ? `<button class="btn-card-action btn-reload" data-id="${ext.id}" title="Reload extension from disk">Reload</button>` : ''}
           <button class="btn-card-action danger btn-remove" data-id="${ext.id}">Remove</button>
         </div>
@@ -286,7 +287,7 @@
         permsList.appendChild(li);
       }
     } else if (!v.highRiskPermissions || v.highRiskPermissions.length === 0) {
-      permsList.innerHTML = '<li style="color:#94a3b8;">No special permissions requested.</li>';
+      permsList.innerHTML = '<li class="muted">No special permissions requested.</li>';
     }
 
     // Host permissions
@@ -357,7 +358,7 @@
           permsList.appendChild(li);
         }
       } else {
-        permsList.innerHTML = '<li style="color:#94a3b8;">No permissions requested.</li>';
+        permsList.innerHTML = '<li class="muted">No permissions requested.</li>';
       }
 
       // Toggles
@@ -398,7 +399,7 @@
 
       const errors = Array.isArray(details.errors) ? details.errors : [];
       if (errors.length === 0) {
-        container.innerHTML = '<p style="color:#94a3b8;">No active errors recorded.</p>';
+        container.innerHTML = '<p class="muted">No active errors recorded.</p>';
       } else {
         for (const err of errors) {
           const div = document.createElement('div');

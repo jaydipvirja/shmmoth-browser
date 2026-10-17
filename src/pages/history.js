@@ -57,7 +57,8 @@ function renderHistory() {
   updateSelectionBar();
 
   if (!historyItems || historyItems.length === 0) {
-    historyContainer.innerHTML = '<p style="color:#64748b; padding: 36px 0; text-align: center;">No browsing history found.</p>';
+    historyContainer.innerHTML = `<div class="empty-state"><span class="sh-icon" data-icon="history" aria-hidden="true"></span><p>${historySearchInput.value ? 'Nothing in your history matches your search.' : 'Pages you visit will show up here.'}</p></div>`;
+    window.ShIcons.drawAll(historyContainer);
     return;
   }
 
@@ -86,9 +87,9 @@ function renderHistory() {
       const visitCount = item.visitCount || 1;
       const countBadge = visitCount > 1 ? `<span class="visit-count-badge">${visitCount} visits</span>` : '';
 
-      let iconHtml = '🌐';
+      let iconHtml = '<span class="sh-icon" data-icon="globe" aria-hidden="true"></span>';
       if (item.favicon) {
-        iconHtml = `<img src="${escapeHtml(item.favicon)}" data-fallback="🌐"/>`;
+        iconHtml = `<img src="${escapeHtml(item.favicon)}" alt="" data-fallback-icon="globe"/>`;
       }
 
       row.innerHTML = `
@@ -102,7 +103,7 @@ function renderHistory() {
           ${countBadge}
           <span>${timeStr}</span>
         </div>
-        <button class="delete-item-btn" title="Delete from history" data-id="${escapeHtml(item.id)}">✕</button>
+        <button class="delete-item-btn" title="Delete from history" aria-label="Delete from history" data-id="${escapeHtml(item.id)}"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
 
       // Click row title to navigate
@@ -132,6 +133,7 @@ function renderHistory() {
         updateSelectionBar();
       });
 
+      window.ShIcons.drawAll(row);
       historyContainer.appendChild(row);
     });
   }
