@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.4.6
+
+- **Resume no longer downloads a half-finished part again.** A fast download is fetched in parts of 1–8 MB over several connections. When it stopped, 1.4.5 kept the finished parts, but each part that was still being downloaded started again from its beginning on *Resume* (up to 8 MB per connection). Now every part continues from its last byte on the disk, like IDM.
+- What *Resume* relies on is written through to the disk before it is saved (so a power cut cannot leave it pointing at bytes that never reached the disk), and a part file that is shorter than expected is never trusted beyond its end.
+- Fixed: a progress save that arrived just after a download stopped could replace the newer one.
+
 ## 1.4.5
 
 - **Multi-network downloads now really use two connections.** Before a fast download starts, the browser tests which way the server accepts. It tested the browser's own network stack first, which nearly every server accepts, and then always downloaded that way. But only the other way can send connections out through a chosen network card, so with Wi-Fi and a cable (or a phone on USB) connected, a download still used one connection. Now, when two connections can reach the server, SHMMOTH also tries the way that can use both, and splits the download over them when the server accepts it.

@@ -551,7 +551,8 @@ async function main() {
       eq(m2.resumeDownload(rec.id), true, 'Resume');
       await until(() => m2.downloads[rec.id].state === 'completed', 10000, 'the resumed download to complete');
       eq(sha(fs.readFileSync(savePath)), sha(payload), 'file intact');
-      assert(served <= SIZE - cut.resume.doneBytes + 4 * 65536, `served ${served} again, ${cut.resume.doneBytes} were there`);
+      // idle connections help with the last blocks (end game): at most a block or two again, never the whole file
+      assert(served <= SIZE - cut.resume.doneBytes + 2 * cut.resume.blockSize, `served ${served} again, ${cut.resume.doneBytes} were there`);
       assert(!fs.existsSync(savePath + '.shmmoth-part'), 'no part file left');
       eq(m2.downloads[rec.id].resumable, false, 'not resumable once complete');
     } finally { await srv.close(); }

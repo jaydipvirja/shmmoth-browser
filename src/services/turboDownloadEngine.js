@@ -21,7 +21,8 @@
  *     is reported — never retried for ever behind a progress bar that does not move.
  *   - Transient errors (reset, early close, 429, 5xx) are retried with a growing pause; a block continues where it
  *     stopped. Pause/resume keeps every byte.
- *   - A download that stops (an error, the browser closed) keeps the finished blocks in its part file; start() with
+ *   - A download that stops (an error, the browser closed) keeps what reached the disk in its part file, finished
+ *     blocks and the started ones up to their last byte (fsync'ed before each checkpoint); start() with
  *     `resume` (a checkpoint) continues there when the server still has the same file (size, ETag, Last-Modified).
  *
  * EVENTS: progress, completed, error (+ resume), paused, resumed, cancelled, checkpoint ({ id, resume })
@@ -722,10 +723,21 @@ class TurboDownloadEngine extends EventEmitter {
       for (let i = 0; i < task.blockCount; i++) {
         if (!(bits[i >> 3] & (1 << (i & 7)))) continue;
         const length = this._blockLength(task, i);
+        if (i * task.blockSize + length > (task.resumeFileSize || 0)) continue;   // the part file was cut: fetch it again
         task.doneMap[i] = 1;
         task.doneBlocks++;
         task.receivedBytes += length;
         task.regionDone[Math.floor(i / task.regionBlocks)] += length;
+      }
+      // blocks that were partly downloaded continue after their last byte on the disk (only bytes the part file
+      // really holds: it is never shorter than what a checkpoint counts, unless something else cut it)
+      for (const entry of Array.isArray(task.resumeFrom.partial) ? task.resumeFrom.partial : []) {
+        const [i, bytes] = Array.isArray(entry) ? entry : [];
+        if (!Number.isInteger(i) || i < 0 || i >= task.blockCount || task.doneMap[i] || !Number.isInteger(bytes)) continue;
+        const b = this._blockAt(task, i);
+        if (bytes <= 0 || bytes >= b.length || b.received || b.start + bytes > (task.resumeFileSize || 0)) continue;
+        b.received = bytes;
+        task.receivedBytes += bytes;
       }
       task.lastReceivedBytes = task.receivedBytes;
       task.rangeVerified = true;
@@ -1262,7 +1274,7 @@ class TurboDownloadEngine extends EventEmitter {
       }
       emitProgressNow();
       // every ~5 s: what is on the disk, so the download can continue after a crash or a closed browser
-      if (++task.ticks % 12 === 0 && task.doneBlocks !== task.checkpointedBlocks) this._emitCheckpoint(task);
+      if (++task.ticks % 12 === 0 && task.receivedBytes !== task.checkpointedBytes) this._emitCheckpoint(task);
 
       // Watchdog
       if (task.pendingWrites > 0) task.lastProgressAt = Date.now();     // a busy disk is not a stalled server
@@ -1300,6 +1312,8 @@ class TurboDownloadEngine extends EventEmitter {
    */
   _disposeFile(task, { remove = false } = {}, done = null) {
     const run = () => {
+      // a part file that is kept (for Resume, or to be renamed) is written through to the disk first
+      try { if (task.fd !== null && !remove) fs.fsyncSync(task.fd); } catch (_) {}
       try { if (task.fd !== null) fs.closeSync(task.fd); } catch (_) {}
       task.fd = null;
       if (remove) { try { if (fs.existsSync(task.workPath)) fs.unlinkSync(task.workPath); } catch (_) {} }
@@ -1362,8 +1376,10 @@ class TurboDownloadEngine extends EventEmitter {
   }
 
   /**
-   * What is needed to continue this download later: the blocks on the disk (a bitset, base64), their size, the file's
-   * size and version, and the part file. null for a download that cannot be continued (a single stream).
+   * What is needed to continue this download later: the blocks on the disk (a bitset, base64), how far each
+   * unfinished block got (`partial`: [index, bytes from its start] — like IDM, a block continues where it stopped),
+   * the block size, the file's size and version, and the part file. null for a download that cannot be continued
+   * (a single stream).
    */
   checkpoint(task) {
     if (!task || !task.doneMap || task.degraded || !task.blockCount) return null;
@@ -1373,27 +1389,50 @@ class TurboDownloadEngine extends EventEmitter {
       totalBytes: task.totalBytes,
       blockSize: task.blockSize,
       done: bits.toString('base64'),
+      partial: this._partialBlocks(task),
       doneBytes: this._doneBytes(task),
       validator: { ...task.validator },
       workPath: task.workPath
     };
   }
 
+  /** [index, bytes] of the blocks that are partly on the disk (`received` only counts bytes written without a gap). */
+  _partialBlocks(task) {
+    const out = [];
+    for (const b of task.blocks.values()) {
+      if (!b.done && b.received > 0 && !task.doneMap[b.index]) out.push([b.index, b.received]);
+    }
+    return out.sort((a, b) => a[0] - b[0]);
+  }
+
   _doneBytes(task) {
     let n = 0;
     for (let i = 0; i < task.blockCount; i++) if (task.doneMap[i]) n += this._blockLength(task, i);
+    for (const b of task.blocks.values()) if (!b.done && !task.doneMap[b.index]) n += b.received;
     return n;
   }
 
-  _emitCheckpoint(task) {
+  /**
+   * Emits a checkpoint once what it counts is really on the disk (fsync of the part file): after a power cut the
+   * blocks it names must be there. `sync`: on the way out of the browser, emitted before this returns.
+   */
+  _emitCheckpoint(task, { sync = false } = {}) {
     const resume = this.checkpoint(task);
     if (!resume) return;
-    task.checkpointedBlocks = task.doneBlocks;
-    this.emit('checkpoint', { id: task.id, resume });
+    task.checkpointedBytes = task.receivedBytes;
+    const emit = () => this.emit('checkpoint', { id: task.id, resume });
+    const fd = task.fd;
+    if (fd === null || fd === undefined) return emit();
+    if (sync) {
+      try { fs.fsyncSync(fd); } catch (_) { /* closed meanwhile: closing wrote it out */ }
+      return emit();
+    }
+    // a checkpoint that arrives after the download ended would replace the newer one sent with 'error'
+    fs.fsync(fd, () => { if (this.activeTasks.get(task.id) === task) emit(); });
   }
 
   _resumable(task, err) {
-    if (!task.doneMap || task.degraded || task.doneBlocks === 0) return false;
+    if (!task.doneMap || task.degraded || this._doneBytes(task) === 0) return false;
     return !(err && /different size than expected|stopped honouring byte ranges/.test(err.message || ''));
   }
 
@@ -1405,6 +1444,7 @@ class TurboDownloadEngine extends EventEmitter {
       if (was.etag && task.validator.etag && was.etag !== task.validator.etag) return false;
       if (was.lastModified && task.validator.lastModified && was.lastModified !== task.validator.lastModified) return false;
       const st = fs.statSync(task.workPath);
+      task.resumeFileSize = st.size;
       return st.isFile() && st.size <= task.totalBytes;
     } catch (_) {
       return false;

@@ -500,6 +500,55 @@ async function runTests() {
     } finally { srv.close(); }
   });
 
+  await test('12b. A block that was half downloaded continues from its last byte on the disk, not from its start', async () => {
+    const { srv, st, url } = await resumeServer(SIZE);
+    const ranges = [];
+    srv.on('request', (req) => { if (st.failAfter === Infinity) ranges.push(/bytes=(\d+)-/.exec(req.headers.range || '') ? Number(/bytes=(\d+)-/.exec(req.headers.range)[1]) : -1); });
+    try {
+      const savePath = path.join(testTmpDir, 'resume_partial.bin');
+      st.failAfter = SIZE / 2 + 300 * 1024;              // the server stops in the middle of blocks
+      const A = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4, stallMs: 600, retryBaseMs: 10, retryMaxMs: 50 });
+      const done = finish(A);
+      await A.start({ id: 'a', url, savePath, threads: 4, probe: await A.probe(url, {}) });
+      const r = await done;
+      const cp = r.resume;
+      assert(cp && cp.partial.length > 0, 'half-done blocks are in the checkpoint: ' + JSON.stringify(cp && cp.partial));
+      assert(cp.partial.every(([i, n]) => n > 0 && n < cp.blockSize && Number.isInteger(i)), JSON.stringify(cp.partial));
+      st.failAfter = Infinity; st.served = 0;
+      const B = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+      const done2 = finish(B);
+      await B.start({ id: 'b', url, savePath, threads: 4, probe: await B.probe(url, {}), resume: cp });
+      const r2 = await done2;
+      assert(r2.ok, 'completed: ' + r2.error);
+      assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
+      for (const [i, n] of cp.partial) assert(ranges.includes(i * cp.blockSize + n), `block ${i} continued at byte ${n}: ${ranges.join(',')}`);
+      assert(st.served <= SIZE - cp.doneBytes + 4 * 65536, `served ${st.served} again, ${cp.doneBytes} were there`);
+    } finally { srv.close(); }
+  });
+
+  await test('12c. A checkpoint that counts more than the part file holds (the file was cut) is not trusted for those bytes', async () => {
+    const { srv, st, url } = await resumeServer(SIZE);
+    const ranges = [];
+    srv.on('request', (req) => { const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || ''); if (m && m[2] !== m[1]) ranges.push(Number(m[1])); });   // not the 1-byte test request
+    try {
+      const MiB = 1024 * 1024;
+      const savePath = path.join(testTmpDir, 'resume_cut.bin');
+      fs.writeFileSync(savePath + '.shmmoth-part', st.body.subarray(0, MiB + 100 * 1024));   // block 0 and 100 KiB of block 1
+      const bits = Buffer.alloc(2); bits[0] = 0b101;                                          // claims blocks 0 and 2 done
+      const cp = { totalBytes: SIZE, blockSize: MiB, done: bits.toString('base64'), partial: [[1, 500 * 1024]], validator: { etag: '"v1"' } };
+      const B = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+      const done = finish(B);
+      const task = await B.start({ id: 'cut', url, savePath, threads: 4, probe: await B.probe(url, {}), resume: cp });
+      assert(task.resumeFrom, 'resumed');
+      const r = await done;
+      assert(r.ok, 'completed: ' + r.error);
+      assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
+      assert(!ranges.includes(0), 'block 0 is there, not fetched');
+      assert(ranges.includes(MiB) && !ranges.includes(MiB + 500 * 1024), 'block 1 again from its start: ' + ranges.join(','));
+      assert(ranges.includes(2 * MiB), 'block 2 (beyond the end of the cut file) fetched again');
+    } finally { srv.close(); }
+  });
+
   await test('13. A connection reset during the first test request is tried once more (no needless single stream)', async () => {
     const { srv, st, url } = await resumeServer(4 * 1024 * 1024);
     try {
