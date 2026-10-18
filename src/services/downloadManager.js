@@ -336,7 +336,8 @@ class DownloadManager {
     // off by a crash or by closing the browser can still be continued from there
     this.turboEngine.on('checkpoint', (data) => {
       const record = this.downloads[data.id];
-      if (!record || !data.resume) return;
+      // only for a download that is still going: an ended one keeps what its end reported
+      if (!record || !data.resume || (record.state !== 'progressing' && record.state !== 'paused')) return;
       record.resume = data.resume;
       this._persist({ soon: true });
     });
@@ -1308,7 +1309,7 @@ class DownloadManager {
   checkpointAll() {
     if (!this.turboEngine.activeTasks.size) return;
     for (const task of this.turboEngine.activeTasks.values()) {
-      try { this.turboEngine._emitCheckpoint(task); } catch (_) { /* this one cannot be continued */ }
+      try { this.turboEngine._emitCheckpoint(task, { sync: true }); } catch (_) { /* this one cannot be continued */ }
     }
     this._persist();
   }
