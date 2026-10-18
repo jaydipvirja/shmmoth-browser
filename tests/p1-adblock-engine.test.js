@@ -463,6 +463,67 @@ async function main() {
     eq(dns.classifyDnsTest({ ...base, provider: 'adguard-family', secureBlocked: A('0.0.0.0'), systemBlocked: A('1.2.3.4') }).verdict, 'working');
   });
 
+  console.log('\n📋 YouTube fixes (1.4.4)');
+
+  await test("uBlock's lists come from its own repository first, the mirror after; the 2025/2026/general lists are in", () => {
+    for (const l of lists.LISTS.filter((x) => x.id.startsWith('ubo-'))) {
+      assert(l.urls[0].startsWith('https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/'), l.id + ': ' + l.urls[0]);
+      assert(l.urls.length >= 3, l.id + ' needs fallbacks');
+    }
+    const ids = lists.LISTS.map((l) => l.id);
+    for (const id of ['ubo-filters-2025', 'ubo-filters-2026', 'ubo-filters-general']) assert(ids.includes(id), id);
+    eq(lists.LISTS.find((l) => l.id === 'ubo-quick-fixes').ttlMs, 4 * 60 * 60 * 1000, 'quick fixes are fetched again after 4 h');
+  });
+
+  await test('scriptlet arguments are encoded the way the engine expects (as the Ghostery mirror has them)', () => {
+    eq(lists.encodeScriptletArgs('www.youtube.com##+js(set, ytcfg.data_.EXPERIMENT_FLAGS.x, false)'), 'www.youtube.com##+js(set, ytcfg.data_.EXPERIMENT_FLAGS.x, false)');
+    eq(lists.encodeScriptletArgs('www.youtube.com##+js(nostif, ()\\,a\\,b);, 5000)'), 'www.youtube.com##+js(nostif, ()%2Ca%2Cb)%3B, 5000)');
+    eq(lists.encodeScriptletArgs('x.com##+js(trusted-rpfr, \'"adSlots"\', \'"no_ads"\', player?)'), "x.com##+js(trusted-rpfr, '%22adSlots%22', '%22no_ads%22', player%3F)");
+    eq(lists.encodeScriptletArgs('a.com#@#+js(set, x, 100%)'), 'a.com#@#+js(set, x, 100%25)', 'exceptions too, and a "%" stays a "%"');
+    const untouched = '! a.com##+js(set, x, a\\,b)\na.com##.ad\n||ads.example^';
+    eq(lists.encodeScriptletArgs(untouched), untouched, 'comments and other rules are left alone');
+  });
+
+  await test('only lists from outside the mirror are encoded (the mirror is encoded already)', async () => {
+    const raw = 'www.youtube.com##+js(trusted-rpfr, "a", "b c")\n' + gm.LIST_TEXT;
+    const f = gm.makeFetch({ textFor: () => raw });
+    const up = await lists.downloadList(f, { id: 'u', urls: ['https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters/quick-fixes.txt'] });
+    assert(up.text.startsWith('www.youtube.com##+js(trusted-rpfr, %22a%22, %22b%20c%22)'), up.text.slice(0, 80));
+    const mirror = await lists.downloadList(f, { id: 'm', urls: ['https://raw.githubusercontent.com/ghostery/adblocker/master/packages/adblocker/assets/ublock-origin/quick-fixes.txt'] });
+    eq(mirror.text, raw, 'the mirror copy is used as it is');
+    const res = await lists.downloadList(gm.makeFetch(), lists.RESOURCES, { validate: lists.looksLikeResources });
+    assert(res.ok && lists.looksLikeResources(res.text), 'resources.json is never touched');
+  });
+
+  await test("YouTube's anti-adblock notice fetches the YouTube fix lists again, at most every 30 minutes, never when off", async () => {
+    const ab = newAB();
+    const asked = [];
+    ab.refresh = (o) => { asked.push(o); return Promise.resolve(); };
+    assert(ab.onYouTubeEnforcement(), 'the first notice starts a refresh');
+    assert(!ab.onYouTubeEnforcement(), 'the next one within 30 minutes does not');
+    eq(JSON.stringify(asked), JSON.stringify([{ force: ['ubo-quick-fixes', 'ubo-filters', 'ubo-filters-2025', 'ubo-filters-2026'] }]));
+    ab._lastEnforcementRefresh = Date.now() - 31 * 60 * 1000;
+    assert(ab.onYouTubeEnforcement(), 'again after 30 minutes');
+    const off = newAB({ adBlockerEnabled: false });
+    off.refresh = () => { throw new Error('must not refresh while the blocker is off'); };
+    assert(!off.onYouTubeEnforcement());
+    const tabs = read('browser', 'tabs.js');
+    assert(/message === '__SHMMOTH_YT_ENFORCEMENT__'/.test(tabs) && /ytd-enforcement-message-view-model/.test(tabs), 'the page script reports the notice');
+  });
+
+  await test('a quick-fixes copy older than 4 hours counts as due, other lists after a day', () => {
+    const ab = newAB();
+    eq(ab._ttlFor({ id: 'ubo-quick-fixes' }), 4 * 60 * 60 * 1000);
+    eq(ab._ttlFor({ id: 'easylist' }), 24 * 60 * 60 * 1000);
+    const now = Date.now();
+    ab.meta = { resources: { ok: true }, lists: lists.LISTS.map((l) => ({ id: l.id, ok: true, fetchedAt: now - 5 * 60 * 60 * 1000 })) };
+    assert(ab._listsAreStale(), 'quick fixes fetched 5 h ago are due');
+    ab.meta.lists.forEach((l) => { if (l.id === 'ubo-quick-fixes') l.fetchedAt = now; });
+    assert(!ab._listsAreStale(), 'nothing is due');
+    ab.meta.lists = ab.meta.lists.filter((l) => l.id !== 'ubo-filters-2026');
+    assert(ab._listsAreStale(), 'a list added in an update is fetched');
+  });
+
   console.log('\n══════════════════════════════════════════════════════');
   console.log(`  Results: ${passed} passed, ${failed} failed`);
   console.log('══════════════════════════════════════════════════════\n');

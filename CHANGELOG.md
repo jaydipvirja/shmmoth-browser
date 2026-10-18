@@ -1,5 +1,14 @@
 # CHANGELOG
 
+## 1.4.4
+
+- **YouTube: the newest ad and anti-adblock fixes.** YouTube changes how it shows ads and how it detects ad blockers several times a week, and uBlock Origin answers with new rules just as often. SHMMOTH took uBlock's lists from a mirror that was days to weeks behind, and it was missing three of uBlock's lists altogether (2025, 2026 and the general list). Now:
+  - uBlock's lists come straight from uBlock's own repository (the mirror stays as a fallback), with the 2025, 2026 and general lists added; on youtube.com 45 fixes are now in force where there were 29.
+  - The quick-fixes list, where uBlock puts YouTube's fixes first, is fetched again every 4 hours (the other lists: once a day).
+  - When YouTube still shows its "Ad blockers are not allowed" notice, the browser fetches the newest fixes at once (at most every 30 minutes); reloading the page then uses them.
+- The arguments of uBlock's script rules are converted to the form the engine needs for lists taken from anywhere other than the mirror (this also fixes AdGuard's script rules with a "%" in them).
+- Checked again: the ad blocker's on/off switch (Settings and the shield), the per-site pause and "My filters" work in normal and Incognito tabs (22 automated tests).
+
 ## 1.4.3
 
 - **New logo: the moth.** SHMMOTH has a logo of its own: a simple moth on an indigo tile (SHM-*MOTH*). It replaces the blue "S" everywhere: the app icon on the taskbar, desktop and Start menu, the installer, the tab of the New Tab page, the top of the New Tab page, Settings and the other pages. It stays clear down to 16 px.
