@@ -436,6 +436,11 @@ class TabsMethods {
     wc.on('console-message', function onConsoleMessage(event) {
       const message = (event && typeof event.message === 'string') ? event.message : arguments[2];
       if (browserApp.passwordAutofill && browserApp.passwordAutofill.handleConsoleMessage(tabId, message)) return;
+      // YouTube's anti-adblock notice appeared (the YouTube page script below): get its newest fixes (rate-limited)
+      if (message === '__SHMMOTH_YT_ENFORCEMENT__') {
+        if (browserApp.adBlocker) browserApp.adBlocker.onYouTubeEnforcement();
+        return;
+      }
       if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_SUBMIT__:')) {
         try {
           const payload = JSON.parse(message.slice(25));
@@ -1177,6 +1182,8 @@ class TabsMethods {
   //   - during the ad: muted and 16x, a skip button inside the player is pressed; afterwards mute and speed are put back
   //     as they were (only what it changed itself)
   //   - it never calls play() / pause(), never seeks, never touches dialogs; ad boxes outside the player are hidden
+  //   - when YouTube shows its "ad blockers are not allowed" notice, the browser fetches the newest YouTube fixes of the
+  //     filter lists (services/adblocker.js onYouTubeEnforcement); the notice itself is left alone
   _applyYouTubeOptimizer(wc, currentUrl) {
     let host = '';
     try { host = new URL(currentUrl).hostname.toLowerCase(); } catch (_) { return; }
@@ -1236,8 +1243,15 @@ class TabsMethods {
           }
           check();
         }
+        // YouTube's "ad blockers are not allowed" notice: tell the browser once per page, it fetches the newest fixes
+        var reported = false;
+        function watchNotice() {
+          if (reported || !document.querySelector('ytd-enforcement-message-view-model')) return;
+          reported = true;
+          console.log('__SHMMOTH_YT_ENFORCEMENT__');
+        }
         attach();
-        setInterval(attach, 500);
+        setInterval(function () { attach(); watchNotice(); }, 500);
       })();
     `).catch(() => {});
   }

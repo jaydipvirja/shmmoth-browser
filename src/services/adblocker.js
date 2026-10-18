@@ -13,8 +13,10 @@ const { ElectronBlocker } = require('@ghostery/adblocker-electron');
 const filterLists = require('./filterLists');
 
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const REFRESH_CHECK_MS = 6 * 60 * 60 * 1000;
+const REFRESH_CHECK_MS = 2 * 60 * 60 * 1000;    // how often to look for lists that are due (quick fixes: every 4 h)
 const MAX_PAUSED_SITES = 500;
+const ENFORCEMENT_REFRESH_GAP_MS = 30 * 60 * 1000;   // YouTube's anti-adblock notice: fetch its fixes at most this often
+const YOUTUBE_FIX_LISTS = Object.freeze(['ubo-quick-fixes', 'ubo-filters', 'ubo-filters-2025', 'ubo-filters-2026']);
 const MAX_CUSTOM_FILTER_LINES = 5000;
 const MAX_CUSTOM_FILTER_LINE = 1000;
 const META_VERSION = 2;
@@ -463,7 +465,9 @@ class AdBlockerService {
     let failedInARow = 0;
     const handle = async (item, validate) => {
       const kept = this._readStoredList(item.id);
-      const fresh = kept && !force && now - kept.fetchedAt < this.cacheTtlMs;
+      // force: true = every list, or the ids of the lists to fetch again
+      const forced = force === true || (Array.isArray(force) && force.includes(item.id));
+      const fresh = kept && !forced && now - kept.fetchedAt < this._ttlFor(item);
       const entry = { id: item.id, name: item.name, core: item.core === true, ok: false, stale: false, text: '', source: '', fetchedAt: 0, error: '' };
       if (fresh) return Object.assign(entry, { ok: true, text: kept.text, source: kept.url || 'kept copy', fetchedAt: kept.fetchedAt });
       if (failedInARow >= GIVE_UP_AFTER_FAILED_LISTS) {
@@ -558,10 +562,17 @@ class AdBlockerService {
   }
 
   /** True when any list is older than the time-to-live (or missing). */
+  /** How long a downloaded copy of this list is used before it is fetched again (YouTube's quick fixes: shorter). */
+  _ttlFor(item) {
+    const def = item && (item.ttlMs ? item : filterLists.LISTS.find((l) => l.id === item.id));
+    return def && def.ttlMs ? Math.min(def.ttlMs, this.cacheTtlMs) : this.cacheTtlMs;
+  }
+
   _listsAreStale() {
     if (!this.meta || !Array.isArray(this.meta.lists)) return true;
     const now = Date.now();
-    return this.meta.lists.some((l) => !l.ok || l.stale || now - (l.fetchedAt || 0) > this.cacheTtlMs)
+    if (filterLists.LISTS.some((def) => !this.meta.lists.some((l) => l.id === def.id))) return true;   // a list added since
+    return this.meta.lists.some((l) => !l.ok || l.stale || now - (l.fetchedAt || 0) > this._ttlFor(l))
       || !this.meta.resources || !this.meta.resources.ok;
   }
 
@@ -699,6 +710,20 @@ class AdBlockerService {
         else this._disableEngine(sess);
       }
     }
+  }
+
+  /**
+   * YouTube showed its "ad blockers are not allowed" notice (seen by the page script in browser/tabs.js): the lists that
+   * carry YouTube's fixes are fetched again now, at most every 30 minutes, so that the next load of the page gets the
+   * newest fixes instead of waiting for the regular refresh. Returns whether a refresh was started.
+   */
+  onYouTubeEnforcement() {
+    const now = Date.now();
+    if (!this.isEnabled || now - (this._lastEnforcementRefresh || 0) < ENFORCEMENT_REFRESH_GAP_MS) return false;
+    this._lastEnforcementRefresh = now;
+    console.log('YouTube showed its anti-adblock notice: fetching the newest YouTube fixes');
+    this.refresh({ force: YOUTUBE_FIX_LISTS.slice() });
+    return true;
   }
 
   getBlockedCount() {

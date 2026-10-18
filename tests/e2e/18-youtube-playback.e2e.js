@@ -13,7 +13,8 @@
  * watch page where it matters: a strict CSP with nonces, a #movie_player with the player API (playVideo / pauseVideo /
  * mute / unMute / isMuted), a control layer over the <video> that toggles play / pause on click, its own right-click menu
  * on the first right-click on the player (the browser's on the second), the class "ad-showing" during an ad, and an
- * anti-adblock notice and ad elements left over in the page. The filter lists are seeded into the profile.
+ * anti-adblock notice and ad elements left over in the page. The filter lists are seeded into the profile. When the
+ * notice is in the page the browser fetches the newest YouTube fixes of the lists (1.4.4), at most every 30 minutes.
  *
  * Run: npm run test:e2e   (or: node tests/e2e/18-youtube-playback.e2e.js)
  */
@@ -230,6 +231,11 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
     await t.test('the anti-adblock notice is left visible (hiding it left its backdrop over the player); ad boxes outside the player are hidden', async () => {
       assertEqual(await evalIn(app, watch, 'getComputedStyle(document.getElementById("enforcement")).display'), 'block');
       await waitFor(async () => (await evalIn(app, watch, 'getComputedStyle(document.getElementById("masthead-ad")).display')) === 'none', { message: 'the masthead ad to be hidden' });
+    });
+
+    await t.test('the notice makes the browser fetch the newest YouTube fixes, once, however many pages show it', async () => {
+      await waitFor(() => /fetching the newest YouTube fixes/.test(ctx.log.text) || null, { message: 'the refresh of the YouTube fixes' });
+      assertEqual((ctx.log.text.match(/fetching the newest YouTube fixes/g) || []).length, 1, 'rate-limited to one refresh');
     });
 
     await t.test('during an ad (player class "ad-showing"): muted, fast, its skip button pressed; afterwards sound and the user\'s speed are back', async () => {

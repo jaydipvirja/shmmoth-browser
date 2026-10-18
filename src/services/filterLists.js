@@ -2,9 +2,15 @@
  * FILTER LISTS — which lists the ad blocker uses, where they come from, and how a downloaded file is checked.
  *
  * Every list has several addresses and the first one that answers with something that really looks like a filter list
- * wins: the Ghostery mirror of the list on GitHub, the same mirror through the jsDelivr CDN (reachable where
- * raw.githubusercontent.com is not), and the list's own server. A network that blocks one host therefore does not
- * leave the browser with the 11-domain emergency list.
+ * wins: the list's own repository on GitHub, the Ghostery mirror of it, the same through the jsDelivr CDN (reachable
+ * where raw.githubusercontent.com is not), and the list's own server. A network that blocks one host therefore does
+ * not leave the browser with the 11-domain emergency list.
+ *
+ * uBlock Origin's lists come from its own repository first (1.4.4): the Ghostery mirror is updated only now and then,
+ * and YouTube's ad and anti-adblock fixes change several times a week (quick-fixes.txt, filters-2025/2026.txt), so the
+ * mirror was days to weeks behind exactly where it matters. The engine expects the arguments of `##+js(...)` rules
+ * URL-encoded, as the Ghostery mirror has them; lists taken from anywhere else are encoded the same way on arrival
+ * (encodeScriptletArgs).
  *
  * Pure functions only (no Electron), so the tests can drive them with a fake fetch.
  */
@@ -19,8 +25,13 @@ const ADGUARD_RAW = 'https://raw.githubusercontent.com/AdguardTeam/FiltersRegist
 const ADGUARD_CDN = 'https://cdn.jsdelivr.net/gh/AdguardTeam/FiltersRegistry@master/platforms/extension/ublock/filters';
 const ADGUARD = 'https://filters.adtidy.org/extension/ublock/filters';
 const UBO = 'https://ublockorigin.github.io/uAssets/filters';
+const UASSETS_RAW = 'https://raw.githubusercontent.com/uBlockOrigin/uAssets/master/filters';
+const UASSETS_CDN = 'https://cdn.jsdelivr.net/gh/uBlockOrigin/uAssets@master/filters';
+const QUICK_FIXES_TTL_MS = 4 * 60 * 60 * 1000;     // YouTube's fixes: fetched again after 4 hours (other lists: a day)
 
 const ghostery = (p) => [`${GHOSTERY_RAW}/${p}`, `${GHOSTERY_CDN}/${p}`];
+// uBlock's own repository first, then the Ghostery mirror (when it has the file), then the CDN and uBlock's site
+const ubo = (file, { mirror = true } = {}) => [`${UASSETS_RAW}/${file}`, ...(mirror ? ghostery(`ublock-origin/${file}`) : []), `${UASSETS_CDN}/${file}`, `${UBO}/${file}`];
 const adguard = (n) => [`${ADGUARD}/${n}`, `${ADGUARD_RAW}/${n}`, `${ADGUARD_CDN}/${n}`];
 
 /**
@@ -31,17 +42,20 @@ const LISTS = Object.freeze([
   { id: 'easylist',        name: 'EasyList',                         core: true,  urls: [...ghostery('easylist/easylist.txt'), 'https://easylist.to/easylist/easylist.txt'] },
   { id: 'easyprivacy',     name: 'EasyPrivacy',                      core: true,  urls: [...ghostery('easylist/easyprivacy.txt'), 'https://easylist.to/easylist/easyprivacy.txt'] },
   { id: 'peter-lowe',      name: "Peter Lowe's ad & tracking servers", core: false, urls: [...ghostery('peter-lowe/serverlist.txt'), 'https://pgl.yoyo.org/adservers/serverlist.php?hostformat=adblockplus&showintro=1&mimetype=plaintext'] },
-  { id: 'ubo-filters',     name: 'uBlock filters',                   core: true,  urls: [...ghostery('ublock-origin/filters.txt'), `${UBO}/filters.txt`] },
-  { id: 'ubo-filters-2020', name: 'uBlock filters 2020',             core: false, urls: [...ghostery('ublock-origin/filters-2020.txt'), `${UBO}/filters-2020.txt`] },
-  { id: 'ubo-filters-2021', name: 'uBlock filters 2021',             core: false, urls: [...ghostery('ublock-origin/filters-2021.txt'), `${UBO}/filters-2021.txt`] },
-  { id: 'ubo-filters-2022', name: 'uBlock filters 2022',             core: false, urls: [...ghostery('ublock-origin/filters-2022.txt'), `${UBO}/filters-2022.txt`] },
-  { id: 'ubo-filters-2023', name: 'uBlock filters 2023',             core: false, urls: [...ghostery('ublock-origin/filters-2023.txt'), `${UBO}/filters-2023.txt`] },
-  { id: 'ubo-filters-2024', name: 'uBlock filters 2024',             core: false, urls: [...ghostery('ublock-origin/filters-2024.txt'), `${UBO}/filters-2024.txt`] },
-  { id: 'ubo-badware',     name: 'uBlock filters – badware',         core: false, urls: [...ghostery('ublock-origin/badware.txt'), `${UBO}/badware.txt`] },
-  { id: 'ubo-privacy',     name: 'uBlock filters – privacy',         core: false, urls: [...ghostery('ublock-origin/privacy.txt'), `${UBO}/privacy.txt`] },
-  { id: 'ubo-resource-abuse', name: 'uBlock filters – resource abuse', core: false, urls: [...ghostery('ublock-origin/resource-abuse.txt'), `${UBO}/resource-abuse.txt`] },
-  { id: 'ubo-quick-fixes', name: 'uBlock filters – quick fixes',     core: false, urls: [...ghostery('ublock-origin/quick-fixes.txt'), `${UBO}/quick-fixes.txt`] },
-  { id: 'ubo-unbreak',     name: 'uBlock filters – unbreak',         core: false, urls: [...ghostery('ublock-origin/unbreak.txt'), `${UBO}/unbreak.txt`] },
+  { id: 'ubo-filters',     name: 'uBlock filters',                   core: true,  urls: ubo('filters.txt') },
+  { id: 'ubo-filters-2020', name: 'uBlock filters 2020',             core: false, urls: ubo('filters-2020.txt') },
+  { id: 'ubo-filters-2021', name: 'uBlock filters 2021',             core: false, urls: ubo('filters-2021.txt') },
+  { id: 'ubo-filters-2022', name: 'uBlock filters 2022',             core: false, urls: ubo('filters-2022.txt') },
+  { id: 'ubo-filters-2023', name: 'uBlock filters 2023',             core: false, urls: ubo('filters-2023.txt') },
+  { id: 'ubo-filters-2024', name: 'uBlock filters 2024',             core: false, urls: ubo('filters-2024.txt') },
+  { id: 'ubo-filters-2025', name: 'uBlock filters 2025',             core: false, urls: ubo('filters-2025.txt') },
+  { id: 'ubo-filters-2026', name: 'uBlock filters 2026',             core: false, urls: ubo('filters-2026.txt') },
+  { id: 'ubo-filters-general', name: 'uBlock filters – general',     core: false, urls: ubo('filters-general.txt', { mirror: false }) },
+  { id: 'ubo-badware',     name: 'uBlock filters – badware',         core: false, urls: ubo('badware.txt') },
+  { id: 'ubo-privacy',     name: 'uBlock filters – privacy',         core: false, urls: ubo('privacy.txt') },
+  { id: 'ubo-resource-abuse', name: 'uBlock filters – resource abuse', core: false, urls: ubo('resource-abuse.txt') },
+  { id: 'ubo-quick-fixes', name: 'uBlock filters – quick fixes',     core: false, urls: ubo('quick-fixes.txt'), ttlMs: QUICK_FIXES_TTL_MS },
+  { id: 'ubo-unbreak',     name: 'uBlock filters – unbreak',         core: false, urls: ubo('unbreak.txt') },
   { id: 'adguard-base',    name: 'AdGuard Base',                     core: false, urls: adguard('2_without_easylist.txt') },
   { id: 'adguard-popups',  name: 'AdGuard Popups',                   core: false, urls: adguard('19.txt') },
 ]);
@@ -55,6 +69,35 @@ const RESOURCES = Object.freeze({
 const MIN_LIST_BYTES = 200;
 const MAX_LIST_BYTES = 40 * 1024 * 1024;
 const FETCH_TIMEOUT_MS = 25 * 1000;
+
+/** Is the list at this address in the engine's form already (the Ghostery mirror), or as its authors write it? */
+function isEngineEncoded(url) {
+  return typeof url === 'string' && url.includes('ghostery/adblocker');
+}
+
+/**
+ * `##+js(name, arg, …)` rules as the engine wants them: each argument URL-encoded (the engine decodes them before the
+ * scriptlet runs). In the authors' form arguments are separated by commas and a comma inside one is written "\,".
+ * Lines that are not scriptlet rules are left as they are.
+ */
+function encodeScriptletArgs(text) {
+  if (typeof text !== 'string' || !text.includes('+js(')) return text;
+  return text.split('\n').map((line) => {
+    const m = /^([^!].*?#@?#\+js\()(.*)\)\s*$/.exec(line);
+    if (!m) return line;
+    const parts = [];
+    let cur = '';
+    for (let i = 0; i < m[2].length; i++) {
+      const c = m[2][i];
+      if (c === '\\' && m[2][i + 1] === ',') { cur += ','; i++; continue; }
+      if (c === ',') { parts.push(cur); cur = ''; continue; }
+      cur += c;
+    }
+    parts.push(cur);
+    const [name, ...args] = parts.map((p) => p.trim());
+    return m[1] + [name, ...args.map((a) => encodeURIComponent(a))].join(', ') + ')';
+  }).join('\n');
+}
 
 /** Does this text look like an ad-block list (and not an HTML error page or a captive portal)? */
 function looksLikeFilterList(text) {
@@ -104,7 +147,7 @@ async function downloadList(fetchImpl, list, { validate = looksLikeFilterList, t
     try {
       const text = await fetchText(fetchImpl, url, timeoutMs);
       if (!validate(text)) { errors.push(`${hostOf(url)}: not a filter list`); continue; }
-      return { ok: true, text, url };
+      return { ok: true, text: validate === looksLikeFilterList && !isEngineEncoded(url) ? encodeScriptletArgs(text) : text, url };
     } catch (err) {
       errors.push(`${hostOf(url)}: ${(err && err.name === 'AbortError') ? 'timed out' : (err && err.message) || 'failed'}`);
     }
@@ -138,6 +181,6 @@ function signatureOf(parts) {
 }
 
 module.exports = {
-  LISTS, RESOURCES, MIN_LIST_BYTES, MAX_LIST_BYTES, FETCH_TIMEOUT_MS,
-  looksLikeFilterList, looksLikeResources, fetchText, downloadList, mapLimit, signatureOf, hostOf
+  LISTS, RESOURCES, MIN_LIST_BYTES, MAX_LIST_BYTES, FETCH_TIMEOUT_MS, QUICK_FIXES_TTL_MS,
+  encodeScriptletArgs, isEngineEncoded, looksLikeFilterList, looksLikeResources, fetchText, downloadList, mapLimit, signatureOf, hostOf
 };
