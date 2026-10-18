@@ -51,6 +51,12 @@ function formatETA(seconds) {
 }
 
 // The file type as a short label (PDF, ZIP, EXE …) instead of an emoji, as in the downloads bubble.
+// Why a fast download uses one network although multi-network downloading is on (networkNote of the engine)
+const NETWORK_NOTES = {
+  'one-network': 'One network: only one internet connection reaches this server (connect a second one, e.g. Wi-Fi + cable or phone USB tethering).',
+  'site-browser-only': "One network: this site only accepts the browser's own connection, so it cannot be split over networks."
+};
+
 function getFileIcon(filename) {
   const name = String(filename || '');
   const ext = name.includes('.') ? name.split('.').pop().slice(0, 4).toUpperCase() : '';
@@ -181,6 +187,13 @@ function renderDownloads() {
         <button class="btn-dl-action btn-folder" data-id="${escapeHtml(record.id)}">Show in Folder</button>
         <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
+    } else if (record.state === 'interrupted' && record.resumable) {
+      // Stopped with its blocks kept on the disk: Resume continues there, Start over downloads it again
+      actionButtons = `
+        <button class="btn-dl-action btn-resume" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="play" aria-hidden="true"></span>Resume</button>
+        <button class="btn-dl-action btn-retry" data-url="${escapeHtml(record.url)}"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span>Start over</button>
+        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
+      `;
     } else {
       // Cancelled or Interrupted
       actionButtons = `
@@ -249,6 +262,7 @@ function renderDownloads() {
         </div>
         <div class="dl-url" title="${escapeHtml(record.url)}">${escapeHtml(record.url)}</div>
         ${record.turboNote && !record.isTurbo ? `<div class="dl-note" title="${escapeHtml(record.turboNote)}">${escapeHtml(record.turboNote)}</div>` : ''}
+        ${record.isTurbo && !record.isMultiSource && NETWORK_NOTES[record.networkNote] ? `<div class="dl-note">${NETWORK_NOTES[record.networkNote]}</div>` : ''}
         ${visualizerHtml}
         <div class="dl-footer">
           <div class="dl-meta">

@@ -575,6 +575,20 @@ class IpcMethods {
       };
     }));
 
+    // Settings → Downloads → "Check": what this computer needs for multi-network downloads (read-only checks)
+    ipcMain.handle('download:multiNetworkCheck', secureHandlerRaw(async () => {
+      const TurboDownloadEngine = require('../services/turboDownloadEngine');
+      const check = require('../services/multiNetworkCheck');
+      const settings = this.storage.getSettings();
+      const [interfaces, policy] = await Promise.all([TurboDownloadEngine.getAvailableNetworkInterfacesAsync(), check.readMinimizePolicy()]);
+      return check.evaluate({
+        interfaces, policy,
+        proxyActive: this.downloads ? this.downloads.isProxyActive(false) : false,
+        turboOn: settings.turboDownloadEnabled !== false,
+        multiOn: settings.multiSourceBonding !== false
+      });
+    }));
+
     ipcMain.handle('download:getNetworkInterfaces', secureHandlerRaw(() => {
       return this.downloads ? this.downloads.getNetworkInterfaces() : [];
     }));

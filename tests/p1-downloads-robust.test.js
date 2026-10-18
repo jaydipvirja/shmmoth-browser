@@ -506,6 +506,79 @@ async function main() {
     eq(m._nativeOnly.size, 0, 'consumed');
   });
 
+  console.log('\n── Resume where it stopped (IDM-style), also after closing the browser ──');
+
+  await test('a download cut off half-way keeps its blocks; after a restart Resume fetches only the rest and the file is whole', async () => {
+    const SIZE = 12 * 1024 * 1024;
+    const payload = crypto.randomBytes(SIZE);
+    let served = 0;
+    let failAfter = SIZE / 2;
+    const srv = await listen((req, res) => {
+      if (served >= failAfter) { res.writeHead(503); res.end(); return; }
+      const r = rangeOf(req, SIZE) || { start: 0, end: SIZE - 1 };
+      res.writeHead(206, { 'Content-Range': `bytes ${r.start}-${r.end}/${SIZE}`, 'Accept-Ranges': 'bytes', 'Content-Length': r.end - r.start + 1, ETag: '"one"' });
+      let pos = r.start;
+      const send = () => {
+        if (res.destroyed) return;
+        if (pos > r.end) return res.end();
+        if (served >= failAfter) return req.socket.destroy();
+        const n = Math.min(65536, r.end - pos + 1);
+        served += n; res.write(payload.subarray(pos, pos + n)); pos += n;
+        setTimeout(send, 3);
+      };
+      send();
+    });
+    try {
+      const storage = makeStorage();
+      const m1 = newManager(storage, null);
+      Object.assign(m1.turboEngine.limits, { stallMs: 600 });
+      const savePath = path.join(base, 'cut.bin');
+      const rec = await m1.startTurboDownload({ url: `${srv.url}/cut.bin`, savePath, headers: { Cookie: 'sid=secret' }, totalBytes: SIZE, threads: 4, multiSource: false });
+      await until(() => m1.downloads[rec.id].state === 'interrupted', 8000, 'the download to stop');
+      const cut = m1.downloads[rec.id];
+      assert(cut.resumable && cut.resume && cut.resume.doneBytes > 0, 'resumable: ' + JSON.stringify({ r: cut.resumable, e: cut.error }));
+      assert(fs.existsSync(savePath + '.shmmoth-part'), 'the part file is kept');
+      const saved = storage.data.downloads.find((d) => d.id === rec.id);
+      assert(saved && saved.resume && saved.resume.done, 'the blocks on the disk are saved with the record');
+      assert(!JSON.stringify(storage.data.downloads).includes('secret'), 'the cookie still never reaches the storage');
+
+      // the browser is closed and opened again
+      const m2 = newManager(storage, null);
+      const back = m2.getDownloads().find((d) => d.id === rec.id);
+      eq(back.state, 'interrupted'); eq(back.resumable, true, 'resumable after the restart');
+      eq(back.received, cut.resume.doneBytes, 'shows what is already there');
+      failAfter = Infinity; served = 0;
+      eq(m2.resumeDownload(rec.id), true, 'Resume');
+      await until(() => m2.downloads[rec.id].state === 'completed', 10000, 'the resumed download to complete');
+      eq(sha(fs.readFileSync(savePath)), sha(payload), 'file intact');
+      assert(served <= SIZE - cut.resume.doneBytes + 4 * 65536, `served ${served} again, ${cut.resume.doneBytes} were there`);
+      assert(!fs.existsSync(savePath + '.shmmoth-part'), 'no part file left');
+      eq(m2.downloads[rec.id].resumable, false, 'not resumable once complete');
+    } finally { await srv.close(); }
+  });
+
+  await test('a stopped download without its part file comes back as a plain interrupted one; Remove deletes a kept part file', async () => {
+    const keep = path.join(base, 'kept.bin');
+    fs.writeFileSync(keep + '.shmmoth-part', Buffer.alloc(1024));
+    const resume = { totalBytes: 4096, blockSize: 1024, done: 'AQ==', doneBytes: 1024, validator: {} };
+    const m = newManager(makeStorage([
+      { id: 'dl_k', filename: 'kept.bin', url: 'https://x.test/k', savePath: keep, state: 'progressing', isTurbo: true, received: 2048, total: 4096, resume },
+      { id: 'dl_g', filename: 'gone.bin', url: 'https://x.test/g', savePath: path.join(base, 'gone.bin'), state: 'progressing', isTurbo: true, received: 2048, total: 4096, resume }
+    ]), null);
+    const byId = Object.fromEntries(m.getDownloads().map((d) => [d.id, d]));
+    eq(byId.dl_k.resumable, true, 'part file there'); assert(/Resume continues/.test(byId.dl_k.error), byId.dl_k.error);
+    eq(byId.dl_g.resumable, false, 'part file gone'); assert(!byId.dl_g.resume, 'no checkpoint kept');
+    eq(m.removeDownload('dl_k'), true);
+    assert(!fs.existsSync(keep + '.shmmoth-part'), 'the kept part file is removed with the card');
+  });
+
+  await test('the downloads page and the bubble offer Resume for a stopped download that kept its blocks', async () => {
+    const page = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'downloads.js'), 'utf8');
+    const bubble = fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', 'download-bubble.html'), 'utf8');
+    assert(/record\.state === 'interrupted' && record\.resumable[\s\S]{0,300}btn-resume/.test(page), 'downloads page');
+    assert(/d\.state === 'interrupted' && d\.resumable[\s\S]{0,300}btn-resume/.test(bubble), 'bubble');
+  });
+
   console.log(`\n  p1-downloads-robust: ${passed} passed, ${failed} failed`);
   fs.rmSync(base, { recursive: true, force: true });
   process.exit(failed ? 1 : 0);

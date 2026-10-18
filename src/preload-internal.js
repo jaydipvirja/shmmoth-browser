@@ -145,6 +145,7 @@ const apiSurface = {
   startTurboDownload:  (opts) => ipcRenderer.invoke('download:startTurbo', opts),
   getTurboState:       ()    => ipcRenderer.invoke('download:getTurboState'),
   getNetworkInterfaces:()    => ipcRenderer.invoke('download:getNetworkInterfaces'),
+  checkMultiNetwork:   ()    => ipcRenderer.invoke('download:multiNetworkCheck'),
 
   // ─── Private Browsing & Window (Stage 4) ──────────────────────────────────────
   newIncognitoWindow: () => ipcRenderer.invoke('window:newIncognito'),

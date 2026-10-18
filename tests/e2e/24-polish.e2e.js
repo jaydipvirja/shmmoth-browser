@@ -7,6 +7,7 @@
  *   - a new tab slides in once; the tabs already there do not move
  *   - Settings and the browser frame are free of emoji
  *   - the Mica switch stays hidden where Windows has no Mica (here: Linux)
+ *   - Settings → Downloads → "Check Multi-Network Setup" shows its checks
  *   - Settings → General says whether SHMMOTH is the default browser, with "Make default" only where it can work
  *
  * Run: npm run test:e2e   (or: node tests/e2e/24-polish.e2e.js)
@@ -95,6 +96,17 @@ runSuite('SHMMOTH Browser — E2E 24: polish', async (t) => {
         assertEqual(r.emoji, false, 'emoji in Settings');
         assertEqual(r.micaHidden, process.platform !== 'win32' ? true : r.micaHidden, 'Mica switch');
         assert(r.updateIcon, 'the update card shows an icon');
+      });
+
+      await t.test('Settings → Downloads → "Check Multi-Network Setup" lists each check with what to do', async () => {
+        await evalIn(app, 'mtc://settings', "document.getElementById('btn-multi-check').click(), true");
+        const r = await waitFor(() => evalIn(app, 'mtc://settings', `(() => {
+          const list = document.getElementById('multi-check-results');
+          if (list.classList.contains('hidden')) return null;
+          return Array.from(list.querySelectorAll('.check-item')).map((li) => ({ status: li.className.replace('check-item ', ''), title: li.querySelector('strong').textContent, icon: Boolean(li.querySelector('svg')) }));
+        })()`), { message: 'the check results', timeout: 20000 });
+        assert(r.length >= 3 && r.every((c) => c.icon && c.title), JSON.stringify(r));
+        assert(r.some((c) => /internet connection/.test(c.title)) && r.some((c) => /proxy/i.test(c.title)), JSON.stringify(r));
       });
 
       await t.test('Settings → General shows the default-browser row; "Make default" only where Windows can use it', async () => {

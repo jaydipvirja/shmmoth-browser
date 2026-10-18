@@ -439,6 +439,11 @@
             <button class="btn-card-action btn-open" data-id="${escapeHtml(d.id)}">Open</button>
             <button class="btn-card-action icon-only btn-folder" data-id="${escapeHtml(d.id)}" title="Show in folder" aria-label="Show in folder"><span class="sh-icon" data-icon="folder" aria-hidden="true"></span></button>
           `;
+        } else if (d.state === 'interrupted' && d.resumable) {
+          buttonsHtml = `
+            <button class="btn-card-action icon-only btn-resume" data-id="${escapeHtml(d.id)}" title="Resume where it stopped" aria-label="Resume where it stopped"><span class="sh-icon" data-icon="play" aria-hidden="true"></span></button>
+            <button class="btn-card-action icon-only btn-retry" data-url="${escapeHtml(d.url)}" title="Start over" aria-label="Start over"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span></button>
+          `;
         } else if (d.state === 'cancelled' || d.state === 'interrupted') {
           buttonsHtml = `
             <button class="btn-card-action icon-only btn-retry" data-url="${escapeHtml(d.url)}" title="Retry download" aria-label="Retry download"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span></button>
