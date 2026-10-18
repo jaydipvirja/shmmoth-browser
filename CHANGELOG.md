@@ -9,6 +9,8 @@
   - whether a VPN or a proxy is in the way;
   - whether the switches in Settings are on;
   - on Windows, whether the "minimize simultaneous connections" policy can drop one of them, with the one command that fixes it.
+- **Resume where it stopped, like IDM, also after closing the browser.** A fast download that was cut off (the connection dropped for minutes, the server stopped answering, the browser or the PC was closed) used to start again from 0 B. Now the parts already downloaded are kept, and the card shows *Resume*, which fetches only the missing parts. Before it continues, SHMMOTH asks the server whether the file is still the same (size, ETag / Last-Modified); if it changed, the download starts over, so versions are never mixed. *Start over* (and *Remove*) delete the kept parts.
+- A connection reset during the first test request of a download is now tried once more, instead of giving up on splitting the download.
 
 ## 1.4.4
 

@@ -187,6 +187,13 @@ function renderDownloads() {
         <button class="btn-dl-action btn-folder" data-id="${escapeHtml(record.id)}">Show in Folder</button>
         <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
+    } else if (record.state === 'interrupted' && record.resumable) {
+      // Stopped with its blocks kept on the disk: Resume continues there, Start over downloads it again
+      actionButtons = `
+        <button class="btn-dl-action btn-resume" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="play" aria-hidden="true"></span>Resume</button>
+        <button class="btn-dl-action btn-retry" data-url="${escapeHtml(record.url)}"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span>Start over</button>
+        <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
+      `;
     } else {
       // Cancelled or Interrupted
       actionButtons = `

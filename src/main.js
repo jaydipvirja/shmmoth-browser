@@ -339,6 +339,9 @@ class ShmmothBrowserApp {
       this._finalizeSession();
       // a copied password does not outlive the browser
       const clipboardCleared = this.passwordGate ? this.passwordGate.clearClipboardNow().catch(() => {}) : Promise.resolve();
+      // fast-engine downloads still running: which blocks are on the disk is saved now, so Resume after the next
+      // start continues from the last one
+      try { if (this.downloads) this.downloads.checkpointAll(); } catch (_) { /* best effort */ }
       if (this._dataFlushed) return;
       // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
       // (about every 30 s): what is still in the last batch would be lost, and a session that Google has already

@@ -396,6 +396,120 @@ async function runTests() {
     assert(r.last && r.last.isMultiSource === false && r.last.networkNote === 'one-network', JSON.stringify(r.last && { m: r.last.isMultiSource, n: r.last.networkNote }));
   });
 
+  // ── Resume (IDM-style): the blocks on the disk survive an error or a restart of the browser ──
+  const resumeServer = (size) => {
+    const st = { body: crypto.randomBytes(size), etag: '"v1"', served: 0, failAfter: Infinity, resetFirst: 0 };
+    const srv = http.createServer((req, res) => {
+      if (st.resetFirst > 0) { st.resetFirst--; req.socket.destroy(); return; }
+      if (st.served >= st.failAfter) { res.writeHead(503); res.end(); return; }
+      const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
+      const start = m ? Number(m[1]) : 0;
+      const end = m && m[2] ? Number(m[2]) : size - 1;
+      res.writeHead(m ? 206 : 200, { 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1, ETag: st.etag, ...(m ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}) });
+      let pos = start;
+      const send = () => {
+        if (res.destroyed) return;
+        if (pos > end) return res.end();
+        if (st.served >= st.failAfter) return req.socket.destroy();
+        const n = Math.min(65536, end - pos + 1);
+        st.served += n;
+        res.write(st.body.subarray(pos, pos + n));
+        pos += n;
+        setTimeout(send, 5);
+      };
+      send();
+    });
+    return new Promise((r) => srv.listen(0, '127.0.0.1', () => r({ srv, st, url: `http://127.0.0.1:${srv.address().port}/r.bin` })));
+  };
+  const sha = (buf) => crypto.createHash('sha256').update(buf).digest('hex');
+  const finish = (eng) => new Promise((resolve) => {
+    eng.on('completed', () => resolve({ ok: true }));
+    eng.on('error', (e) => resolve({ ok: false, error: e.error, resume: e.resume }));
+  });
+  // engine A downloads until half the file is there, is paused (its checkpoint taken) and dropped, as at a restart
+  const halfAndStop = async (url, savePath) => {
+    const A = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+    let cp = null;
+    A.on('checkpoint', (c) => { cp = c.resume; });
+    A.start({ id: 'a', url, savePath, threads: 4, probe: await A.probe(url, {}) });
+    await new Promise((r) => { const t = setInterval(() => { const task = A.activeTasks.get('a'); if (task && task.doneBlocks >= 4) { clearInterval(t); A.pause('a'); setTimeout(r, 100); } }, 10); });
+    const task = A.activeTasks.get('a');
+    if (task && task.fd !== null) { try { fs.closeSync(task.fd); } catch (_) {} task.fd = null; }
+    return cp;
+  };
+  const SIZE = 16 * 1024 * 1024;
+
+  await test('10. After a restart the download continues from its part file: only the missing blocks are fetched', async () => {
+    const { srv, st, url } = await resumeServer(SIZE);
+    try {
+      const savePath = path.join(testTmpDir, 'resume_same.bin');
+      const cp = await halfAndStop(url, savePath);
+      assert(cp && cp.doneBytes > 0 && cp.doneBytes < SIZE && cp.validator.etag === '"v1"', 'checkpoint: ' + JSON.stringify(cp && { d: cp.doneBytes, v: cp.validator }));
+      assert(fs.existsSync(savePath + '.shmmoth-part') && !fs.existsSync(savePath), 'the part file is kept under its own name');
+      st.served = 0;
+      const B = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+      const done = finish(B);
+      await B.start({ id: 'b', url, savePath, threads: 4, probe: await B.probe(url, {}), resume: cp });
+      const r = await done;
+      assert(r.ok, 'completed: ' + r.error);
+      assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
+      assert(st.served <= SIZE - cp.doneBytes + 2 * 65536, `served ${st.served} again, ${cp.doneBytes} were already there`);
+    } finally { srv.close(); }
+  });
+
+  await test('11. The file changed on the server (other ETag): it starts again from the beginning, never mixes versions', async () => {
+    const { srv, st, url } = await resumeServer(SIZE);
+    try {
+      const savePath = path.join(testTmpDir, 'resume_changed.bin');
+      const cp = await halfAndStop(url, savePath);
+      st.etag = '"v2"'; st.body = crypto.randomBytes(SIZE); st.served = 0;
+      const B = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+      const done = finish(B);
+      const task = await B.start({ id: 'b', url, savePath, threads: 4, probe: await B.probe(url, {}), resume: cp });
+      assert(task && task.resumeFrom === null, 'not resumed');
+      const r = await done;
+      assert(r.ok, 'completed: ' + r.error);
+      assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'the new version, whole');
+      assert(st.served >= SIZE, 'all of it downloaded again: ' + st.served);
+      // and the checks themselves
+      const t = { totalBytes: SIZE, workPath: savePath + '.missing', validator: { etag: '"v1"', lastModified: '' } };
+      assert(!B._canResume(cp, t), 'no part file: no resume');
+      assert(!B._canResume({ ...cp, totalBytes: SIZE - 1 }, { ...t, workPath: __filename }), 'other size: no resume');
+    } finally { srv.close(); }
+  });
+
+  await test('12. The server stops answering half-way: the error keeps the part file and says how to continue', async () => {
+    const { srv, st, url } = await resumeServer(SIZE);
+    try {
+      const savePath = path.join(testTmpDir, 'resume_error.bin');
+      st.failAfter = SIZE / 2;
+      const A = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4, stallMs: 600, retryBaseMs: 10, retryMaxMs: 50 });
+      const done = finish(A);
+      await A.start({ id: 'a', url, savePath, threads: 4, probe: await A.probe(url, {}) });
+      const r = await done;
+      assert(!r.ok && r.resume && r.resume.doneBytes > 0, 'error with a checkpoint: ' + JSON.stringify(r));
+      assert(fs.existsSync(savePath + '.shmmoth-part'), 'part file kept');
+      st.failAfter = Infinity; st.served = 0;
+      const B = new TurboDownloadEngine({ net: null, minTurboSize: 1048576, defaultThreads: 4 });
+      const done2 = finish(B);
+      await B.start({ id: 'b', url, savePath, threads: 4, probe: await B.probe(url, {}), resume: r.resume });
+      const r2 = await done2;
+      assert(r2.ok, 'completed: ' + r2.error);
+      assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
+      assert(st.served < SIZE, 'only the rest: ' + st.served);
+    } finally { srv.close(); }
+  });
+
+  await test('13. A connection reset during the first test request is tried once more (no needless single stream)', async () => {
+    const { srv, st, url } = await resumeServer(4 * 1024 * 1024);
+    try {
+      st.resetFirst = 1;
+      const eng = new TurboDownloadEngine({ net: null, minTurboSize: 1048576 });
+      const probe = await eng.probe(url, {});
+      assert(probe.acceptsRanges === true && probe.totalBytes === 4 * 1024 * 1024, JSON.stringify(probe));
+    } finally { srv.close(); }
+  });
+
   // Cleanup test tmp directory
   try {
     fs.rmSync(testTmpDir, { recursive: true, force: true });

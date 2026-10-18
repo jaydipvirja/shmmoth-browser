@@ -128,6 +128,17 @@ function cleanupPartialFile(filePath) {
   }
 }
 
+/** Is the part file a stopped fast-engine download was writing to still on the disk? */
+function partFileExists(record) {
+  try { return Boolean(record && record.savePath) && fs.statSync(`${record.savePath}.shmmoth-part`).isFile(); } catch (_) { return false; }
+}
+
+/** A record that leaves the list takes the part file it kept for "Resume" with it (never the finished file). */
+function removeKeptPart(record) {
+  if (!record || !record.resume || !record.savePath || record.state === 'completed') return;
+  try { fs.unlinkSync(`${record.savePath}.shmmoth-part`); } catch (_) { /* already gone */ }
+}
+
 /**
  * File types that run code (or open a shell / macro document) when opened. Opening one from the downloads list asks
  * first, like Chrome and Edge do. Judged by the LAST extension, with the trailing dots and spaces that Windows ignores
@@ -243,6 +254,8 @@ class DownloadManager {
     this._getDownloadHost = typeof options.getDownloadHost === 'function' ? options.getDownloadHost : null;
     // url -> { id, savePath }: downloads that must go through Chromium's own downloader (see _handOverToNative)
     this._nativeOnly = new Map();
+    // ids of interrupted fast-engine downloads being continued (resumeInterrupted) — one at a time each
+    this._resuming = new Set();
 
     // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
     this.turboEngine = new TurboDownloadEngine({
@@ -284,6 +297,8 @@ class DownloadManager {
       record.total = data.total;
       record.speed = 0;
       record.eta = null;
+      delete record.resume;
+      record.resumable = false;
       log.info(`Turbo download completed: ${record.filename}`, { id: data.id, savePath: data.savePath });
       this._notify(record);
       this._persist();
@@ -304,8 +319,26 @@ class DownloadManager {
       record.speed = 0;
       record.eta = null;
       record.error = String(data.error || 'The download failed').slice(0, 300);
+      // the blocks that reached the disk are kept: "Resume" continues there (IDM-style), "Retry" starts again
+      if (data.resume) {
+        record.resume = data.resume;
+        record.resumable = true;
+        record.received = data.resume.doneBytes;
+      } else {
+        delete record.resume;
+        record.resumable = false;
+      }
       this._notify(record);
       this._persist();
+    });
+
+    // Every few seconds (and on pause): which blocks are on the disk, saved with the record, so a download that is cut
+    // off by a crash or by closing the browser can still be continued from there
+    this.turboEngine.on('checkpoint', (data) => {
+      const record = this.downloads[data.id];
+      if (!record || !data.resume) return;
+      record.resume = data.resume;
+      this._persist({ soon: true });
     });
 
     this.turboEngine.on('paused', (data) => {
@@ -334,6 +367,8 @@ class DownloadManager {
       record.speed = 0;
       record.eta = null;
       record.endedAt = Date.now();
+      delete record.resume;
+      record.resumable = false;
       this._notify(record);
       this._persist();
     });
@@ -432,12 +467,21 @@ class DownloadManager {
           list.forEach(r => {
             if (r && r.id) {
               const unfinished = r.state === 'progressing' || r.state === 'paused';
+              // a fast-engine download whose blocks are still in its part file can be continued from there
+              const resumable = Boolean(r.isTurbo && r.resume && (unfinished || r.state === 'interrupted') && partFileExists(r));
               this.downloads[r.id] = {
                 ...r,
                 // Nothing keeps running while the browser is closed: a record that was still "downloading" would
                 // otherwise sit at its old number for ever (pause/cancel buttons that do nothing). Show it as
-                // interrupted so it can be retried or removed.
-                ...(unfinished ? { state: 'interrupted', error: 'The browser was closed before this download finished.', endedAt: Date.now() } : {}),
+                // interrupted so it can be resumed, retried or removed.
+                ...(unfinished ? {
+                  state: 'interrupted',
+                  error: resumable
+                    ? 'The browser was closed before this download finished. Resume continues where it stopped.'
+                    : 'The browser was closed before this download finished.',
+                  endedAt: Date.now()
+                } : {}),
+                ...(resumable ? { resumable: true, received: r.resume.doneBytes || 0 } : { resumable: false, resume: undefined }),
                 isPaused: false,
                 speed: 0,
                 eta: null,
@@ -453,14 +497,16 @@ class DownloadManager {
     }
   }
 
-  _persist() {
+  /** @param {{soon?: boolean}} [opts] soon: a coalesced write (the checkpoints of running downloads, every few seconds) */
+  _persist({ soon = false } = {}) {
     if (this.storage) {
       try {
         // Incognito downloads are strictly ephemeral and NEVER persisted
         const serialized = Object.values(this.downloads)
           .filter(r => !r.isIncognito && !r.held)
           .map(r => this._serialize(r));
-        this.storage.set('downloads', serialized);
+        if (soon && typeof this.storage.setSoon === 'function') this.storage.setSoon('downloads', serialized, 10000);
+        else this.storage.set('downloads', serialized);
       } catch (err) {
         log.warn('Could not persist downloads', { error: err.message });
       }
@@ -864,27 +910,9 @@ class DownloadManager {
     let paused = false;
     try { item.pause(); paused = true; } catch (_) { /* nothing to hold */ }
 
-    let headers = { 'Accept': '*/*' };
     let sess = null;
-    try {
-      const referer = webContents.getURL ? webContents.getURL() : '';
-      sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null);
-      let userAgent = '';
-      let cookieHeader = '';
-      if (sess) {
-        if (sess.getUserAgent) userAgent = sess.getUserAgent() || '';
-        if (sess.cookies && sess.cookies.get) {
-          const cookies = await sess.cookies.get({ url });
-          if (cookies && cookies.length > 0) cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-        }
-      }
-      let locale = 'en-US';
-      try { if (typeof app.getLocale === 'function') locale = app.getLocale() || locale; } catch (_) { /* default */ }
-      headers = browserLikeHeaders({ url, referer, userAgent, locale });
-      if (cookieHeader) headers['Cookie'] = cookieHeader;
-    } catch (hErr) {
-      log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
-    }
+    try { sess = webContents.session || (webContents.webContents ? webContents.webContents.session : null); } catch (_) { sess = null; }
+    const headers = await this._requestHeaders(url, sess, webContents.getURL ? webContents.getURL() : '');
 
     let probe = null;
     let reason = '';
@@ -944,6 +972,32 @@ class DownloadManager {
     this._persist();
   }
 
+  /**
+   * The headers the fast engine sends for `url`: what the browser would send from page `referer`, with the session's
+   * cookies for that address.
+   */
+  async _requestHeaders(url, sess, referer = '') {
+    let headers = { 'Accept': '*/*' };
+    try {
+      let userAgent = '';
+      let cookieHeader = '';
+      if (sess) {
+        if (sess.getUserAgent) userAgent = sess.getUserAgent() || '';
+        if (sess.cookies && sess.cookies.get) {
+          const cookies = await sess.cookies.get({ url });
+          if (cookies && cookies.length > 0) cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+        }
+      }
+      let locale = 'en-US';
+      try { if (typeof app.getLocale === 'function') locale = app.getLocale() || locale; } catch (_) { /* default */ }
+      headers = browserLikeHeaders({ url, referer, userAgent, locale });
+      if (cookieHeader) headers['Cookie'] = cookieHeader;
+    } catch (hErr) {
+      log.warn('Could not extract cookies/headers for Turbo download', { error: hErr.message });
+    }
+    return headers;
+  }
+
   /** Waits (at most `timeoutMs`) until `savePath` is free; returns a path that is safe to open. */
   async _afterPlaceholderGone(savePath, timeoutMs = 2000) {
     const end = Date.now() + timeoutMs;
@@ -996,6 +1050,14 @@ class DownloadManager {
       .filter((d) => d && d.url === url && Boolean(d.isIncognito) === Boolean(isIncognito))
       .sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0))[0];
     const referrer = (previous && (previous.referrer || (previous.headers && previous.headers.Referer))) || '';
+    if (previous && previous.resumable && previous.state === 'interrupted') {
+      // "Start over": the blocks kept for Resume are not needed any more
+      removeKeptPart(previous);
+      delete previous.resume;
+      previous.resumable = false;
+      this._notify(previous);
+      this._persist();
+    }
     this._nativeOnly.set(url, { referrer });
     this._expireHandover(url, null);
     try {
@@ -1137,6 +1199,9 @@ class DownloadManager {
       }
       if (this.turboEngine.activeTasks && this.turboEngine.activeTasks.has(id)) {
         return this.turboEngine.resume(id, record.headers || {});
+      } else if (record.resume && record.state === 'interrupted') {
+        this.resumeInterrupted(id).catch((err) => log.warn('Could not resume the download', { id, error: err.message }));
+        return true;
       } else {
         record.state = 'progressing';
         record.isPaused = false;
@@ -1174,6 +1239,80 @@ class DownloadManager {
     return false;
   }
 
+  /**
+   * Continues a fast-engine download that stopped (an error, or the browser was closed) from the blocks in its part
+   * file — like IDM's "Resume". The server is asked again first, with the session's cookies: only the same file (same
+   * size, same ETag / Last-Modified) continues; a changed file starts again from the beginning.
+   * @returns {Promise<boolean>}
+   */
+  async resumeInterrupted(id) {
+    const record = this.downloads[id];
+    if (!record || !record.isTurbo || record.state !== 'interrupted' || this._resuming.has(id)) return false;
+    if (this.isProxyActive(record.isIncognito)) {
+      record.error = 'A proxy is set now: the fast engine does not go through proxies. Retry downloads it through the proxy.';
+      this._notify(record);
+      return false;
+    }
+    this._resuming.add(id);
+    try {
+      const sess = this._sessions[record.isIncognito ? 'incognito' : 'default'] || undefined;
+      const headers = (record.headers && Object.keys(record.headers).length)
+        ? record.headers
+        : await this._requestHeaders(record.url, sess, record.referrer || '');
+      record.headers = headers;
+      record.state = 'progressing';
+      record.isPaused = false;
+      record.error = '';
+      record.endedAt = null;
+      this._notify(record);
+
+      let probe = null;
+      try { probe = await this.turboEngine.probe(record.url, headers, { timeout: 8000, session: sess }); } catch (_) { probe = null; }
+      if (!this.downloads[id] || record.state !== 'progressing') return false;   // removed or cancelled meanwhile
+      if (!probe || !probe.status || probe.status >= 400) {
+        record.state = 'interrupted';
+        record.endedAt = Date.now();
+        record.error = 'The server did not answer. ' + (probe && probe.status ? `(HTTP ${probe.status}) ` : '') +
+          'The part already downloaded is kept: try Resume again later, or Retry to start over.';
+        this._notify(record);
+        this._persist();
+        return false;
+      }
+      await this.turboEngine.start({
+        id,
+        url: record.url,
+        savePath: record.savePath,
+        headers,
+        threads: this.getTurboThreads(),
+        totalBytes: probe.totalBytes || record.total,
+        probe,
+        session: sess,
+        multiSource: this.isMultiSourceEnabled(),
+        resume: record.resume
+      });
+      log.info(`Turbo download resumed after an interruption: ${record.filename}`, { id, from: record.resume ? record.resume.doneBytes : 0 });
+      return true;
+    } catch (err) {
+      record.state = 'interrupted';
+      record.endedAt = Date.now();
+      record.error = String((err && err.message) || 'The download could not be resumed').slice(0, 300);
+      this._notify(record);
+      this._persist();
+      return false;
+    } finally {
+      this._resuming.delete(id);
+    }
+  }
+
+  /** Saves where every running fast-engine download is (its blocks on the disk), at once — on the way out of the browser. */
+  checkpointAll() {
+    if (!this.turboEngine.activeTasks.size) return;
+    for (const task of this.turboEngine.activeTasks.values()) {
+      try { this.turboEngine._emitCheckpoint(task); } catch (_) { /* this one cannot be continued */ }
+    }
+    this._persist();
+  }
+
   cancelDownload(id) {
     const record = this.downloads[id];
     if (!record) return false;
@@ -1186,6 +1325,8 @@ class DownloadManager {
         record.speed = 0;
         record.eta = null;
         record.endedAt = Date.now();
+        delete record.resume;
+        record.resumable = false;
         setTimeout(() => cleanupPartialFile(record.savePath), 100);
         this._notify(record);
         this._persist();
@@ -1291,6 +1432,7 @@ class DownloadManager {
       if (this.downloads[id].isTurbo && (this.downloads[id].state === 'progressing' || this.downloads[id].state === 'paused')) {
         try { this.turboEngine.cancel(id); } catch (_) {}
       }
+      removeKeptPart(this.downloads[id]);
       delete this.downloads[id];
       this._persist();
       return true;
@@ -1302,6 +1444,7 @@ class DownloadManager {
     let count = 0;
     for (const [id, record] of Object.entries(this.downloads)) {
       if (record.state !== 'progressing' && record.state !== 'paused') {
+        removeKeptPart(record);
         delete this.downloads[id];
         count++;
       }
@@ -1325,6 +1468,7 @@ class DownloadManager {
         if (record.isTurbo && (record.state === 'progressing' || record.state === 'paused')) {
           try { this.turboEngine.cancel(id); } catch (_) {}
         }
+        removeKeptPart(record);       // nothing of an Incognito download stays behind for a Resume
         delete this.downloads[id];
         count++;
       }

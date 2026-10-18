@@ -169,6 +169,12 @@ class StorageService {
     if (this._saveTimer.unref) this._saveTimer.unref();
   }
 
+  /** set() with a coalesced write (see saveSoon). */
+  setSoon(key, value, delayMs = 2000) {
+    this.data[key] = value;
+    this.saveSoon(delayMs);
+  }
+
   /** Writes pending changes now (app quitting / window closing). */
   flush() {
     if (this._saveTimer) this.save();

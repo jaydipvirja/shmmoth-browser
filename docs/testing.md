@@ -38,6 +38,7 @@ Useful options (after `--`): `--grep=<text>` (file name filter), `--list`, `--no
 | `23-pages` | History, Bookmarks, Downloads, Extensions, Notes, Error and Crash: no emoji, every icon drawn (also in bookmark cards and the error icon), named search boxes with the search icon, the pages switch to light with the rest of the browser |
 | `24-polish` | First start: the Welcome card saves theme and search engine at once and closes for good; a profile from before 1.4.0 never sees it; a new tab slides in once; no emoji in Settings or the frame; the Mica switch stays hidden off Windows 11; the Default Browser row in Settings |
 | `25-import` | A small Chrome profile in a temporary folder: the Welcome card's *Import from Google Chrome* brings 3 bookmarks and 2 history pages with their visit times; *Settings → Import* lists Chrome and a second import adds nothing |
+| `26-download-resume` | A 16 MiB fast-engine download, the browser closed half-way: after the restart the card is interrupted with *Resume*, the part file is still there; Resume on the downloads page fetches only the missing blocks and the file is byte-for-byte right |
 
 The suites replay the actual attacks and failures that were fixed (they fail on the original code: 24 failures across suites 01–04), so a regression shows up as a red test, not as a user report.
 
