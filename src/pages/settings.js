@@ -438,6 +438,44 @@ if (modalImport && window.mtcAPI && window.mtcAPI.detectImportSources) {
   });
 }
 
+// Settings → Downloads → "Check Multi-Network Setup": one line per check, each with what to do
+const btnMultiCheck = document.getElementById('btn-multi-check');
+const multiCheckResults = document.getElementById('multi-check-results');
+const CHECK_ICONS = { ok: 'check', warn: 'warning', fail: 'close' };
+
+if (btnMultiCheck && window.mtcAPI && window.mtcAPI.checkMultiNetwork) {
+  btnMultiCheck.addEventListener('click', async () => {
+    btnMultiCheck.disabled = true;
+    btnMultiCheck.textContent = 'Checking…';
+    let result = null;
+    try { result = await window.mtcAPI.checkMultiNetwork(); } catch (_) { result = null; }
+    btnMultiCheck.disabled = false;
+    btnMultiCheck.textContent = 'Check again';
+    multiCheckResults.textContent = '';
+    for (const c of (result && result.checks) || [{ status: 'fail', title: 'The check could not run.' }]) {
+      const li = document.createElement('li');
+      li.className = 'check-item ' + c.status;
+      const icon = document.createElement('span');
+      icon.className = 'sh-icon';
+      icon.setAttribute('aria-hidden', 'true');
+      icon.dataset.icon = CHECK_ICONS[c.status] || 'info';
+      const text = document.createElement('div');
+      const title = document.createElement('strong');
+      title.textContent = c.title;
+      text.appendChild(title);
+      if (c.detail) {
+        const detail = document.createElement('p');
+        detail.textContent = c.detail;
+        text.appendChild(detail);
+      }
+      li.append(icon, text);
+      multiCheckResults.appendChild(li);
+    }
+    window.ShIcons.drawAll(multiCheckResults);
+    multiCheckResults.classList.remove('hidden');
+  });
+}
+
 // Windows 11 Mica: the switch is shown only where Windows has it
 if (toggleMica && window.mtcAPI && window.mtcAPI.getPlatformFeatures) {
   window.mtcAPI.getPlatformFeatures().then((f) => {

@@ -329,6 +329,73 @@ async function runTests() {
     assert(interfacesReported.length > 0, 'Progress event should report network interfaces');
   });
 
+  // ── 1.4.5: bonding in the browser. There the probe proves Chromium's way first (Electron's net), and until 1.4.5
+  // bonding then never started. A stand-in for Electron's net.request sends through Node's http with a marker header.
+  const fakeNet = {
+    request(opts) {
+      const ee = new (require('events'))();
+      const headers = { 'X-Via': 'chromium' };
+      let req = null;
+      ee.setHeader = (k, v) => { headers[k] = v; };
+      ee.abort = () => { if (req) req.destroy(); };
+      ee.end = () => {
+        req = http.get(opts.url, { headers }, (res) => ee.emit('response', res));
+        req.on('error', (err) => ee.emit('error', err));
+      };
+      return ee;
+    }
+  };
+  async function bondingRun({ nodeAllowed, interfaces }) {
+    const size = 3 * 1024 * 1024;
+    const body = crypto.randomBytes(size);
+    const seen = { node: new Set(), chromium: 0 };
+    const server = http.createServer((req, res) => {
+      const viaChromium = req.headers['x-via'] === 'chromium';
+      if (viaChromium) seen.chromium++; else seen.node.add(req.socket.remoteAddress.replace('::ffff:', ''));
+      if (!viaChromium && !nodeAllowed) { res.writeHead(403); return res.end(); }
+      const m = /bytes=(\d+)-(\d*)/.exec(req.headers.range || '');
+      if (!m) { res.writeHead(200, { 'Content-Length': size }); return res.end(body); }
+      const start = Number(m[1]); const end = m[2] ? Number(m[2]) : size - 1;
+      res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
+      res.end(body.subarray(start, end + 1));
+    });
+    await new Promise((r) => server.listen(0, '0.0.0.0', r));
+    const url = `http://127.0.0.1:${server.address().port}/big.bin`;
+    const engine = new TurboDownloadEngine({ net: fakeNet, minTurboSize: 512, defaultThreads: 4, multiSource: true, limits: { minBlockBytes: 256 * 1024, maxBlockBytes: 256 * 1024 } });
+    const probe = await engine.probe(url, {});
+    let last = null;
+    engine.on('progress', (p) => { last = p; });
+    const savePath = path.join(testTmpDir, `bond_${Date.now()}_${Math.random()}.bin`);
+    const done = await new Promise((resolve, reject) => {
+      engine.on('completed', resolve);
+      engine.on('error', (e) => reject(new Error(e.error)));
+      engine.start({ id: 'b' + Math.random(), url, savePath, threads: 4, probe, interfaces }).catch(reject);
+    });
+    server.close();
+    const same = crypto.createHash('sha256').update(fs.readFileSync(savePath)).digest('hex') === crypto.createHash('sha256').update(body).digest('hex');
+    return { probe, last, done, seen, same };
+  }
+
+  await test('7. In the browser (Chromium proven first) two networks are used when the server accepts Node too', async () => {
+    const r = await bondingRun({ nodeAllowed: true, interfaces: [{ name: 'Wi-Fi', address: '127.0.0.1' }, { name: 'USB phone', address: '127.0.0.2' }] });
+    assert(r.probe.transport === 'chromium', 'the probe proves Chromium first: ' + r.probe.transport);
+    assert(r.same, 'file intact');
+    assert(r.last && r.last.isMultiSource === true, 'multi-network: ' + JSON.stringify(r.last && r.last.networkNote));
+    assert(r.seen.node.has('127.0.0.1') && r.seen.node.has('127.0.0.2'), 'blocks came over both networks: ' + [...r.seen.node].join(','));
+  });
+
+  await test('8. A site that only accepts the browser\'s own connection: one network, said why, file intact', async () => {
+    const r = await bondingRun({ nodeAllowed: false, interfaces: [{ name: 'Wi-Fi', address: '127.0.0.1' }, { name: 'USB phone', address: '127.0.0.2' }] });
+    assert(r.same, 'file intact');
+    assert(r.last && r.last.isMultiSource === false && r.last.networkNote === 'site-browser-only', JSON.stringify(r.last && { m: r.last.isMultiSource, n: r.last.networkNote }));
+  });
+
+  await test('9. Only one network reaches the server: one network, said why', async () => {
+    const r = await bondingRun({ nodeAllowed: true, interfaces: [{ name: 'Wi-Fi', address: '127.0.0.1' }, { name: 'Gone', address: '192.0.2.77' }] });
+    assert(r.same, 'file intact');
+    assert(r.last && r.last.isMultiSource === false && r.last.networkNote === 'one-network', JSON.stringify(r.last && { m: r.last.isMultiSource, n: r.last.networkNote }));
+  });
+
   // Cleanup test tmp directory
   try {
     fs.rmSync(testTmpDir, { recursive: true, force: true });

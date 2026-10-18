@@ -71,6 +71,7 @@ SHMMOTH Browser is an Electron desktop browser built on Chromium (Blink/V8) — 
 | `src/renderer/` | Browser chrome HTML/JS/CSS |
 | `src/pages/` | Internal mtc:// page files |
 | `src/pages/design-tokens.css` | Design tokens: colours (Dark / Light / Incognito), type, spacing, corners, shadows, motion, focus ring, reduced motion; loaded first by the frame, every page and every bubble |
+| `src/services/multiNetworkCheck.js` | Settings → Downloads → "Check Multi-Network Setup": networks with internet (bound probes), VPN, proxy, switches, Windows `fMinimizeConnections` (reg.exe, read-only) |
 | `src/services/browserImport.js` | Import from Chrome / Edge / Brave: finds the profiles, reads `Bookmarks` (JSON) and a read-only copy of `History` (node:sqlite); only a detected browser + profile can be imported |
 | `src/services/defaultBrowser.js`, `build/installer.nsh` | Default browser on Windows: the installer registers SHMMOTH for http/https (`SHMMOTHURL`, links after `--`); Settings reads the status with reg.exe and opens Windows' Default apps page |
 | `src/services/windowMaterial.js` | Windows 11 Mica for the main window (Settings → Appearance), only on 22H2+ |

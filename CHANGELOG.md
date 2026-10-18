@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 1.4.5
+
+- **Multi-network downloads now really use two connections.** Before a fast download starts, the browser tests which way the server accepts. It tested the browser's own network stack first, which nearly every server accepts, and then always downloaded that way. But only the other way can send connections out through a chosen network card, so with Wi-Fi and a cable (or a phone on USB) connected, a download still used one connection. Now, when two connections can reach the server, SHMMOTH also tries the way that can use both, and splits the download over them when the server accepts it.
+- When a fast download uses one connection although multi-network is on, the Downloads page says why: only one connection reaches the server, or the site only accepts the browser's own connection.
+- **Settings → Downloads → Check Multi-Network Setup** tests your computer and says what to change:
+  - which connections really reach the internet (each one is tested on its own);
+  - whether a VPN or a proxy is in the way;
+  - whether the switches in Settings are on;
+  - on Windows, whether the "minimize simultaneous connections" policy can drop one of them, with the one command that fixes it.
+
 ## 1.4.4
 
 - **YouTube: the newest ad and anti-adblock fixes.** YouTube changes how it shows ads and how it detects ad blockers several times a week, and uBlock Origin answers with new rules just as often. SHMMOTH took uBlock's lists from a mirror that was days to weeks behind, and it was missing three of uBlock's lists altogether (2025, 2026 and the general list). Now:

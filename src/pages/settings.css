@@ -1212,3 +1212,13 @@ body.searching .nav-item.active { background: transparent; color: var(--sh-text-
 .import-check { display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--sh-text); margin: 10px 0; }
 .import-check input { accent-color: var(--sh-accent); width: 16px; height: 16px; }
 .import-note { font-size: 12.5px; margin-top: 12px; }
+
+/* Check Multi-Network Setup: one line per check */
+.check-list { list-style: none; margin: 4px 0 14px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.check-item { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: 8px; background: var(--sh-surface-2); font-size: 13px; }
+.check-item .sh-icon { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; }
+.check-item.ok .sh-icon { color: var(--sh-success); }
+.check-item.warn .sh-icon { color: var(--sh-warning); }
+.check-item.fail .sh-icon { color: var(--sh-danger); }
+.check-item strong { display: block; color: var(--sh-text); font-weight: 600; }
+.check-item p { margin: 3px 0 0; color: var(--sh-text-2); line-height: 1.5; user-select: text; }

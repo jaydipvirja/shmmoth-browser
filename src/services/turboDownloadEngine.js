@@ -578,12 +578,27 @@ class TurboDownloadEngine extends EventEmitter {
     } catch (_) {}
     const isTurboEligible = (probeInfo.acceptsRanges !== false) && totalBytes >= this.minTurboSize;
     // the way that was proven to work; the Chromium way needs the session whose cookies/proxy it uses
-    const transport = probeInfo.transport === 'chromium' && this._net ? 'chromium' : 'node';
+    let transport = probeInfo.transport === 'chromium' && this._net ? 'chromium' : 'node';
 
+    // Bonding binds sockets to network cards, which only Node's sockets can do. In the browser the probe proves the
+    // Chromium way first (it almost always works), so until 1.4.5 bonding never started there: now, when two networks
+    // reach the server, Node's way is tried too, and used when the server answers it with the same file in parts.
     let networks = [];
-    // Bonding binds sockets to network cards, which only Node's sockets can do — and only if the server accepts Node's requests
-    if (isTurboEligible && multiSourceRequested && transport === 'node') {
+    let networkNote = '';
+    if (isTurboEligible && multiSourceRequested) {
       try { networks = await this._selectInterfaces(taskOpts, finalUrl); } catch (_) { networks = []; }
+      if (networks.length < 2) {
+        networks = [];
+        networkNote = 'one-network';
+      } else if (transport === 'chromium') {
+        const viaNode = await this._probeOnce(finalUrl, headers, { transport: 'node', range: 'bytes=0-0', timeout: this.limits.socketTimeoutMs });
+        if (viaNode.acceptsRanges && viaNode.totalBytes === totalBytes) {
+          transport = 'node';
+        } else {
+          networks = [];
+          networkNote = 'site-browser-only';
+        }
+      }
     }
 
     // Cancelled (or removed from the list) while the server was still being probed: do not start at all
@@ -600,6 +615,7 @@ class TurboDownloadEngine extends EventEmitter {
       isPaused: false,
       isTurbo: isTurboEligible,
       isMultiSource: networks.length > 1,
+      networkNote,                               // why one network is used although multi-network is on ('' = n/a)
       threadsCount: isTurboEligible ? requestedThreads : 1,
       segments: [],
       interfaces: networks,
@@ -1175,6 +1191,7 @@ class TurboDownloadEngine extends EventEmitter {
       eta: task.eta,
       isTurbo: task.isTurbo,
       isMultiSource: task.isMultiSource,
+      networkNote: task.networkNote || '',
       threads: task.threadsCount,
       // the networks in use; without bonding that is the system's normal route
       interfaces: task.interfaces.length

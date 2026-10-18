@@ -266,6 +266,7 @@ class DownloadManager {
       record.eta = prog.eta;
       record.isTurbo = prog.isTurbo;
       record.isMultiSource = prog.isMultiSource;
+      record.networkNote = prog.networkNote || '';
       record.threadsCount = prog.threads;
       record.segments = prog.segments;
       record.interfaces = prog.interfaces;
