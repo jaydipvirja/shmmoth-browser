@@ -432,7 +432,9 @@ async function runTests() {
     let cp = null;
     A.on('checkpoint', (c) => { cp = c.resume; });
     A.start({ id: 'a', url, savePath, threads: 4, probe: await A.probe(url, {}) });
-    await new Promise((r) => { const t = setInterval(() => { const task = A.activeTasks.get('a'); if (task && task.doneBlocks >= 4) { clearInterval(t); A.pause('a'); setTimeout(r, 100); } }, 10); });
+    await new Promise((r) => { const t = setInterval(() => { const task = A.activeTasks.get('a'); if (task && task.doneBlocks >= 4) { clearInterval(t); A.pause('a'); r(); } }, 10); });
+    // the pause's checkpoint comes once the part file is written through (fsync): slow on Windows, so wait for it
+    for (let waited = 0; !cp && waited < 10000; waited += 20) await new Promise((r) => setTimeout(r, 20));
     const task = A.activeTasks.get('a');
     if (task && task.fd !== null) { try { fs.closeSync(task.fd); } catch (_) {} task.fd = null; }
     return cp;
