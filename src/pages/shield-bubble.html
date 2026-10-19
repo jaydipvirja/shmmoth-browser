@@ -255,6 +255,17 @@
           <span class="slider"></span>
         </label>
       </div>
+
+      <div class="toggle-card" id="cookie-card" style="margin-top:8px;">
+        <div class="toggle-text" style="min-width:0;">
+          <strong>Cross-site cookies</strong>
+          <span id="cookie-status-sub" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">—</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-cookies" checked disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <div class="bubble-footer">
@@ -317,6 +328,39 @@
         console.error('Shield bubble site error', e);
       }
     }
+
+    // "Cross-site cookies": on = blocked on this site (the default), off = the user allowed them here
+    const toggleCookies = document.getElementById('toggle-cookies');
+    const cookieStatus = document.getElementById('cookie-status-sub');
+    async function refreshCookies() {
+      if (!api || !api.getPrivacySite) return;
+      try {
+        const p = await api.getPrivacySite();
+        if (!p.canChange) {
+          toggleCookies.disabled = true;
+          toggleCookies.checked = Boolean(p.enabled);
+          cookieStatus.textContent = 'Only available on websites';
+          cookieStatus.style.color = 'var(--sh-text-2)';
+          return;
+        }
+        toggleCookies.checked = p.enabled && !p.allowed;
+        toggleCookies.disabled = !p.enabled;
+        cookieStatus.textContent = !p.enabled ? 'Allowed everywhere (Settings)' : p.allowed ? p.site + ' — allowed' : p.site + ' — blocked';
+        cookieStatus.style.color = !p.enabled || p.allowed ? 'var(--sh-danger)' : 'var(--sh-success)';
+      } catch (e) {
+        console.error('Shield bubble cookie error', e);
+      }
+    }
+    toggleCookies.addEventListener('change', async () => {
+      const block = toggleCookies.checked;
+      toggleCookies.disabled = true;
+      try {
+        if (api && api.setPrivacySiteCookies) await api.setPrivacySiteCookies(!block);   // the active tab reloads
+      } finally {
+        await refreshCookies();
+      }
+    });
+    refreshCookies();
 
     function updateStatusText(enabled) {
       if (enabled) {

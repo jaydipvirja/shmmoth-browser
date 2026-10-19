@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## 1.5.0
+
+Privacy, phase 1: the protection Safari gives, in SHMMOTH (*Settings → Ad-Blocker & Privacy*, all on by default).
+- **Cross-site cookies are blocked.** Ads, social buttons and trackers embedded in a page can neither read nor set cookies, so they cannot follow you from site to site. Sites of one company count as one (google.com and youtube.com, microsoft.com and live.com …), so signing in keeps working. If a site breaks (a payment page, a comment box), the shield icon on that site has a *Cross-site cookies* switch to allow them there; the allowed sites are listed in Settings.
+- **Link tracking protection.** Click identifiers such as `utm_source`, `fbclid`, `gclid`, `igshid` and YouTube's `si` are removed from a page's address before it opens: the site cannot tell which post, mail or ad you came from.
+- **Global Privacy Control.** Every request says "do not sell or share my data" (`Sec-GPC: 1`), and pages see `navigator.globalPrivacyControl`. Several laws oblige sites to honour it.
+- **Referrer trimming.** Another site only learns which site a request comes from, never the page, even when a page asks the browser to send the full address.
+- **HTTPS-Only.** Pages are always asked for over a secure connection. When a site has none, a page says so, and *Continue to the site (not secure)* opens it over http (remembered for that site until the browser is closed). Local addresses (your router, localhost, IP addresses, .local / .lan names) are left alone.
+- Behind the scenes, the ad blocker, the Google sign-in rules and the privacy shield now share each session's request events (Electron allows only one listener per event).
+
 ## 1.4.7
 
 - **Address autofill now fills web forms.** The profiles of *Settings → Autofill* (name, email, phone, address, city, state, country, PIN code) were saved but never filled into a page. Now, clicking such a field on a page (a checkout, a sign-up, a delivery address …) shows your saved profiles next to it. Picking one fills the empty fields of that form: first and last name, email, phone, address, city, state and country (also in drop-down lists) and PIN code. Nothing reaches the page before you pick, nothing is submitted, and search, coupon, password, card and one-time-code fields, the second address line and fields that already have text are left alone. Not in Incognito windows.

@@ -150,7 +150,9 @@ class TabsMethods {
 
       // Electron leaves a tab whose page could not be loaded blank: show a proper error page instead
       if (shouldShowErrorPage({ errorCode, validatedURL, isMainFrame })) {
-        this._showErrorPage(tabData, errorCode, errorDescription, validatedURL);
+        // an http page that HTTPS-Only asked for over https, and the site has no working https: say so, offer http
+        const httpUrl = this.privacyShield ? this.privacyShield.httpsFallbackFor(wc.id, validatedURL, errorCode) : null;
+        this._showErrorPage(tabData, errorCode, errorDescription, validatedURL, httpUrl);
       }
 
       // If a popup/new tab aborted because it converted into a download (-3 ERR_ABORTED),
@@ -190,6 +192,7 @@ class TabsMethods {
 
     wc.on('did-navigate', (_, navUrl) => {
       updateTabUa(navUrl);
+      if (this.privacyShield) this.privacyShield.noteNavigation(wc.id, navUrl);
       tabData.url = navUrl;
       const isErrorPage = Boolean(navUrl) && navUrl.startsWith('mtc://error');
       if (!isErrorPage) tabData.failedUrl = null;              // a real page loaded: forget the address that failed before
@@ -788,15 +791,15 @@ class TabsMethods {
   }
 
   /** Replaces a blank, failed page with mtc://error (the failed address stays what the address bar shows). */
-  _showErrorPage(tab, errorCode, errorDescription, failedUrl) {
+  _showErrorPage(tab, errorCode, errorDescription, failedUrl, httpUrl = null) {
     if (!tab || !tab.view) return;
     log.warn(`Page failed to load in ${tab.id}`, { errorCode, errorDescription, url: String(failedUrl).slice(0, 200) });
-    tab.failedUrl = failedUrl;
+    tab.failedUrl = httpUrl || failedUrl;
     // not inside the did-fail-load event itself: starting a navigation from there can race with the failed one
     setImmediate(() => {
       const wc = tab.view && tab.view.webContents;
       if (!this.tabs[tab.id] || !wc || wc.isDestroyed()) return;
-      wc.loadURL(buildErrorPageUrl(errorCode, errorDescription, failedUrl)).catch(() => {});
+      wc.loadURL(buildErrorPageUrl(errorCode, errorDescription, failedUrl, httpUrl || '')).catch(() => {});
     });
   }
 
@@ -822,6 +825,7 @@ class TabsMethods {
     try { if (this.popupPolicy && tabData.view && tabData.view.webContents) this.popupPolicy.forget(tabData.view.webContents.id); } catch (_) {}
 
     const isIncognito = Boolean(tabData.isIncognito);
+    try { if (this.privacyShield && tabData.view && tabData.view.webContents) this.privacyShield.forgetTab(tabData.view.webContents.id); } catch (_) {}
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     const targetOrder = isIncognito ? this.incognitoTabOrder : this.tabOrder;
 

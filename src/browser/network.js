@@ -315,6 +315,21 @@ class NetworkMethods {
   }
 
   /** Every frame of every web page of the session reports real clicks / key presses (see services/popupPolicy.js). */
+  /** navigator.globalPrivacyControl in every page while GPC is on (preload-privacy.js), in the normal and incognito session. */
+  applyGpcPreload() {
+    if (!this._gpcPreloads) this._gpcPreloads = new Map();
+    const on = this.storage.getSettings().privacyGpc !== false;
+    for (const sess of [session.defaultSession, session.fromPartition('incognito')]) {
+      const id = this._gpcPreloads.get(sess);
+      try {
+        if (on && !id) this._gpcPreloads.set(sess, sess.registerPreloadScript({ type: 'frame', filePath: path.join(SRC_DIR, 'preload-privacy.js') }));
+        if (!on && id) { sess.unregisterPreloadScript(id); this._gpcPreloads.delete(sess); }
+      } catch (err) {
+        log.warn('Could not update the Global Privacy Control script', { error: err.message });
+      }
+    }
+  }
+
   registerGesturePreload(sess) {
     try {
       sess.registerPreloadScript({ type: 'frame', filePath: path.join(SRC_DIR, 'preload-gesture.js') });

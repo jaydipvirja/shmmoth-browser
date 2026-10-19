@@ -42,6 +42,12 @@ class StorageService {
         adBlockerAllowlist:     [],            // sites where the ad blocker is paused (host names)
         adBlockerCustomFilters: '',            // the user's own filter lines ("My filters")
         popupBlockerEnabled:    true,          // refuse ad pop-ups and pop-unders (services/popupPolicy.js)
+        // privacy shield (services/privacyShield.js)
+        privacyBlockThirdPartyCookies: true,   // cookies are not sent to / set by other sites than the page's own
+        privacyStripTrackingParams:    true,   // utm_…, fbclid, gclid … removed from page addresses
+        privacyGpc:                    true,   // Global Privacy Control: "do not sell or share my data"
+        privacyHttpsOnly:              true,   // http:// pages are asked for over https:// first
+        privacyCookieAllowSites:       [],     // sites the user allowed cross-site cookies on (shield)
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,

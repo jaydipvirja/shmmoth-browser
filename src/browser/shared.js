@@ -19,6 +19,8 @@ const DownloadManager  = require('../services/downloadManager');
 const { PasswordVault }   = require('../services/passwordVault');
 const { PasswordAutofill } = require('../services/passwordAutofill');
 const { FormAutofill } = require('../services/formAutofill');
+const { PrivacyShield, siteOf } = require('../services/privacyShield');
+const webRequestHub = require('../services/webRequestHub');
 const { AutofillService } = require('../services/autofillService');
 const { ProxyManager }    = require('../services/proxyManager');
 const ExtensionManager    = require('../services/extensionManager');
@@ -106,6 +108,9 @@ module.exports = {
   net,
   PasswordAutofill,
   FormAutofill,
+  PrivacyShield,
+  siteOf,
+  webRequestHub,
   PasswordGate,
   PasswordVault,
   path,
