@@ -34,6 +34,7 @@ const {
   DownloadManager,
   PasswordVault,
   PasswordAutofill,
+  FormAutofill,
   AutofillService,
   ProxyManager,
   ExtensionManager,
@@ -100,6 +101,7 @@ class ShmmothBrowserApp {
     // Password Manager, Autofill, and Network (Stage 6)
     this.passwordVault = null;
     this.passwordAutofill = null;
+    this.formAutofill = null;
     this.passwordGate = null;
     this.autofillService = null;
     this.proxyManager = null;
@@ -294,6 +296,15 @@ class ShmmothBrowserApp {
       log
     });
     this.autofillService = new AutofillService();
+    this.formAutofill = new FormAutofill({
+      service: this.autofillService,
+      getTab: (tabId) => this.tabs[tabId],
+      isActiveTab: (tab) => tab.id === (tab.isIncognito ? this.activeIncognitoTabId : this.activeTabId),
+      getParentWindow: (tab) => (tab.isIncognito ? this.incognitoWindow : this.mainWindow),
+      createBubble: (opts) => this.createPasswordAutofillBubble(opts, 'form-autofill-bubble.html'),
+      getCursor: () => screen.getCursorScreenPoint(),
+      log
+    });
     this.proxyManager = new ProxyManager(null, this.passwordVault);
 
     // Apply saved proxy to EVERY browsing session (normal + incognito) so incognito never bypasses it

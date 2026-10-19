@@ -29,34 +29,80 @@ class PasswordsMethods {
       return;
     }
 
+    // Sign-ins are noticed when the form is submitted, and also when its button is clicked or Enter is pressed in the
+    // password field: most sites today sign in with a script and never submit a form, so before 1.4.7 their
+    // passwords were never offered for saving (and so could never be filled in later). On a two-step sign-in (the
+    // user name on one page, the password on the next) the user name of the first step is remembered.
     wc.executeJavaScript(`
       (function() {
         if (window.__shmmoth_login_hook__) return;
         window.__shmmoth_login_hook__ = true;
+        var sent = '';
+
+        function scopeOf(el) {
+          if (el.form) return el.form;
+          var node = el.parentElement;
+          for (var depth = 0; node && depth < 6; depth++, node = node.parentElement) {
+            if (node.querySelectorAll('input').length >= 2) return node;
+          }
+          return document;
+        }
+        function textInputs(scope) {
+          return Array.prototype.slice.call(scope.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])'))
+            .filter(function(input) { return input.offsetWidth > 0 || input.offsetHeight > 0 || input.value; });
+        }
+        function userInputIn(scope) {
+          var all = textInputs(scope);
+          return all.filter(function(input) {
+            var attr = ((input.name || '') + ' ' + (input.id || '') + ' ' + (input.type || '') + ' ' + (input.getAttribute('autocomplete') || '')).toLowerCase();
+            return /user|email|login|name|account|mobile|phone/i.test(attr);
+          })[0] || all[0];
+        }
+        function filledPassword(scope) {
+          var pws = Array.prototype.slice.call(scope.querySelectorAll('input[type="password"]')).filter(function(p) { return p.value; });
+          return pws[0] || null;
+        }
+        function report(scope) {
+          try {
+            var pw = filledPassword(scope);
+            if (!pw) {
+              // a first step that asks only for the user name
+              var only = userInputIn(scope);
+              if (only && only.value && !scope.querySelector('input[type="password"]') && /user|email|login|account|identifier|mobile|phone/i.test((only.name || '') + ' ' + (only.id || '') + ' ' + (only.type || '') + ' ' + (only.getAttribute('autocomplete') || ''))) {
+                console.log('__SHMMOTH_LOGIN_USER__:' + JSON.stringify({ username: only.value.trim() }));
+              }
+              return;
+            }
+            var userInput = userInputIn(scopeOf(pw));
+            var usernameVal = userInput ? (userInput.value || '').trim() : '';
+            var key = JSON.stringify([usernameVal, pw.value]);
+            if (key === sent) return;
+            sent = key;
+            console.log('__SHMMOTH_LOGIN_SUBMIT__:' + JSON.stringify({ username: usernameVal, password: pw.value }));
+          } catch (_) {}
+        }
+
+        // a button that sends the sign-in — not "show password", "forgot password" and the like
+        function isSignInButton(b) {
+          var text = ((b.textContent || '') + ' ' + (b.value || '') + ' ' + (b.getAttribute('aria-label') || '') + ' ' + (b.getAttribute('title') || '') + ' ' + (b.id || '')).toLowerCase();
+          if (/show|hide|eye|reveal|forgot|reset|cancel|back|close|register|sign.?up|create/.test(text)) return false;
+          if ((b.tagName === 'BUTTON' && b.form && (b.getAttribute('type') || 'submit').toLowerCase() === 'submit') || (b.type || '').toLowerCase() === 'submit') return true;
+          return /log.?in|sign.?in|submit|continue|next|proceed|verify|^\\s*(ok|go|enter)\\s*$/.test(text.trim());
+        }
 
         document.addEventListener('submit', function(e) {
-          try {
-            var form = e.target;
-            if (!form || typeof form.querySelectorAll !== 'function') return;
-            var pw = form.querySelector('input[type="password"]');
-            if (!pw || !pw.value) return;
-
-            var allInputs = Array.prototype.slice.call(form.querySelectorAll('input:not([type="password"]):not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"])'));
-            var userInput = allInputs.filter(function(input) {
-              var attr = ((input.name || '') + ' ' + (input.id || '') + ' ' + (input.type || '') + ' ' + (input.getAttribute('autocomplete') || '')).toLowerCase();
-              return /user|email|login|name|account/i.test(attr);
-            })[0] || allInputs[0];
-
-            var usernameVal = userInput ? (userInput.value || '').trim() : '';
-            var passwordVal = pw.value;
-
-            if (usernameVal && passwordVal) {
-              console.log('__SHMMOTH_LOGIN_SUBMIT__:' + JSON.stringify({
-                username: usernameVal,
-                password: passwordVal
-              }));
-            }
-          } catch (_) {}
+          var form = e.target;
+          if (form && typeof form.querySelectorAll === 'function') report(form);
+        }, true);
+        document.addEventListener('keydown', function(e) {
+          if (e.key !== 'Enter' || !e.isTrusted) return;
+          var el = e.target;
+          if (el && el.tagName === 'INPUT') report(scopeOf(el));
+        }, true);
+        document.addEventListener('click', function(e) {
+          if (!e.isTrusted || !e.target || typeof e.target.closest !== 'function') return;
+          var button = e.target.closest('button, input[type="submit"], input[type="button"], [role="button"]');
+          if (button && isSignInButton(button)) report(scopeOf(button));
         }, true);
       })();
     `).catch(() => {});
@@ -115,7 +161,7 @@ class PasswordsMethods {
   }
 
   /** The small "use a saved login" chooser next to a sign-in field. It never takes keyboard focus from the page. */
-  createPasswordAutofillBubble({ parent, x, y, width, height }) {
+  createPasswordAutofillBubble({ parent, x, y, width, height }, page = 'autofill-bubble.html') {
     const win = new BrowserWindow({
       width, height, x, y,
       parent,
@@ -134,7 +180,7 @@ class PasswordsMethods {
         preload: PRELOAD_INTERNAL
       }
     });
-    win.loadFile(path.join(SRC_DIR, 'pages', 'autofill-bubble.html'));
+    win.loadFile(path.join(SRC_DIR, 'pages', page));
     return win;
   }
 

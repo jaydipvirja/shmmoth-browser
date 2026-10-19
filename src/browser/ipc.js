@@ -945,6 +945,25 @@ class IpcMethods {
       return true;
     }));
 
+    // ── Form autofill chooser (only the chooser window itself may talk to it) ──
+    ipcMain.handle('formAutofill:getChooser', secureHandlerRaw((event) => {
+      return this.formAutofill ? this.formAutofill.getChooser(event.sender) : null;
+    }));
+
+    ipcMain.handle('formAutofill:choose', secureHandlerRaw(async (event, promptId, profileId) => {
+      if (!this.formAutofill) return { success: false, error: 'Unavailable' };
+      return this.formAutofill.choose(
+        sanitizeString(promptId || '', 64, 'promptId'),
+        sanitizeString(profileId || '', 64, 'profileId'),
+        event.sender
+      );
+    }));
+
+    ipcMain.handle('formAutofill:dismiss', secureHandlerRaw((event) => {
+      if (this.formAutofill && this.formAutofill._fromBubble(event.sender)) this.formAutofill.dismiss();
+      return true;
+    }));
+
     // ── Form Autofill (Stage 6) ──
     ipcMain.handle('autofill:getProfiles', secureHandlerRaw(() => {
       return this.autofillService ? this.autofillService.getProfiles() : [];
