@@ -455,7 +455,8 @@ async function runTests() {
       const r = await done;
       assert(r.ok, 'completed: ' + r.error);
       assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
-      assert(st.served <= SIZE - cp.doneBytes + 2 * 65536, `served ${st.served} again, ${cp.doneBytes} were already there`);
+      // idle connections may help with the last block (end game): at most one block again, never the whole file
+      assert(st.served <= SIZE - cp.doneBytes + cp.blockSize, `served ${st.served} again, ${cp.doneBytes} were already there`);
     } finally { srv.close(); }
   });
 
@@ -524,7 +525,8 @@ async function runTests() {
       assert(r2.ok, 'completed: ' + r2.error);
       assert(sha(fs.readFileSync(savePath)) === sha(st.body), 'file intact');
       for (const [i, n] of cp.partial) assert(ranges.includes(i * cp.blockSize + n), `block ${i} continued at byte ${n}: ${ranges.join(',')}`);
-      assert(st.served <= SIZE - cp.doneBytes + 4 * 65536, `served ${st.served} again, ${cp.doneBytes} were there`);
+      // at most one block again (end game); the half-done blocks were checked above to continue from their middle
+      assert(st.served <= SIZE - cp.doneBytes + cp.blockSize, `served ${st.served} again, ${cp.doneBytes} were there`);
     } finally { srv.close(); }
   });
 
