@@ -52,7 +52,14 @@ runSuite('SHMMOTH Browser — E2E 20: every screen, captured', async (t) => {
       // the newest one (a page opened again for the other theme, not the one from before)
       const wc = webContents.getAllWebContents().filter((w) => w.getURL().startsWith(prefix)).sort((a, b) => b.id - a.id)[0];
       if (!wc) throw new Error('no web contents at ' + prefix);
-      const image = await wc.capturePage();
+      // the compositor can refuse one capture for a moment on a busy runner ("UnknownVizError"): try again
+      let image;
+      for (let attempt = 0; ; attempt++) {
+        try { image = await wc.capturePage(); break; } catch (err) {
+          if (attempt >= 2 || !/Viz/i.test(String(err && err.message))) throw err;
+          await new Promise((r) => setTimeout(r, 400));
+        }
+      }
       const size = image.getSize();
       const png = image.toPNG().toString('base64');
       const bmp = image.toBitmap();
