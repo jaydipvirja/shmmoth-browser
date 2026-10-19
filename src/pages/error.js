@@ -7,6 +7,8 @@ const code = parseInt(params.get('code'), 10) || 0;
 const name = (params.get('name') || '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 64);
 const rawUrl = params.get('url') || '';
 const failedUrl = /^https?:\/\//i.test(rawUrl) ? rawUrl : '';
+// HTTPS-Only asked for this http address over https, and the site has no working https (services/privacyShield.js)
+const noHttps = params.get('https') === '1' && /^http:\/\//i.test(failedUrl);
 
 const CHECK_CONNECTION = ['Check your network cables, modem and router', 'Reconnect to your Wi-Fi network'];
 
@@ -37,7 +39,9 @@ function describe(c) {
   return GENERIC;
 }
 
-const info = describe(code);
+const NO_HTTPS = { icon: 'lock', title: 'This site does not offer a secure connection', desc: 'SHMMOTH Browser asked for this page over a secure connection (HTTPS-Only), and the site does not offer one. If you continue, what you send and see on this site can be read or changed by others on the network.', hints: ['Do not enter passwords, card numbers or other private information on this site', 'HTTPS-Only can be switched off in Settings → Ad-Blocker & Privacy'] };
+
+const info = noHttps ? NO_HTTPS : describe(code);
 let host = '';
 try { host = new URL(failedUrl).host; } catch (_) { /* no valid address */ }
 
@@ -67,7 +71,12 @@ document.getElementById('code').textContent = `Error code: ${name || 'ERR_FAILED
 document.title = host || info.title;
 
 const retry = document.getElementById('btn-retry');
-if (failedUrl) {
+if (noHttps) {
+  // the browser lets exactly this address through over http when it comes from this page (until it is closed)
+  retry.textContent = 'Continue to the site (not secure)';
+  retry.classList.replace('btn-primary', 'btn-secondary');
+  retry.addEventListener('click', () => { window.location.href = failedUrl; });
+} else if (failedUrl) {
   retry.addEventListener('click', () => { window.location.href = failedUrl; });
 } else {
   retry.classList.add('hidden');

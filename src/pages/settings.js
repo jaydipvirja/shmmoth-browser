@@ -27,6 +27,13 @@ const selectStartup = document.getElementById('select-startup');
 const toggleBookmarksBar = document.getElementById('toggle-bookmarks-bar');
 const toggleAdblocker = document.getElementById('toggle-adblocker');
 const togglePasswordAutofill = document.getElementById('toggle-password-autofill');
+// privacy shield (services/privacyShield.js): switch → setting
+const PRIVACY_TOGGLES = {
+  'toggle-privacy-cookies': 'privacyBlockThirdPartyCookies',
+  'toggle-privacy-params': 'privacyStripTrackingParams',
+  'toggle-privacy-gpc': 'privacyGpc',
+  'toggle-privacy-https': 'privacyHttpsOnly'
+};
 const toggleMica = document.getElementById('toggle-mica');
 const togglePopups = document.getElementById('toggle-popups');
 const adblockEngineStatus = document.getElementById('adblock-engine-status');
@@ -227,6 +234,11 @@ async function initSettings() {
       if (togglePasswordAutofill) togglePasswordAutofill.checked = currentSettings.passwordAutofillEnabled !== false;
       if (toggleMica) toggleMica.checked = currentSettings.micaEffect === true;
       if (togglePopups) togglePopups.checked = currentSettings.popupBlockerEnabled !== false;
+      for (const [id, key] of Object.entries(PRIVACY_TOGGLES)) {
+        const el = document.getElementById(id);
+        if (el) el.checked = currentSettings[key] !== false;
+      }
+      renderCookieSites(currentSettings.privacyCookieAllowSites);
       if (inputCustomFilters) inputCustomFilters.value = typeof currentSettings.adBlockerCustomFilters === 'string' ? currentSettings.adBlockerCustomFilters : '';
       loadAdBlockerStatus();
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
@@ -332,6 +344,43 @@ if (btnUpdateFilterLists) {
 
 if (togglePopups) {
   togglePopups.addEventListener('change', () => saveSettingChange({ popupBlockerEnabled: togglePopups.checked }));
+}
+
+for (const [id, key] of Object.entries(PRIVACY_TOGGLES)) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => saveSettingChange({ [key]: el.checked }));
+}
+
+/** The sites allowed cross-site cookies, each with a Remove button (built with DOM calls). */
+function renderCookieSites(list) {
+  const ul = document.getElementById('privacy-cookie-sites');
+  if (!ul) return;
+  ul.replaceChildren();
+  const sites = Array.isArray(list) ? list : [];
+  if (!sites.length) {
+    const li = document.createElement('li');
+    li.className = 'setting-desc';
+    li.textContent = 'None.';
+    ul.appendChild(li);
+    return;
+  }
+  for (const site of sites) {
+    const li = document.createElement('li');
+    li.className = 'cookie-site';
+    li.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;';
+    const name = document.createElement('span');
+    name.textContent = site;
+    const btn = document.createElement('button');
+    btn.className = 'btn-secondary';
+    btn.textContent = 'Remove';
+    btn.addEventListener('click', async () => {
+      const rest = sites.filter((s) => s !== site);
+      await saveSettingChange({ privacyCookieAllowSites: rest });
+      renderCookieSites(rest);
+    });
+    li.append(name, btn);
+    ul.appendChild(li);
+  }
 }
 
 if (btnSaveCustomFilters) {
@@ -1478,6 +1527,10 @@ btnResetDefaults.addEventListener('click', async () => {
       adBlockerEnabled: true,
       passwordAutofillEnabled: true,
       popupBlockerEnabled: true,
+      privacyBlockThirdPartyCookies: true,
+      privacyStripTrackingParams: true,
+      privacyGpc: true,
+      privacyHttpsOnly: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
       theme: 'dark',

@@ -166,6 +166,76 @@
 
           <div class="setting-row">
             <div class="setting-info">
+              <label class="setting-label" for="toggle-privacy-cookies">Block cross-site cookies</label>
+              <span class="setting-desc">Other sites inside a page (ads, social buttons, trackers) can neither read nor set cookies, so they cannot follow you from site to site, like Safari. Sites of one company count as one (google.com and youtube.com, so signing in keeps working). If a site breaks (a payment or a comment box), allow it from the shield icon on that site.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-privacy-cookies" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-privacy-params">Remove tracking from links</label>
+              <span class="setting-desc">Click identifiers such as utm_source, fbclid, gclid and igshid are removed from a page's address before it opens. The page itself is the same.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-privacy-params" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-privacy-gpc">Tell sites not to sell or share my data</label>
+              <span class="setting-desc">Sends Global Privacy Control (Sec-GPC) with every request, which sites must honour in several places by law.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-privacy-gpc" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-privacy-https">HTTPS-Only</label>
+              <span class="setting-desc">Pages are always asked for over a secure connection. When a site has none, you are told and can continue (local addresses such as your router are left alone).</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-privacy-https" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="setting-info">
+              <label class="setting-label">Sites allowed cross-site cookies</label>
+              <span class="setting-desc">Allowed from the shield icon. Other sites keep blocking them. Wherever a page is opened from, another site only learns which site it came from, never the page.</span>
+              <ul id="privacy-cookie-sites" class="check-list" style="margin-top:8px;"></ul>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
               <label class="setting-label">Filter lists</label>
               <span class="setting-desc" id="adblock-engine-status">Checking…</span>
               <span class="setting-desc" id="adblock-engine-failed" style="display:none;"></span>

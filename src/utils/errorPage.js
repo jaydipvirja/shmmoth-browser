@@ -25,9 +25,16 @@ function shouldShowErrorPage({ errorCode, validatedURL, isMainFrame } = {}) {
   return typeof validatedURL === 'string' && /^https?:\/\//i.test(validatedURL);   // never for mtc://, file:, … (no loops)
 }
 
-/** mtc://error?code=-105&name=ERR_NAME_NOT_RESOLVED&url=<failed address> */
-function buildErrorPageUrl(errorCode, errorName, failedUrl) {
+/**
+ * mtc://error?code=-105&name=ERR_NAME_NOT_RESOLVED&url=<failed address>
+ * `httpUrl`: the page was an HTTPS-Only upgrade of this http address that has no working https (https=1&url=<http>:
+ * the page offers to continue over http, and only that address is let through — services/privacyShield.js)
+ */
+function buildErrorPageUrl(errorCode, errorName, failedUrl, httpUrl = '') {
   const name = String(errorName || '').replace(/^net::/i, '').replace(/[^A-Za-z0-9_]/g, '').slice(0, 64);
+  if (httpUrl && /^http:\/\//i.test(httpUrl)) {
+    return `mtc://error?code=${Number(errorCode) | 0}&name=${encodeURIComponent(name)}&https=1&url=${encodeURIComponent(String(httpUrl).slice(0, MAX_URL))}`;
+  }
   return `mtc://error?code=${Number(errorCode) | 0}&name=${encodeURIComponent(name)}&url=${encodeURIComponent(String(failedUrl).slice(0, MAX_URL))}`;
 }
 

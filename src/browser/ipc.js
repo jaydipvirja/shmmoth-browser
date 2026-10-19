@@ -22,7 +22,8 @@ const {
   log,
   securityLogger,
   displayUrl,
-  secureDns
+  secureDns,
+  siteOf
 } = require('./shared');
 const { normalizeTheme } = require('../services/theme');
 const { supportsMica } = require('../services/windowMaterial');
@@ -313,6 +314,7 @@ class IpcMethods {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
       if (delta.micaEffect !== undefined) this.applyWindowMaterial();
+      if (delta.privacyGpc !== undefined) this.applyGpcPreload();
       if (delta.showBookmarksBar !== undefined) {
         this.updateHeaderHeight(true);
         this.updateViewBounds();
@@ -1337,6 +1339,29 @@ class IpcMethods {
         paused: Boolean(host && this.adBlocker && this.adBlocker.isSitePaused(host)),
         enabled: Boolean(this.adBlocker && this.adBlocker.isEnabled)
       };
+    }));
+
+    // cross-site cookies on the shield's site (privacy shield): blocked, or allowed by the user for that site
+    ipcMain.handle('privacy:getSite', secureHandlerRaw((event) => {
+      const { host } = shieldTarget(event);
+      const site = host ? siteOf(host) : '';
+      const s = this.storage.getSettings();
+      return {
+        site,
+        canChange: Boolean(site && this.privacyShield),
+        enabled: s.privacyBlockThirdPartyCookies !== false,
+        allowed: Boolean(site && this.privacyShield && this.privacyShield.allowsCrossSiteCookies(site))
+      };
+    }));
+
+    ipcMain.handle('privacy:setSiteCookies', secureHandlerRaw((event, allowed) => {
+      const { tabId, host } = shieldTarget(event);
+      const site = host ? siteOf(host) : '';
+      if (!site || !this.privacyShield) return { success: false, error: 'Only available on websites.' };
+      this.privacyShield.setCrossSiteCookiesAllowed(site, allowed === true);
+      this.broadcastSettingsUpdated(this.storage.getSettings());
+      this.reloadTab(tabId);
+      return { success: true, site, allowed: this.privacyShield.allowsCrossSiteCookies(site) };
     }));
 
     // reload the page the shield bubble belongs to (after the master switch changed)

@@ -219,7 +219,7 @@ class BubblesMethods {
     if (!parentWin || parentWin.isDestroyed()) return false;
 
     const width = 300;
-    const height = 330;
+    const height = 400;                    // 1.5.0: one more card (cross-site cookies on this site)
     const winBounds = parentWin.getBounds();
 
     let x, y;

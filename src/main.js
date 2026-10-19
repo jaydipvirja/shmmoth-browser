@@ -35,6 +35,8 @@ const {
   PasswordVault,
   PasswordAutofill,
   FormAutofill,
+  PrivacyShield,
+  webRequestHub,
   AutofillService,
   ProxyManager,
   ExtensionManager,
@@ -102,6 +104,7 @@ class ShmmothBrowserApp {
     this.passwordVault = null;
     this.passwordAutofill = null;
     this.formAutofill = null;
+    this.privacyShield = null;
     this.passwordGate = null;
     this.autofillService = null;
     this.proxyManager = null;
@@ -173,6 +176,17 @@ class ShmmothBrowserApp {
     this.googleSignIn = new GoogleSignIn({
       storage: this.storage, platform: process.platform, chromeVersion: process.versions.chrome, appVersion: app.getVersion(), log
     });
+    // Privacy shield (cross-site cookies, link tracking, GPC, referrer, HTTPS-Only). The request hub goes in first: the
+    // sign-in rules below and the ad blocker then share the session's request events with it (services/webRequestHub.js)
+    this.privacyShield = new PrivacyShield({
+      getSettings: () => this.storage.getSettings(),
+      updateSettings: (delta) => this.storage.updateSettings(delta),
+      log
+    });
+    this.privacyShield.attach(webRequestHub.install(session.defaultSession), 'default');
+    this.privacyShield.attach(webRequestHub.install(session.fromPartition('incognito')), 'incognito');
+    this.applyGpcPreload();
+
     this.setupSignInClientHints(session.defaultSession);
     this.setupSignInClientHints(session.fromPartition('incognito'));
 
