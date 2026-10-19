@@ -52,12 +52,20 @@ runSuite('SHMMOTH Browser — E2E 20: every screen, captured', async (t) => {
       // the newest one (a page opened again for the other theme, not the one from before)
       const wc = webContents.getAllWebContents().filter((w) => w.getURL().startsWith(prefix)).sort((a, b) => b.id - a.id)[0];
       if (!wc) throw new Error('no web contents at ' + prefix);
-      // the compositor can refuse one capture for a moment on a busy runner ("UnknownVizError"): try again
+      // on a busy Windows runner the compositor can refuse a capture ("UnknownVizError") or never answer it (the
+      // first frame was not drawn yet): give it 15 s, ask for a new frame and try again
       let image;
       for (let attempt = 0; ; attempt++) {
-        try { image = await wc.capturePage(); break; } catch (err) {
+        try {
+          image = await Promise.race([
+            wc.capturePage(),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('capturePage did not answer (Viz)')), 15000))
+          ]);
+          break;
+        } catch (err) {
           if (attempt >= 2 || !/Viz/i.test(String(err && err.message))) throw err;
-          await new Promise((r) => setTimeout(r, 400));
+          try { wc.invalidate(); } catch (_) { /* gone */ }
+          await new Promise((r) => setTimeout(r, 500));
         }
       }
       const size = image.getSize();
