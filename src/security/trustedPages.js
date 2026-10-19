@@ -30,6 +30,7 @@ const TRUSTED_FILES = Object.freeze([
   ['pages', 'permission-bubble.html'],
   ['pages', 'password-bubble.html'],
   ['pages', 'autofill-bubble.html'],
+  ['pages', 'form-autofill-bubble.html'],
   ['pages', 'menu-bubble.html'],
 ]);
 

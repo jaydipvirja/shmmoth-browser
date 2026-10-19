@@ -134,9 +134,9 @@ class WindowsMethods {
     };
 
     this.mainWindow.on('resize',     () => this.throttledUpdateViewBounds(this.mainWindow));
-    this.mainWindow.on('resize',     () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
-    this.mainWindow.on('move',       () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
-    this.mainWindow.on('minimize',   () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); });
+    this.mainWindow.on('resize',     () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
+    this.mainWindow.on('move',       () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
+    this.mainWindow.on('minimize',   () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
     this.mainWindow.on('maximize',   () => {
       broadcastWindowState(true);
       setTimeout(() => this.updateViewBounds(), 50);

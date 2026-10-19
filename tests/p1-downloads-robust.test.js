@@ -544,6 +544,7 @@ async function main() {
 
       // the browser is closed and opened again
       const m2 = newManager(storage, null);
+      m2.getTurboThreads = () => 4;                 // as many connections as before the restart: few end-game copies
       const back = m2.getDownloads().find((d) => d.id === rec.id);
       eq(back.state, 'interrupted'); eq(back.resumable, true, 'resumable after the restart');
       eq(back.received, cut.resume.doneBytes, 'shows what is already there');
@@ -552,7 +553,8 @@ async function main() {
       await until(() => m2.downloads[rec.id].state === 'completed', 10000, 'the resumed download to complete');
       eq(sha(fs.readFileSync(savePath)), sha(payload), 'file intact');
       // idle connections help with the last blocks (end game): at most a block or two again, never the whole file
-      assert(served <= SIZE - cut.resume.doneBytes + 2 * cut.resume.blockSize, `served ${served} again, ${cut.resume.doneBytes} were there`);
+      // (+1: the one-byte test request before it continues)
+      assert(served <= SIZE - cut.resume.doneBytes + 2 * cut.resume.blockSize + 1, `served ${served} again, ${cut.resume.doneBytes} were there`);
       assert(!fs.existsSync(savePath + '.shmmoth-part'), 'no part file left');
       eq(m2.downloads[rec.id].resumable, false, 'not resumable once complete');
     } finally { await srv.close(); }

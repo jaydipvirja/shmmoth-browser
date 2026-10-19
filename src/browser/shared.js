@@ -18,6 +18,7 @@ const RamSaverService  = require('../services/ramSaver');
 const DownloadManager  = require('../services/downloadManager');
 const { PasswordVault }   = require('../services/passwordVault');
 const { PasswordAutofill } = require('../services/passwordAutofill');
+const { FormAutofill } = require('../services/formAutofill');
 const { AutofillService } = require('../services/autofillService');
 const { ProxyManager }    = require('../services/proxyManager');
 const ExtensionManager    = require('../services/extensionManager');
@@ -104,6 +105,7 @@ module.exports = {
   MTC_PAGE_CSP,
   net,
   PasswordAutofill,
+  FormAutofill,
   PasswordGate,
   PasswordVault,
   path,

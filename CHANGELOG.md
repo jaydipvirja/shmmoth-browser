@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.4.7
+
+- **Address autofill now fills web forms.** The profiles of *Settings → Autofill* (name, email, phone, address, city, state, country, PIN code) were saved but never filled into a page. Now, clicking such a field on a page (a checkout, a sign-up, a delivery address …) shows your saved profiles next to it. Picking one fills the empty fields of that form: first and last name, email, phone, address, city, state and country (also in drop-down lists) and PIN code. Nothing reaches the page before you pick, nothing is submitted, and search, coupon, password, card and one-time-code fields, the second address line and fields that already have text are left alone. Not in Incognito windows.
+- **Passwords of sites that sign in with a script are saved too.** SHMMOTH offered to save a password only when a sign-in form was really submitted, but most sites sign in with a script, so their passwords were never offered and could never be filled in later. Now the *Sign in* / *Log in* / *Next* button and Enter in the password field count as well (*Show password* and *Forgot password* do not). On a two-step sign-in (email first, password on the next page) the email of the first step is used.
+
 ## 1.4.6
 
 - **Resume no longer downloads a half-finished part again.** A fast download is fetched in parts of 1–8 MB over several connections. When it stopped, 1.4.5 kept the finished parts, but each part that was still being downloaded started again from its beginning on *Resume* (up to 8 MB per connection). Now every part continues from its last byte on the disk, like IDM.

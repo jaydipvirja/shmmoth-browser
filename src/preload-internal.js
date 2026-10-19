@@ -187,6 +187,9 @@ const apiSurface = {
   getPasswordAutofillChooser: ()                           => ipcRenderer.invoke('passwordAutofill:getChooser'),
   choosePasswordAutofill:     (promptId, credentialId)     => ipcRenderer.invoke('passwordAutofill:choose', promptId, credentialId),
   dismissPasswordAutofill:    ()                           => ipcRenderer.invoke('passwordAutofill:dismiss'),
+  getFormAutofillChooser:     ()                           => ipcRenderer.invoke('formAutofill:getChooser'),
+  chooseFormAutofill:         (promptId, profileId)        => ipcRenderer.invoke('formAutofill:choose', promptId, profileId),
+  dismissFormAutofill:        ()                           => ipcRenderer.invoke('formAutofill:dismiss'),
 
   // ─── Form Autofill (Stage 6) ──────────────────────────────────────────────────
   getAutofillProfiles:        ()                           => ipcRenderer.invoke('autofill:getProfiles'),
@@ -260,6 +263,7 @@ const TRUSTED_FILE_SUFFIXES = [
   '/pages/permission-bubble.html',
   '/pages/password-bubble.html',
   '/pages/autofill-bubble.html',
+  '/pages/form-autofill-bubble.html',
   '/pages/menu-bubble.html',
 ];
 

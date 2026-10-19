@@ -184,6 +184,7 @@ class TabsMethods {
       if (isMainFrame) {
         updateTabUa(navUrl);
         if (!isInPlace && this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
+        if (!isInPlace && this.formAutofill) this.formAutofill.forgetTab(tabId);
       }
     });
 
@@ -436,17 +437,31 @@ class TabsMethods {
     wc.on('console-message', function onConsoleMessage(event) {
       const message = (event && typeof event.message === 'string') ? event.message : arguments[2];
       if (browserApp.passwordAutofill && browserApp.passwordAutofill.handleConsoleMessage(tabId, message)) return;
+      if (browserApp.formAutofill && browserApp.formAutofill.handleConsoleMessage(tabId, message)) return;
       // YouTube's anti-adblock notice appeared (the YouTube page script below): get its newest fixes (rate-limited)
       if (message === '__SHMMOTH_YT_ENFORCEMENT__') {
         if (browserApp.adBlocker) browserApp.adBlocker.onYouTubeEnforcement();
         return;
       }
+      // the user name of a two-step sign-in's first page, for the password that follows on the next one
+      if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_USER__:') && message.length < 600) {
+        try {
+          const payload = JSON.parse(message.slice(23));
+          if (payload && typeof payload.username === 'string' && payload.username && tabData.url) {
+            tabData.lastLoginUser = { origin: new URL(tabData.url).origin, username: payload.username.slice(0, 256), at: Date.now() };
+          }
+        } catch (_) {}
+        return;
+      }
       if (typeof message === 'string' && message.startsWith('__SHMMOTH_LOGIN_SUBMIT__:')) {
         try {
           const payload = JSON.parse(message.slice(25));
-          if (payload && payload.username && payload.password && tabData.url) {
+          if (payload && payload.password && tabData.url) {
             const origin = new URL(tabData.url).origin;
-            browserApp.offerPasswordSave(tabId, origin, payload.username, payload.password);
+            let username = typeof payload.username === 'string' ? payload.username : '';
+            const remembered = tabData.lastLoginUser;
+            if (!username && remembered && remembered.origin === origin && Date.now() - remembered.at < 10 * 60 * 1000) username = remembered.username;
+            if (username) browserApp.offerPasswordSave(tabId, origin, username, payload.password);
           }
         } catch (_) {}
       }
@@ -456,6 +471,7 @@ class TabsMethods {
       this._applyYouTubeOptimizer(wc, tabData.url);
       this._attachCredentialAndAutofillHooks(wc, tabData);
       if (this.passwordAutofill) this.passwordAutofill.attach(wc, tabId, tabData);
+      if (this.formAutofill) this.formAutofill.attach(wc, tabId, tabData);
     });
 
     wc.on('did-navigate-in-page', (_, navUrl) => {
@@ -724,6 +740,7 @@ class TabsMethods {
     this.closeMenuBubble();
     this.closeDownloadBubble();
     if (this.passwordAutofill) this.passwordAutofill.dismiss();
+    if (this.formAutofill) this.formAutofill.dismiss();
 
     const isIncognito = Boolean(currentTab.isIncognito);
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
@@ -801,6 +818,7 @@ class TabsMethods {
     this.closeExtensionBubble();
     this.closeShieldBubble();
     if (this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
+    if (this.formAutofill) this.formAutofill.forgetTab(tabId);
     try { if (this.popupPolicy && tabData.view && tabData.view.webContents) this.popupPolicy.forget(tabData.view.webContents.id); } catch (_) {}
 
     const isIncognito = Boolean(tabData.isIncognito);

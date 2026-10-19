@@ -76,7 +76,8 @@ runSuite('SHMMOTH Browser — E2E 12: right-click on video & clipboard', async (
       const outcome = await app.evaluate(({ webContents }, url) => webContents.getAllWebContents().find((w) => w.getURL().startsWith(url))
         .executeJavaScript("navigator.clipboard.writeText('COPIED-BY-THE-PAGE').then(() => 'ok', (e) => e.name + ': ' + e.message)", true), url);
       assertEqual(outcome, 'ok');
-      assertEqual(await app.evaluate(({ clipboard }) => clipboard.readText()), 'COPIED-BY-THE-PAGE');
+      // Windows hands the new text to other readers a moment later (the clipboard can be held by another process)
+      await waitFor(async () => (await app.evaluate(({ clipboard }) => clipboard.readText())) === 'COPIED-BY-THE-PAGE', { message: 'the page\'s text on the clipboard', timeout: 5000 });
       assertEqual(await evalIn(app, url, "navigator.permissions.query({ name: 'clipboard-write' }).then((p) => p.state)"), 'granted');
     });
 
