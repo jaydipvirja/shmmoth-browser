@@ -32,7 +32,8 @@ const PRIVACY_TOGGLES = {
   'toggle-privacy-cookies': 'privacyBlockThirdPartyCookies',
   'toggle-privacy-params': 'privacyStripTrackingParams',
   'toggle-privacy-gpc': 'privacyGpc',
-  'toggle-privacy-https': 'privacyHttpsOnly'
+  'toggle-privacy-https': 'privacyHttpsOnly',
+  'toggle-privacy-fingerprint': 'privacyFingerprintProtection'
 };
 const toggleMica = document.getElementById('toggle-mica');
 const togglePopups = document.getElementById('toggle-popups');
@@ -349,6 +350,12 @@ if (togglePopups) {
 for (const [id, key] of Object.entries(PRIVACY_TOGGLES)) {
   const el = document.getElementById(id);
   if (el) el.addEventListener('change', () => saveSettingChange({ [key]: el.checked }));
+}
+const btnPrivacyReport = document.getElementById('btn-open-privacy-report');
+if (btnPrivacyReport) {
+  btnPrivacyReport.addEventListener('click', () => {
+    if (window.mtcAPI && window.mtcAPI.navigateCurrentTab) window.mtcAPI.navigateCurrentTab('mtc://privacy');
+  });
 }
 
 /** The sites allowed cross-site cookies, each with a Remove button (built with DOM calls). */
@@ -1531,6 +1538,7 @@ btnResetDefaults.addEventListener('click', async () => {
       privacyStripTrackingParams: true,
       privacyGpc: true,
       privacyHttpsOnly: true,
+      privacyFingerprintProtection: true,
       ramSaverEnabled: true,
       ramSaverTimeoutMinutes: 15,
       theme: 'dark',

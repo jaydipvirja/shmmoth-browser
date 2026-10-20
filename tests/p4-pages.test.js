@@ -17,7 +17,7 @@ function test(name, fn) {
 const assert = (c, m) => { if (!c) throw new Error(m || 'Assertion failed'); };
 const read = (...p) => fs.readFileSync(path.join(__dirname, '..', 'src', 'pages', ...p), 'utf8');
 
-const PAGES = ['history', 'bookmarks', 'downloads', 'extensions', 'notes', 'error', 'crash'];
+const PAGES = ['history', 'bookmarks', 'downloads', 'extensions', 'notes', 'error', 'crash', 'privacy'];
 const EMOJI = /[\u{1F300}-\u{1FAFF}☀-➿⬀-⯿⏩-⏺]/u;
 const icons = read('icons.js');
 const iconNames = [...icons.matchAll(/^\s+'?([a-z-]+)'?:\s+\[\[/gm)].map((m) => m[1]);

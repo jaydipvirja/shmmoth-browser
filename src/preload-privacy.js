@@ -1,13 +1,19 @@
-// Runs in EVERY frame of every web page while Global Privacy Control is on (Settings → Ad-Blocker & Privacy). Registered
-// by browser/network.js with session.registerPreloadScript, type "frame".
-// Pages read navigator.globalPrivacyControl to learn that the user does not want their data sold or shared; the request
-// header (Sec-GPC: 1) is added by services/privacyShield.js. webFrame.executeJavaScript runs this in the page itself,
-// before the page's own scripts.
+// Runs in EVERY frame of every web page (registered by browser/network.js with session.registerPreloadScript, type
+// "frame"). It asks the browser what this page gets before its own scripts run (services/privacyShield.js
+// pageScripts): navigator.globalPrivacyControl (Global Privacy Control) and fingerprinting protection with this site's
+// seed (services/fingerprintShield.js). webFrame.executeJavaScript runs them in the page itself, before the page's
+// own scripts. A sandboxed preload cannot load other files, so the browser sends the code.
 'use strict';
-const { webFrame } = require('electron');
+const { ipcRenderer, webFrame } = require('electron');
 
 try {
-  if (/^https?:/i.test(String(location.href || ''))) {
-    webFrame.executeJavaScript("try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:function(){return true},configurable:true,enumerable:true})}catch(e){}").catch(() => {});
+  const href = String(location.href || '');
+  if (/^https?:|^about:blank/i.test(href)) {
+    const scripts = ipcRenderer.sendSync('shmmoth:privacy-page', href);
+    if (Array.isArray(scripts)) {
+      for (const code of scripts) {
+        if (typeof code === 'string' && code) webFrame.executeJavaScript(code).catch(() => {});
+      }
+    }
   }
-} catch (_) { /* the header still says it */ }
+} catch (_) { /* the request headers still protect the page */ }

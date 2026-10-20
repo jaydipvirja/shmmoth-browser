@@ -57,11 +57,14 @@ class NetworkMethods {
 
   /**
    * WebRTC can open UDP sockets that bypass an HTTP/SOCKS proxy and reveal the real IP.
-   * With a manual proxy only proxied UDP is allowed; otherwise Chromium's default is kept.
+   * With a manual proxy only proxied UDP is allowed; otherwise only the default route's public address is used while
+   * fingerprinting protection is on (pages never see the local network's addresses), else Chromium's default.
    */
   _webRtcPolicyForProxy() {
     const cfg = this.proxyManager ? this.proxyManager.getConfig() : null;
-    return cfg && cfg.mode === 'manual' ? 'disable_non_proxied_udp' : 'default';
+    if (cfg && cfg.mode === 'manual') return 'disable_non_proxied_udp';
+    // fingerprinting protection: calls still connect, but pages never learn the computer's local network addresses
+    return this.privacyShield ? this.privacyShield.webRtcPolicy() : 'default';
   }
 
   _applyWebRtcPolicy(wc) {
@@ -79,9 +82,7 @@ class NetworkMethods {
       await this.proxyManager.applyToSession(sess);
     }
     await this.refreshSystemProxyState();
-    for (const tab of Object.values(this.tabs)) {
-      if (tab && tab.view) this._applyWebRtcPolicy(tab.view.webContents);
-    }
+    this.refreshWebRtcPolicies();
   }
 
   /**
@@ -315,18 +316,39 @@ class NetworkMethods {
   }
 
   /** Every frame of every web page of the session reports real clicks / key presses (see services/popupPolicy.js). */
-  /** navigator.globalPrivacyControl in every page while GPC is on (preload-privacy.js), in the normal and incognito session. */
-  applyGpcPreload() {
-    if (!this._gpcPreloads) this._gpcPreloads = new Map();
-    const on = this.storage.getSettings().privacyGpc !== false;
-    for (const sess of [session.defaultSession, session.fromPartition('incognito')]) {
-      const id = this._gpcPreloads.get(sess);
+  /**
+   * The privacy shield's page side (preload-privacy.js) in every frame of the normal and incognito session. The
+   * preload asks which scripts the page gets (Global Privacy Control, fingerprinting protection with the site's seed):
+   * the answer follows the settings at the moment each page loads, so nothing has to be registered again on a change.
+   */
+  registerPrivacyPreload() {
+    const { ipcMain } = require('electron');
+    ipcMain.removeAllListeners('shmmoth:privacy-page');
+    ipcMain.on('shmmoth:privacy-page', (event, href) => {
+      let scripts = [];
       try {
-        if (on && !id) this._gpcPreloads.set(sess, sess.registerPreloadScript({ type: 'frame', filePath: path.join(SRC_DIR, 'preload-privacy.js') }));
-        if (!on && id) { sess.unregisterPreloadScript(id); this._gpcPreloads.delete(sess); }
+        const wc = event.sender;
+        const frame = event.senderFrame;
+        const isTop = !frame || !frame.parent;
+        const topUrl = isTop ? String(href || '') : wc.getURL();
+        const partition = wc.session === session.fromPartition('incognito') ? 'incognito' : 'default';
+        scripts = this.privacyShield ? this.privacyShield.pageScripts(topUrl, partition) : [];
+      } catch (_) { scripts = []; }
+      event.returnValue = scripts;
+    });
+    for (const sess of [session.defaultSession, session.fromPartition('incognito')]) {
+      try {
+        sess.registerPreloadScript({ type: 'frame', filePath: path.join(SRC_DIR, 'preload-privacy.js') });
       } catch (err) {
-        log.warn('Could not update the Global Privacy Control script', { error: err.message });
+        log.warn('Could not register the privacy script', { error: err.message });
       }
+    }
+  }
+
+  /** WebRTC of every open tab again (the proxy or fingerprinting protection changed). */
+  refreshWebRtcPolicies() {
+    for (const tab of Object.values(this.tabs)) {
+      if (tab && tab.view) this._applyWebRtcPolicy(tab.view.webContents);
     }
   }
 

@@ -117,6 +117,9 @@ const apiSurface = {
   setAdBlockSite:     (paused) => ipcRenderer.invoke('adblocker:setSite', paused === true),
   getPrivacySite:     () => ipcRenderer.invoke('privacy:getSite'),
   setPrivacySiteCookies: (allowed) => ipcRenderer.invoke('privacy:setSiteCookies', allowed === true),
+  getShieldPageCount: () => ipcRenderer.invoke('privacy:getPageCount'),
+  getPrivacyReport:   () => ipcRenderer.invoke('privacy:getReport'),
+  clearPrivacyReport: () => ipcRenderer.invoke('privacy:clearReport'),
   reloadAdBlockPage:  () => ipcRenderer.invoke('adblocker:reloadPage'),
 
   // ─── Cache ───────────────────────────────────────────────────────────────────

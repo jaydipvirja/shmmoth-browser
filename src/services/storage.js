@@ -47,6 +47,7 @@ class StorageService {
         privacyStripTrackingParams:    true,   // utm_…, fbclid, gclid … removed from page addresses
         privacyGpc:                    true,   // Global Privacy Control: "do not sell or share my data"
         privacyHttpsOnly:              true,   // http:// pages are asked for over https:// first
+        privacyFingerprintProtection:  true,   // canvas / audio / WebGL / hardware read-outs differ per site (1.5.1)
         privacyCookieAllowSites:       [],     // sites the user allowed cross-site cookies on (shield)
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',

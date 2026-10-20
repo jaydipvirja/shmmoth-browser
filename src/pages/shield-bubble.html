@@ -192,6 +192,7 @@
       display: flex;
       align-items: center;
       padding: 0 12px;
+      gap: 6px;
       flex-shrink: 0;
     }
 
@@ -231,7 +232,7 @@
     <div class="bubble-body">
       <div class="shield-badge-hero">
         <div id="shield-count" class="shield-count">0</div>
-        <div class="shield-label">Ads & Trackers Blocked</div>
+        <div class="shield-label">Blocked on this page</div>
       </div>
 
       <div class="toggle-card">
@@ -258,7 +259,7 @@
 
       <div class="toggle-card" id="cookie-card" style="margin-top:8px;">
         <div class="toggle-text" style="min-width:0;">
-          <strong>Cross-site cookies</strong>
+          <strong>Tracking protection</strong>
           <span id="cookie-status-sub" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">—</span>
         </div>
         <label class="switch">
@@ -269,9 +270,13 @@
     </div>
 
     <div class="bubble-footer">
+      <button id="btn-report" class="btn-settings-link">
+        <span class="sh-icon" data-icon="shield" aria-hidden="true"></span>
+        <span>Privacy Report</span>
+      </button>
       <button id="btn-settings" class="btn-settings-link">
         <span class="sh-icon" data-icon="settings" aria-hidden="true"></span>
-        <span>Privacy & Shield Settings</span>
+        <span>Settings</span>
       </button>
     </div>
   </div>
@@ -291,8 +296,9 @@
     async function init() {
       if (!api) return;
       try {
-        if (api.getAdsBlockedCount) {
-          const count = await api.getAdsBlockedCount();
+        // what was stopped on the page of this tab (blocked requests + cross-site cookies withheld)
+        if (api.getShieldPageCount) {
+          const count = await api.getShieldPageCount();
           shieldCount.textContent = count || 0;
         }
         if (api.getSettings) {
@@ -329,7 +335,8 @@
       }
     }
 
-    // "Cross-site cookies": on = blocked on this site (the default), off = the user allowed them here
+    // "Tracking protection": on = cross-site cookies blocked and fingerprinting protection on this site (the default),
+    // off = the user relaxed both here (a site that breaks with them)
     const toggleCookies = document.getElementById('toggle-cookies');
     const cookieStatus = document.getElementById('cookie-status-sub');
     async function refreshCookies() {
@@ -345,7 +352,7 @@
         }
         toggleCookies.checked = p.enabled && !p.allowed;
         toggleCookies.disabled = !p.enabled;
-        cookieStatus.textContent = !p.enabled ? 'Allowed everywhere (Settings)' : p.allowed ? p.site + ' — allowed' : p.site + ' — blocked';
+        cookieStatus.textContent = !p.enabled ? 'Off everywhere (Settings)' : p.allowed ? p.site + ' — off' : p.site + ' — on';
         cookieStatus.style.color = !p.enabled || p.allowed ? 'var(--sh-danger)' : 'var(--sh-success)';
       } catch (e) {
         console.error('Shield bubble cookie error', e);
@@ -390,6 +397,11 @@
       } finally {
         await refreshSite();
       }
+    });
+
+    document.getElementById('btn-report').addEventListener('click', () => {
+      if (api && api.createTab) api.createTab('mtc://privacy');
+      if (api && api.closeShieldBubble) api.closeShieldBubble();
     });
 
     btnSettings.addEventListener('click', () => {

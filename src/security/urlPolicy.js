@@ -73,6 +73,7 @@ const KNOWN_INTERNAL_PAGES = new Set([
   'notes',
   'downloads',
   'extensions',
+  'privacy',
 ]);
 
 // ─── Classification ───────────────────────────────────────────────────────────

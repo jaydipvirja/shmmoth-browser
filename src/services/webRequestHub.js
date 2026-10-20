@@ -51,6 +51,7 @@ class WebRequestHub {
     this.original = {};
     this.legacy = {};                 // event → { filter, listener } | null
     this.named = {};                  // event → Map(name → handler)
+    this.blockedObservers = [];       // (details, result) => void — the legacy listener (ad blocker) blocked a request
     for (const ev of EVENTS) {
       this.original[ev] = webRequest[ev].bind(webRequest);
       this.legacy[ev] = null;
@@ -64,6 +65,11 @@ class WebRequestHub {
     if (!EVENTS.includes(event) || typeof handler !== 'function') throw new Error('Unknown event or handler: ' + event);
     this.named[event].set(name, handler);
     this._sync(event);
+  }
+
+  /** `fn(details, result)` whenever the legacy onBeforeRequest listener (the ad blocker) cancels or redirects a request. */
+  onLegacyBlocked(fn) {
+    if (typeof fn === 'function') this.blockedObservers.push(fn);
   }
 
   remove(event, name) {
@@ -98,7 +104,14 @@ class WebRequestHub {
         try { r = handler(details); } catch (_) { r = null; }
         if (r && (r.cancel || r.redirectURL)) return callback(r);
       }
-      return useLegacy ? legacy.listener(details, callback) : callback({});
+      if (!useLegacy) return callback({});
+      if (!this.blockedObservers.length) return legacy.listener(details, callback);
+      return legacy.listener(details, (res) => {
+        if (res && (res.cancel || res.redirectURL)) {
+          for (const fn of this.blockedObservers) { try { fn(details, res); } catch (_) { /* counting only */ } }
+        }
+        callback(res);
+      });
     }
 
     const key = event === 'onBeforeSendHeaders' ? 'requestHeaders' : 'responseHeaders';

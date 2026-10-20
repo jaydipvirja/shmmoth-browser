@@ -1933,6 +1933,7 @@ const MENU_ACTIONS = {
   downloads:       () => openDownloadsTab(),
   bookmarks:       () => openPageTab('mtc://bookmarks'),
   passwords:       () => openSettingsTab('passwords'),
+  'privacy-report': () => openPageTab('mtc://privacy'),
   notes:           () => api && api.toggleSidePanel && api.toggleSidePanel('notes'),
   extensions:      () => openExtensionsTab(),
   'import-signin': () => openSettingsTab('privacy'),

@@ -17,7 +17,7 @@
 
 const {
   runSuite, assert, assertEqual, waitFor, sleep,
-  launchApp, api, startServer, evalIn, waitForWebContents, listWebContents
+  launchApp, api, startServer, evalIn, waitForWebContents, listWebContents, chromeWindow
 } = require('./helpers');
 
 runSuite('SHMMOTH Browser — E2E 28: privacy shield', async (t) => {
@@ -152,6 +152,40 @@ runSuite('SHMMOTH Browser — E2E 28: privacy shield', async (t) => {
       await evalIn(app, `${own.url}/plain`, `(() => { const i = new Image(); i.src = ${JSON.stringify(adUrl)}; document.body.appendChild(i); return true; })()`);
       await sleep(1200);
       assert(!ownSeen.slice(before).some((s) => s.path === '/ad.gif'), 'the ad request reached the server');
+    });
+
+    t.section('Privacy Report (1.5.1)');
+
+    await t.test('the shield shows what was stopped on the page in view, and starts again on the next page', async () => {
+      const n = await waitFor(async () => { const c = await api(chrome, 'getShieldPageCount'); return c >= 1 ? c : null; }, { message: 'the page count' });
+      assert(n >= 1, String(n));
+      await open(`${own.url}/plain?next`);
+      assertEqual(await api(chrome, 'getShieldPageCount'), 0, 'a new page starts at 0');
+    });
+
+    await t.test('mtc://privacy lists the blocked tracker with its company, the withheld cookies and the cleaned links', async () => {
+      await open('mtc://privacy');
+      const r = await waitFor(() => evalIn(app, 'mtc://privacy', `(() => {
+        const n = (id) => Number(document.getElementById(id).textContent.replace(/[^0-9]/g, ''));
+        const rows = Array.from(document.querySelectorAll('#list-trackers .row')).map((r) => r.textContent);
+        return rows.length ? { trackers: n('stat-trackers'), blocked: n('stat-blocked'), cookies: n('stat-cookies'), params: n('stat-params'), https: n('stat-https'), rows } : null;
+      })()`), { message: 'the report' });
+      assert(r.blocked >= 1 && r.cookies >= 1 && r.params >= 1 && r.https >= 1 && r.trackers >= 2, JSON.stringify(r));
+      assert(r.rows.some((t) => /doubleclick\.net/.test(t) && /Google/.test(t)), r.rows.join(' | '));
+      assert(r.rows.some((t) => /^localhost/.test(t) && /127\.0\.0\.1/.test(t)), 'the cookie tracker and the site it was on: ' + r.rows.join(' | '));
+    });
+
+    await t.test('an Incognito window is never counted in the report', async () => {
+      const before = (await api(chrome, 'getPrivacyReport')).totals;
+      await api(chrome, 'newIncognitoWindow');
+      const inc = await chromeWindow(app, { incognito: true });
+      await waitFor(() => inc.evaluate(() => Boolean(window.mtcAPI)), { message: 'incognito chrome' });
+      const seenBefore = seen.length;
+      await api(inc, 'createTab', `${own.url}/embed?incognito=1`);
+      await waitFor(() => seen.length > seenBefore, { message: 'the incognito page\'s embedded request' });
+      await sleep(500);
+      const after = (await api(chrome, 'getPrivacyReport')).totals;
+      assertEqual(JSON.stringify(after), JSON.stringify(before));
     });
 
     await t.test('no errors from the shield in the log', async () => {

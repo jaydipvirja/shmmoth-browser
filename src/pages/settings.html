@@ -167,7 +167,7 @@
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label" for="toggle-privacy-cookies">Block cross-site cookies</label>
-              <span class="setting-desc">Other sites inside a page (ads, social buttons, trackers) can neither read nor set cookies, so they cannot follow you from site to site, like Safari. Sites of one company count as one (google.com and youtube.com, so signing in keeps working). If a site breaks (a payment or a comment box), allow it from the shield icon on that site.</span>
+              <span class="setting-desc">Other sites inside a page (ads, social buttons, trackers) can neither read nor set cookies, so they cannot follow you from site to site, like Safari. Sites of one company count as one (google.com and youtube.com, so signing in keeps working). If a site breaks (a payment or a comment box), switch off "Tracking protection" in the shield on that site.</span>
             </div>
             <div class="setting-control">
               <label class="toggle-switch">
@@ -224,10 +224,37 @@
 
           <div class="divider"></div>
 
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label" for="toggle-privacy-fingerprint">Fingerprinting protection</label>
+              <span class="setting-desc">Sites that cannot use cookies try to recognise your computer by how it draws pictures and plays sound, its graphics card and its processor. Each site gets a slightly different answer, the same every time on that site, so the "fingerprint" cannot follow you from site to site. Your local network address is not shown to sites either.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-privacy-fingerprint" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Privacy Report</label>
+              <span class="setting-desc">Which trackers the shield stopped in the last 30 days, the companies behind them and the sites that carried them. Kept on this computer only.</span>
+            </div>
+            <div class="setting-control">
+              <button id="btn-open-privacy-report" class="btn-secondary">Open Privacy Report</button>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="setting-row" style="align-items:flex-start;">
             <div class="setting-info">
-              <label class="setting-label">Sites allowed cross-site cookies</label>
-              <span class="setting-desc">Allowed from the shield icon. Other sites keep blocking them. Wherever a page is opened from, another site only learns which site it came from, never the page.</span>
+              <label class="setting-label">Sites with tracking protection off</label>
+              <span class="setting-desc">Switched off from the shield on these sites: cross-site cookies are allowed and fingerprinting protection is off there. Other sites stay protected. Wherever a page is opened from, another site only learns which site it came from, never the page.</span>
               <ul id="privacy-cookie-sites" class="check-list" style="margin-top:8px;"></ul>
             </div>
           </div>
