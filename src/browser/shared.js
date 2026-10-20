@@ -20,6 +20,7 @@ const { PasswordVault }   = require('../services/passwordVault');
 const { PasswordAutofill } = require('../services/passwordAutofill');
 const { FormAutofill } = require('../services/formAutofill');
 const { PrivacyShield, siteOf } = require('../services/privacyShield');
+const { PrivacyStats } = require('../services/privacyStats');
 const webRequestHub = require('../services/webRequestHub');
 const { AutofillService } = require('../services/autofillService');
 const { ProxyManager }    = require('../services/proxyManager');
@@ -109,6 +110,7 @@ module.exports = {
   PasswordAutofill,
   FormAutofill,
   PrivacyShield,
+  PrivacyStats,
   siteOf,
   webRequestHub,
   PasswordGate,

@@ -18,7 +18,9 @@
  */
 'use strict';
 
+const crypto = require('crypto');
 const { getDomain } = require('tldts-experimental');
+const fingerprintShield = require('./fingerprintShield');
 
 /** Query parameters that only identify a click or a campaign (removed from page addresses). */
 const TRACKING_PARAMS = new Set([
@@ -51,6 +53,8 @@ RELATED.forEach((group, i) => group.forEach((site) => GROUP_OF.set(site, i)));
 
 // names of this network, and the names reserved for tests and examples (RFC 6761 — they can never have a public
 // certificate, so an upgrade could only fail)
+const SIGN_IN_HOSTS = new Set(['accounts.google.com', 'accounts.youtube.com']);
+
 const LOCAL_SUFFIXES = ['.local', '.lan', '.internal', '.home', '.localhost', '.home.arpa', '.test', '.example', '.invalid'];
 const HTTPS_DOWNGRADE_WINDOW_MS = 15000;
 
@@ -116,15 +120,45 @@ class PrivacyShield {
    */
   constructor(deps = {}) {
     this.getSettings = deps.getSettings || (() => ({}));
+    this.stats = deps.stats || null;    // PrivacyStats (the Privacy Report and the shield's count)
     this.updateSettings = deps.updateSettings || null;
     this.log = deps.log || { info() {}, warn() {} };
     this.now = deps.now || Date.now;
     this.httpAllowed = new Set();       // "partition|host": continue over http (until the browser is closed)
+    this.secret = crypto.randomBytes(16).toString('hex');   // fingerprint seeds and marks: new every browser session
     this.upgrades = new Map();          // webContents id → { host, httpUrl, httpsUrl, at }
-    this.stats = { cookiesBlocked: 0, paramsRemoved: 0, upgraded: 0 };
+    this.counters = { cookiesBlocked: 0, paramsRemoved: 0, upgraded: 0 };
   }
 
   _on(key) { return this.getSettings()[key] !== false; }
+
+  /**
+   * What a frame's page gets before its own scripts run (preload-privacy.js asks): the scripts to run in it — GPC's
+   * navigator.globalPrivacyControl, and fingerprinting protection with this site's seed. `topUrl`: the tab's page.
+   * Sites where the user relaxed tracking protection (shield) get no fingerprinting protection either.
+   */
+  pageScripts(topUrl, partition = 'default') {
+    if (!/^https?:/i.test(String(topUrl || ''))) return [];
+    const scripts = [];
+    if (this._on('privacyGpc')) {
+      scripts.push("try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:function(){return true},configurable:true,enumerable:true})}catch(e){}");
+    }
+    const site = siteOfUrl(topUrl);
+    // Google's sign-in pages measure the browser to tell people from bots: they get the real values (a changed canvas
+    // there could make Google refuse the sign-in — see services/googleSignIn.js)
+    let host = '';
+    try { host = new URL(topUrl).hostname.toLowerCase(); } catch (_) { host = ''; }
+    const signIn = SIGN_IN_HOSTS.has(host);
+    if (site && !signIn && this._on('privacyFingerprintProtection') && !this.allowsCrossSiteCookies(site)) {
+      scripts.push(fingerprintShield.buildPageScript(fingerprintShield.seedFor(this.secret, partition, site), this.secret));
+    }
+    return scripts;
+  }
+
+  /** WebRTC: only the default route's public address, never the local network's addresses (unless switched off). */
+  webRtcPolicy() {
+    return this._on('privacyFingerprintProtection') ? 'default_public_interface_only' : 'default';
+  }
 
   /** Is the page's own site allowed cross-site cookies (from the shield)? */
   allowsCrossSiteCookies(site) {
@@ -144,8 +178,23 @@ class PrivacyShield {
   attach(hub, partition = 'default') {
     if (!hub) return;
     hub.add('onBeforeRequest', 'privacy', (d) => this.onBeforeRequest(d, partition));
-    hub.add('onBeforeSendHeaders', 'privacy', (d) => this.onBeforeSendHeaders(d));
-    hub.add('onHeadersReceived', 'privacy', (d) => this.onHeadersReceived(d));
+    hub.add('onBeforeSendHeaders', 'privacy', (d) => this.onBeforeSendHeaders(d, partition));
+    hub.add('onHeadersReceived', 'privacy', (d) => this.onHeadersReceived(d, partition));
+    // requests the ad blocker refused, for the Privacy Report and the shield's count
+    hub.onLegacyBlocked((d) => this._record('blocked', d, partition));
+  }
+
+  _record(kind, details, partition, site = null) {
+    if (!this.stats) return;
+    const wc = details.webContents;
+    const top = details.resourceType === 'mainFrame' ? details.url : this._topUrl(details);
+    this.stats.record({
+      kind,
+      tracker: kind === 'blocked' || kind === 'cookies' ? siteOfUrl(details.url) : '',
+      site: site || siteOfUrl(top),
+      wcId: wc && typeof wc.id === 'number' ? wc.id : null,
+      incognito: partition === 'incognito'
+    });
   }
 
   // ── which page a request belongs to ──
@@ -187,7 +236,8 @@ class PrivacyShield {
     if (this._on('privacyStripTrackingParams')) {
       const clean = stripTrackingParams(details.url);
       if (clean && clean !== details.url) {
-        this.stats.paramsRemoved++;
+        this.counters.paramsRemoved++;
+        this._record('params', details, partition, siteOfUrl(details.url));
         return { redirectURL: clean };
       }
     }
@@ -219,7 +269,8 @@ class PrivacyShield {
     }
     const httpsUrl = 'https://' + details.url.slice('http://'.length);
     if (wcId !== undefined) this.upgrades.set(wcId, { host, httpUrl: details.url, httpsUrl, at: this.now() });
-    this.stats.upgraded++;
+    this.counters.upgraded++;
+    this._record('https', details, partition, siteOf(host));
     return { redirectURL: httpsUrl };
   }
 
@@ -250,14 +301,14 @@ class PrivacyShield {
   forgetTab(wcId) { this.upgrades.delete(wcId); }
 
   // ── onBeforeSendHeaders: GPC, cookies, referrer ──
-  onBeforeSendHeaders(details) {
+  onBeforeSendHeaders(details, partition = 'default') {
     const headers = { ...(details.requestHeaders || {}) };
     let changed = false;
     if (this._on('privacyGpc') && !headerName(headers, 'Sec-GPC')) { headers['Sec-GPC'] = '1'; changed = true; }
 
     if (this._cookiesBlockedFor(details)) {
       const name = headerName(headers, 'Cookie');
-      if (name) { delete headers[name]; changed = true; this.stats.cookiesBlocked++; }
+      if (name) { delete headers[name]; changed = true; this.counters.cookiesBlocked++; this._record('cookies', details, partition); }
     }
 
     const refName = headerName(headers, 'Referer');
@@ -273,14 +324,15 @@ class PrivacyShield {
   }
 
   // ── onHeadersReceived: cookies ──
-  onHeadersReceived(details) {
+  onHeadersReceived(details, partition = 'default') {
     if (!this._cookiesBlockedFor(details)) return null;
     const headers = details.responseHeaders || {};
     const names = Object.keys(headers).filter((k) => k.toLowerCase() === 'set-cookie');
     if (!names.length) return null;
     const out = { ...headers };
     for (const n of names) delete out[n];
-    this.stats.cookiesBlocked++;
+    this.counters.cookiesBlocked++;
+    this._record('cookies', details, partition);
     return { responseHeaders: out };
   }
 

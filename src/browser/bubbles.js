@@ -13,7 +13,7 @@ const { normalizeTheme } = require('../services/theme');
 
 // Entries of the main menu that the browser window runs itself (renderer/app.js MENU_ACTIONS); theme and zoom are
 // handled here, everything else is refused.
-const FRAME_MENU_ACTIONS = new Set(['new-tab', 'new-incognito', 'history', 'downloads', 'bookmarks', 'passwords', 'notes',
+const FRAME_MENU_ACTIONS = new Set(['new-tab', 'new-incognito', 'history', 'downloads', 'bookmarks', 'passwords', 'privacy-report', 'notes',
   'extensions', 'import-signin', 'devtools', 'check-update', 'settings', 'about']);
 
 class BubblesMethods {
@@ -361,7 +361,7 @@ class BubblesMethods {
     this.closeMenuBubble();
 
     const width = 320;
-    const height = 590;
+    const height = 626;                    // 1.5.1: + Privacy Report
     const winBounds = parentWin.getBounds();
     let x, y;
     if (bounds && typeof bounds.x === 'number') {

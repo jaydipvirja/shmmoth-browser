@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 1.5.1
+
+Privacy, phase 2: fingerprinting protection and the Privacy Report.
+- **Fingerprinting protection** (*Settings → Ad-Blocker & Privacy*, on by default). Sites that cannot use cookies try to recognise your computer by how it draws pictures and plays sound, its graphics card, its processor and its battery. Now:
+  - pictures and sounds read back by a page (canvas, WebGL, audio) differ by an invisible, inaudible amount — the same every time on one site, different on every other site and in every new browser session, so the "fingerprint" cannot follow you from site to site;
+  - the graphics card is named by its maker only, the processor reports 2, 4 or 8 cores, memory 4 or 8 GB, and there is no battery information;
+  - this also covers the hidden frames and windows a page creates for this;
+  - WebRTC (video calls) no longer reveals your local network addresses; calls still work.
+  Google's sign-in pages keep the real values (they use them to tell people from bots).
+- **Privacy Report** (*⋮ menu → Privacy Report*, the shield, or Settings): the last 30 days — how many trackers were prevented from following you, the websites that tried, ad and tracker requests blocked, cross-site cookies withheld, links cleaned and pages opened securely; the most contacted trackers with the company behind them (Google, Meta, Amazon, Criteo …) and the sites they were found on; the websites with the most trackers. Kept on this computer only; Incognito windows are never counted; *Clear the report* starts again.
+- **The shield counts this page.** The number on the shield (toolbar and bubble) is what was stopped on the page you are looking at, and starts again on the next page.
+- The shield's per-site switch is now **Tracking protection**: switching it off on a site allows cross-site cookies and turns off fingerprinting protection there (for a site that breaks).
+
 ## 1.5.0
 
 Privacy, phase 1: the protection Safari gives, in SHMMOTH (*Settings → Ad-Blocker & Privacy*, all on by default).

@@ -187,6 +187,7 @@ class TabsMethods {
         updateTabUa(navUrl);
         if (!isInPlace && this.passwordAutofill) this.passwordAutofill.forgetTab(tabId);
         if (!isInPlace && this.formAutofill) this.formAutofill.forgetTab(tabId);
+        if (!isInPlace && this.privacyStats) this.privacyStats.resetPage(wc.id);
       }
     });
 
@@ -825,7 +826,11 @@ class TabsMethods {
     try { if (this.popupPolicy && tabData.view && tabData.view.webContents) this.popupPolicy.forget(tabData.view.webContents.id); } catch (_) {}
 
     const isIncognito = Boolean(tabData.isIncognito);
-    try { if (this.privacyShield && tabData.view && tabData.view.webContents) this.privacyShield.forgetTab(tabData.view.webContents.id); } catch (_) {}
+    try {
+      const closingWc = tabData.view && tabData.view.webContents;
+      if (closingWc && this.privacyShield) this.privacyShield.forgetTab(closingWc.id);
+      if (closingWc && this.privacyStats) this.privacyStats.forgetPage(closingWc.id);
+    } catch (_) {}
     const targetWin = isIncognito ? this.incognitoWindow : this.mainWindow;
     const targetOrder = isIncognito ? this.incognitoTabOrder : this.tabOrder;
 

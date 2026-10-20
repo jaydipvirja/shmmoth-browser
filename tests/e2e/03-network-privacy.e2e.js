@@ -113,13 +113,13 @@ runSuite('SHMMOTH Browser — E2E 03: network privacy', async (t) => {
       assertEqual(Boolean(d.isTurbo), false);
     });
 
-    await t.test('resetting the proxy restores the default WebRTC policy', async () => {
+    await t.test('resetting the proxy restores the normal WebRTC policy (public address only: fingerprinting protection, 1.5.1)', async () => {
       await api(chrome, 'resetProxyConfig');
       await waitFor(async () => {
         const policies = await app.evaluate(({ webContents }) => webContents.getAllWebContents()
           .filter((w) => /private-site\.test/.test(w.getURL())).map((w) => w.getWebRTCIPHandlingPolicy()));
-        return policies.length > 0 && policies.every((p) => p === 'default');
-      }, { message: 'policy back to default' });
+        return policies.length > 0 && policies.every((p) => p === 'default_public_interface_only');
+      }, { message: 'policy back to the normal one' });
       assertEqual((await api(chrome, 'getProxyConfig')).mode, 'system');
     });
   } finally {

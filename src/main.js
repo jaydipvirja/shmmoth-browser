@@ -36,6 +36,7 @@ const {
   PasswordAutofill,
   FormAutofill,
   PrivacyShield,
+  PrivacyStats,
   webRequestHub,
   AutofillService,
   ProxyManager,
@@ -105,6 +106,7 @@ class ShmmothBrowserApp {
     this.passwordAutofill = null;
     this.formAutofill = null;
     this.privacyShield = null;
+    this.privacyStats = null;
     this.passwordGate = null;
     this.autofillService = null;
     this.proxyManager = null;
@@ -178,14 +180,20 @@ class ShmmothBrowserApp {
     });
     // Privacy shield (cross-site cookies, link tracking, GPC, referrer, HTTPS-Only). The request hub goes in first: the
     // sign-in rules below and the ad blocker then share the session's request events with it (services/webRequestHub.js)
+    // what the shield stopped: the Privacy Report (mtc://privacy) and the number on the shield of the page in view
+    this.privacyStats = new PrivacyStats({
+      file: path.join(app.getPath('userData'), 'privacy-report.json'),
+      onPageCount: (wcId) => this.sendShieldCountSoon(wcId)
+    });
     this.privacyShield = new PrivacyShield({
       getSettings: () => this.storage.getSettings(),
       updateSettings: (delta) => this.storage.updateSettings(delta),
+      stats: this.privacyStats,
       log
     });
     this.privacyShield.attach(webRequestHub.install(session.defaultSession), 'default');
     this.privacyShield.attach(webRequestHub.install(session.fromPartition('incognito')), 'incognito');
-    this.applyGpcPreload();
+    this.registerPrivacyPreload();
 
     this.setupSignInClientHints(session.defaultSession);
     this.setupSignInClientHints(session.fromPartition('incognito'));
@@ -367,6 +375,7 @@ class ShmmothBrowserApp {
       // fast-engine downloads still running: which blocks are on the disk is saved now, so Resume after the next
       // start continues from the last one
       try { if (this.downloads) this.downloads.checkpointAll(); } catch (_) { /* best effort */ }
+      try { if (this.privacyStats) this.privacyStats.flush(); } catch (_) { /* best effort */ }
       if (this._dataFlushed) return;
       // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
       // (about every 30 s): what is still in the last batch would be lost, and a session that Google has already

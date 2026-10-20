@@ -125,7 +125,38 @@ class BroadcastMethods {
       });
 
     targetWin.webContents.send('tabs:updated', serializedTabs, activeId);
-    targetWin.webContents.send('adblocker:count', this.adBlocker ? this.adBlocker.getBlockedCount() : 0);
+    targetWin.webContents.send('adblocker:count', this.shieldCountFor(this.tabs[activeId]));
+  }
+
+  /** The number on the shield: what was stopped on the page the tab shows now (blocked requests + cookies withheld). */
+  shieldCountFor(tab) {
+    try {
+      const wc = tab && tab.view && tab.view.webContents;
+      if (!wc || wc.isDestroyed() || !this.privacyStats) return 0;
+      const c = this.privacyStats.pageCount(wc.id);
+      return c.blocked + c.cookies;
+    } catch (_) { return 0; }
+  }
+
+  /** Something was stopped in tab `wcId`: refresh its window's shield number (at most every 300 ms per window). */
+  sendShieldCountSoon(wcId) {
+    if (!this._shieldCountTimers) this._shieldCountTimers = {};
+    for (const incognito of [false, true]) {
+      const tab = this.tabs[incognito ? this.activeIncognitoTabId : this.activeTabId];
+      const wc = tab && tab.view && tab.view.webContents;
+      if (!wc || wc.isDestroyed() || wc.id !== wcId) continue;
+      const key = incognito ? 'incognito' : 'normal';
+      if (this._shieldCountTimers[key]) return;
+      this._shieldCountTimers[key] = setTimeout(() => {
+        this._shieldCountTimers[key] = null;
+        const win = incognito ? this.incognitoWindow : this.mainWindow;
+        const active = this.tabs[incognito ? this.activeIncognitoTabId : this.activeTabId];
+        const count = this.shieldCountFor(active);
+        if (win && !win.isDestroyed()) win.webContents.send('adblocker:count', count);
+        if (this.shieldBubbleWin && !this.shieldBubbleWin.isDestroyed()) this.shieldBubbleWin.webContents.send('adblocker:count', count);
+      }, 300);
+      return;
+    }
   }
 
   updateNavigationState(isIncognito = false) {

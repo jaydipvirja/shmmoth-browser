@@ -34,6 +34,7 @@ const PAGES = [
   ['downloads', 'mtc://downloads'],
   ['extensions', 'mtc://extensions'],
   ['notes', 'mtc://notes'],
+  ['privacy', 'mtc://privacy'],
   ['error', 'mtc://error?code=-105&name=ERR_NAME_NOT_RESOLVED&url=https%3A%2F%2Fexample.invalid%2F'],
   ['crash', 'mtc://crash?tabId=0&reason=crashed&url=https%3A%2F%2Fexample.com%2F']
 ];

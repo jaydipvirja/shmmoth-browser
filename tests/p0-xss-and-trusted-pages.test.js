@@ -96,7 +96,7 @@ console.log('\n📋 2. Source invariants for privileged pages');
 const pageJs   = fs.readdirSync(path.join(SRC, 'pages')).filter(f => f.endsWith('.js'));
 const pageHtml = fs.readdirSync(path.join(SRC, 'pages')).filter(f => f.endsWith('.html'));
 // Served through the mtc:// protocol (and therefore under the CSP header). Bubbles are loaded via file://.
-const MTC_SERVED = ['newtab', 'settings', 'bookmarks', 'history', 'notes', 'downloads', 'extensions', 'crash'];
+const MTC_SERVED = ['newtab', 'settings', 'bookmarks', 'history', 'notes', 'downloads', 'extensions', 'crash', 'privacy'];
 
 test('no page script / chrome script re-implements the quote-unsafe escapeHtml', () => {
   const files = pageJs.map(f => path.join(SRC, 'pages', f)).concat(path.join(SRC, 'renderer', 'app.js'));

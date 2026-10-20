@@ -314,7 +314,7 @@ class IpcMethods {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }
       if (delta.micaEffect !== undefined) this.applyWindowMaterial();
-      if (delta.privacyGpc !== undefined) this.applyGpcPreload();
+      if (delta.privacyFingerprintProtection !== undefined) this.refreshWebRtcPolicies();
       if (delta.showBookmarksBar !== undefined) {
         this.updateHeaderHeight(true);
         this.updateViewBounds();
@@ -1349,7 +1349,7 @@ class IpcMethods {
       return {
         site,
         canChange: Boolean(site && this.privacyShield),
-        enabled: s.privacyBlockThirdPartyCookies !== false,
+        enabled: s.privacyBlockThirdPartyCookies !== false || s.privacyFingerprintProtection !== false,
         allowed: Boolean(site && this.privacyShield && this.privacyShield.allowsCrossSiteCookies(site))
       };
     }));
@@ -1362,6 +1362,19 @@ class IpcMethods {
       this.broadcastSettingsUpdated(this.storage.getSettings());
       this.reloadTab(tabId);
       return { success: true, site, allowed: this.privacyShield.allowsCrossSiteCookies(site) };
+    }));
+
+    // the shield's number: what was stopped on the page of the bubble's tab
+    ipcMain.handle('privacy:getPageCount', secureHandlerRaw((event) => {
+      const { tabId } = shieldTarget(event);
+      return this.shieldCountFor(this.tabs[tabId]);
+    }));
+
+    // the Privacy Report (mtc://privacy): only the browser's own pages may read or clear it
+    ipcMain.handle('privacy:getReport', secureHandlerRaw(() => (this.privacyStats ? this.privacyStats.report() : null)));
+    ipcMain.handle('privacy:clearReport', secureHandlerRaw(() => {
+      if (this.privacyStats) this.privacyStats.clear();
+      return true;
     }));
 
     // reload the page the shield bubble belongs to (after the master switch changed)
