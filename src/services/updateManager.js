@@ -39,6 +39,12 @@ const MAX_JSON_BYTES      = 1024 * 1024;           // release metadata
 const MAX_SIGNATURE_BYTES = 4096;
 const MAX_INSTALLER_BYTES = 600 * 1024 * 1024;     // hard ceiling even if the API claims more
 const PROGRESS_INTERVAL_MS = 500;
+// Big installers come in pieces over several connections at once, like a download manager (1.5.2): one connection to
+// GitHub's CDN is often slow, several together use the whole line. A piece that breaks continues where it stopped.
+const PARALLEL_MIN_BYTES = 8 * 1024 * 1024;        // smaller files: one connection is as fast
+const PIECE_BYTES = 4 * 1024 * 1024;
+const PARALLEL_CONNECTIONS = 6;
+const PIECE_ATTEMPTS = 4;
 
 /**
  * Compare two semver strings (e.g. "1.0.3" vs "1.0.2").
@@ -431,51 +437,12 @@ class UpdateManager extends EventEmitter {
       const sigBuf = await this._getBuffer(info.signature.browser_download_url, MAX_SIGNATURE_BYTES, 'application/octet-stream');
       const signatureFileText = sigBuf.toString('utf8');
 
-      // 2. the installer, streamed to disk while hashing
+      // 2. the installer: in pieces over several connections when it is big, else in one stream
       const expectedSize = Number.isSafeInteger(info.installer.size) && info.installer.size > 0 ? info.installer.size : 0;
       if (expectedSize > MAX_INSTALLER_BYTES) throw new UpdateError('Update installer is unexpectedly large', 'E_SIZE');
       const maxBytes = expectedSize || MAX_INSTALLER_BYTES;
 
-      const res = await this._getFetcher().get(info.installer.browser_download_url, {
-        headers: { 'User-Agent': 'shmmoth-browser', Accept: 'application/octet-stream' },
-        validateUrl: (u) => this._validateUrl(u)
-      });
-      if (res.statusCode !== 200) {
-        if (res.abort) res.abort();
-        throw new UpdateError(`Update server answered HTTP ${res.statusCode}`, 'E_HTTP');
-      }
-      const declared = parseInt(res.headers['content-length'], 10);
-      if (expectedSize && Number.isFinite(declared) && declared !== expectedSize) {
-        if (res.abort) res.abort();
-        throw new UpdateError('Update installer size does not match the release metadata', 'E_SIZE');
-      }
-
-      const hash = crypto.createHash('sha256');
-      let received = 0;
-      let lastTime = Date.now();
-      let lastReceived = 0;
-      const fh = await fs.promises.open(partPath, 'w', 0o600);
-      try {
-        for await (const chunk of res.stream) {
-          received += chunk.length;
-          if (received > maxBytes) { if (res.abort) res.abort(); throw new UpdateError('Update installer is larger than announced', 'E_SIZE'); }
-          hash.update(chunk);
-          await fh.write(chunk);
-
-          const now = Date.now();
-          if (now - lastTime >= PROGRESS_INTERVAL_MS) {
-            const bytesPerSecond = Math.round((received - lastReceived) / ((now - lastTime) / 1000));
-            lastTime = now; lastReceived = received;
-            const total = expectedSize || declared || 0;
-            const percent = total > 0 ? Math.round((received / total) * 100) : 0;
-            this._updateStatus({ status: 'downloading', percent, transferred: received, total, bytesPerSecond, message: `Downloading update (${percent}%)...` });
-          }
-        }
-        await fh.sync();
-      } finally {
-        await fh.close();
-      }
-      const sha256 = hash.digest('hex');
+      const { received, sha256 } = await this._downloadInstaller(info.installer.browser_download_url, partPath, expectedSize, maxBytes);
 
       // 3. verify
       this._updateStatus({ status: 'downloading', percent: 100, transferred: received, total: received, bytesPerSecond: 0, message: 'Verifying update...' });
@@ -516,6 +483,124 @@ class UpdateManager extends EventEmitter {
         message: err instanceof UpdateError ? errMsg : 'Failed to download update.'
       });
     }
+  }
+
+  /**
+   * Downloads the installer to `partPath`: in pieces over several connections when the server serves ranges and the size
+   * is known, else in one stream. @returns {Promise<{received:number, sha256:string}>}
+   */
+  async _downloadInstaller(url, partPath, expectedSize, maxBytes) {
+    const headers = { 'User-Agent': 'shmmoth-browser', Accept: 'application/octet-stream' };
+    const get = (extra) => this._getFetcher().get(url, { headers: Object.assign({}, headers, extra), validateUrl: (u) => this._validateUrl(u) });
+    const total = expectedSize;
+    let received = 0;
+    let lastTime = Date.now();
+    let lastReceived = 0;
+    const progress = () => {
+      const now = Date.now();
+      if (now - lastTime < PROGRESS_INTERVAL_MS) return;
+      const bytesPerSecond = Math.round((received - lastReceived) / ((now - lastTime) / 1000));
+      lastTime = now; lastReceived = received;
+      const percent = total > 0 ? Math.min(100, Math.round((received / total) * 100)) : 0;
+      this._updateStatus({ status: 'downloading', percent, transferred: received, total, bytesPerSecond, message: `Downloading update (${percent}%)...` });
+    };
+
+    let inPieces = false;
+    let sha256 = '';
+    const fh = await fs.promises.open(partPath, 'w', 0o600);
+    try {
+      // the first piece also tells whether the server serves ranges (206) or sends the whole file (200)
+      const pieces = [];
+      if (total >= PARALLEL_MIN_BYTES) {
+        for (let start = 0; start < total; start += PIECE_BYTES) pieces.push({ start, end: Math.min(total, start + PIECE_BYTES) - 1, done: 0 });
+      }
+      const first = await get(pieces.length ? { Range: `bytes=0-${pieces[0].end}` } : {});
+      if (pieces.length && first.statusCode === 206) {
+        await this._downloadPieces(get, fh, pieces, first, total, (n) => { received += n; progress(); });
+        await fh.sync();
+        inPieces = true;
+      } else {
+        // one stream (no ranges, or a small / unknown size)
+        if (first.statusCode !== 200) {
+          if (first.abort) first.abort();
+          throw new UpdateError(`Update server answered HTTP ${first.statusCode}`, 'E_HTTP');
+        }
+        const declared = parseInt(first.headers['content-length'], 10);
+        if (expectedSize && Number.isFinite(declared) && declared !== expectedSize) {
+          if (first.abort) first.abort();
+          throw new UpdateError('Update installer size does not match the release metadata', 'E_SIZE');
+        }
+        const hash = crypto.createHash('sha256');
+        for await (const chunk of first.stream) {
+          received += chunk.length;
+          if (received > maxBytes) { if (first.abort) first.abort(); throw new UpdateError('Update installer is larger than announced', 'E_SIZE'); }
+          hash.update(chunk);
+          await fh.write(chunk);
+          progress();
+        }
+        await fh.sync();
+        sha256 = hash.digest('hex');
+      }
+    } finally {
+      await fh.close().catch(() => {});
+    }
+    if (inPieces) {
+      // the pieces arrived out of order: the whole file is hashed once it is complete
+      const whole = await hashFile(partPath);
+      return { received: whole.size, sha256: whole.sha256 };
+    }
+    return { received, sha256 };
+  }
+
+  /**
+   * Fetches every piece (`first` is the open answer for piece 0) with PARALLEL_CONNECTIONS workers. Each piece must
+   * come back as exactly its byte range of a file of `total` bytes; a broken one continues from where it stopped.
+   */
+  async _downloadPieces(get, fh, pieces, first, total, onBytes) {
+    const fetchPiece = async (piece, opened) => {
+      for (let attempt = 1; ; attempt++) {
+        const from = piece.start + piece.done;
+        let res = opened;
+        opened = null;
+        try {
+          if (!res) res = await get({ Range: `bytes=${from}-${piece.end}` });
+          const range = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(res.headers['content-range'] || '');
+          if (res.statusCode !== 206 || !range || Number(range[1]) !== from || Number(range[2]) !== piece.end || Number(range[3]) !== total) {
+            if (res.abort) res.abort();
+            throw new UpdateError(res.statusCode === 206 ? 'Update server sent the wrong part of the installer' : `Update server answered HTTP ${res.statusCode}`, res.statusCode === 206 ? 'E_SIZE' : 'E_HTTP');
+          }
+          for await (const chunk of res.stream) {
+            if (piece.done + chunk.length > piece.end - piece.start + 1) { if (res.abort) res.abort(); throw new UpdateError('Update installer is larger than announced', 'E_SIZE'); }
+            await fh.write(chunk, 0, chunk.length, piece.start + piece.done);
+            piece.done += chunk.length;
+            onBytes(chunk.length);
+          }
+          if (piece.done !== piece.end - piece.start + 1) throw new Error('Connection closed before the piece finished');
+          return;
+        } catch (err) {
+          // a wrong answer is never retried; a broken connection is, from where it stopped
+          if (err instanceof UpdateError || attempt >= PIECE_ATTEMPTS) throw err;
+          await new Promise((r) => setTimeout(r, 300 * attempt));
+        }
+      }
+    };
+    let next = 1;
+    let failed = null;
+    const worker = async (piece, opened) => {
+      while (!failed) {
+        if (!piece) {
+          if (next >= pieces.length) return;
+          piece = pieces[next++];
+        }
+        try { await fetchPiece(piece, opened); } catch (err) { failed = failed || err; return; }
+        piece = null;
+        opened = null;
+      }
+    };
+    const workers = [worker(pieces[0], first)];
+    for (let w = 1; w < Math.min(PARALLEL_CONNECTIONS, pieces.length); w++) workers.push(worker(null, null));
+    await Promise.all(workers);
+    if (failed) throw failed;
   }
 
   _cleanUpdatesDir(dir) {
