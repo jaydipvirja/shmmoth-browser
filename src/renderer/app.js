@@ -323,7 +323,10 @@ let knownTabIds = null;
 
 function renderTabs(tabs, activeId) {
   currentTabs = tabs || [];
+  const activeChanged = activeTabId !== activeId;
   activeTabId = activeId;
+  // the strip is redrawn on every update (a title, a favicon, loading …): it stays where the user scrolled it
+  const scrollLeft = tabsStrip.scrollLeft;
   tabsStrip.innerHTML = '';
   const previousTabIds = knownTabIds;
   knownTabIds = new Set(currentTabs.map((t) => t.id));
@@ -480,6 +483,10 @@ function renderTabs(tabs, activeId) {
     tabsStrip.appendChild(tabEl);
   });
   drawIcons(tabsStrip);
+  tabsStrip.scrollLeft = scrollLeft;
+  // a new or newly selected tab is always in view, also when the strip is full and scrolls (1.5.2)
+  const isNew = previousTabIds && !previousTabIds.has(activeTabId);
+  if (activeChanged || isNew) revealActiveTab();
 
   // Update Omnibox & Toolbar state for active tab
   const activeTab = currentTabs.find(t => t.id === activeTabId);
@@ -494,6 +501,27 @@ function renderTabs(tabs, activeId) {
     }
   }
 }
+
+/** Scrolls the tab strip just enough to show the active tab (nothing when it is already visible). */
+function revealActiveTab() {
+  const el = tabsStrip.querySelector('.browser-tab.active');
+  if (!el || tabsStrip.scrollWidth <= tabsStrip.clientWidth) return;
+  const left = el.offsetLeft;
+  const right = left + el.offsetWidth;
+  if (left < tabsStrip.scrollLeft) tabsStrip.scrollLeft = left;
+  else if (right > tabsStrip.scrollLeft + tabsStrip.clientWidth) tabsStrip.scrollLeft = right - tabsStrip.clientWidth;
+}
+
+// A full strip scrolls with the mouse wheel (up / down move it left / right) — its scroll bar is hidden
+tabsStrip.addEventListener('wheel', (e) => {
+  if (tabsStrip.scrollWidth <= tabsStrip.clientWidth) return;
+  const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+  if (!delta) return;
+  e.preventDefault();
+  tabsStrip.scrollLeft += delta;
+}, { passive: false });
+// the window got narrower or wider: the active tab stays in view
+window.addEventListener('resize', () => revealActiveTab());
 
 // ─── Context Menus ──────────────────────────────────────────────────────────
 function showContextMenu(menu, x, y) {

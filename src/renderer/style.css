@@ -86,6 +86,7 @@ body.is-fullscreen .browser-chrome {
   scrollbar-width: none;
   height: 100%;
   max-width: calc(100% - 200px);
+  position: relative; /* the tabs measure their place from the strip (app.js revealActiveTab) */
   -webkit-app-region: drag; /* Empty gaps between tabs drag the window */
 }
 
@@ -93,12 +94,17 @@ body.is-fullscreen .browser-chrome {
   display: none;
 }
 
-/* Single Tab */
+/* Single Tab. With many tabs they share the strip and get narrower, as in Chrome (1.5.2): down to the icon, the title
+   and the close button go first (the active tab keeps its close button); only past that does the strip scroll, and
+   app.js keeps the active tab in view. Before, tabs stopped at 120 px and a new tab opened out of sight. */
 .browser-tab {
   display: flex;
   align-items: center;
-  min-width: 120px;
+  flex: 0 1 220px;
+  min-width: 44px;
   max-width: 220px;
+  container-type: inline-size;
+  contain-intrinsic-inline-size: 220px; /* size containment (container queries) would make its natural width 0 */
   height: 34px;
   padding: 0 6px 0 12px;
   background-color: var(--bg-tab-inactive);
@@ -113,6 +119,15 @@ body.is-fullscreen .browser-chrome {
   -webkit-app-region: no-drag; /* Individual tabs are clickable & reorderable */
 }
 
+.browser-tab.active { min-width: 64px; }
+
+@container (max-width: 70px) {
+  .browser-tab:not(.active) .tab-close-btn { display: none; }
+}
+@container (max-width: 36px) {
+  .tab-title, .tab-audio-btn, .tab-badge { display: none; }
+  .tab-favicon, .tab-spinner { margin-right: 0; }
+}
 /* a thin separator between two inactive tabs, as in Chrome */
 .browser-tab:not(.active) + .browser-tab:not(.active)::before {
   content: '';

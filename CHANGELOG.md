@@ -5,6 +5,7 @@
 - **YouTube: "Ad blockers violate YouTube's Terms of Service".** Since 1.5.1 YouTube could stop the video with this notice. The fingerprinting protection of 1.5.1 replaced some of the page's browser functions (canvas, `toString`, `window.open` …) with versions that, unlike the browser's own, had a `prototype` — a sure sign of tampering that YouTube's anti-abuse check looks for. Now:
   - the replaced functions look exactly like the browser's own everywhere (native code, no `prototype`, cannot be called with `new`);
   - YouTube (like Google's sign-in pages) gets no fingerprinting protection at all: it runs Google's anti-abuse check on every video, and Google knows who watches anyway. The ad blocker and Global Privacy Control stay on there.
+- **Many tabs: a new tab is always in sight.** Tabs stopped getting narrower at 120 px, so once the strip was full a new tab opened out of sight: the strip ran on past the window edge with no way to see it (no scroll bar, the mouse wheel did nothing). Now, as in Chrome, tabs share the strip and get narrower down to the icon — the title and the close button of the other tabs give way first, the tab you are on keeps its close button — and only then does the strip scroll; a new or selected tab is always brought into view, and the mouse wheel scrolls the tabs.
 - The battery API is back, always reporting a full battery on mains power (a Chrome without it is itself unusual); it no longer tells sites your battery level.
 
 ## 1.5.1
