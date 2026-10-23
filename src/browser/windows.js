@@ -137,6 +137,8 @@ class WindowsMethods {
     this.mainWindow.on('resize',     () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
     this.mainWindow.on('move',       () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
     this.mainWindow.on('minimize',   () => { if (this.passwordAutofill) this.passwordAutofill.dismiss(); if (this.formAutofill) this.formAutofill.dismiss(); });
+    // back from the taskbar: the page gets the window's size at once (resize events may come late, or not at all)
+    this.mainWindow.on('restore',    () => this.updateViewBounds(this.mainWindow));
     this.mainWindow.on('maximize',   () => {
       broadcastWindowState(true);
       setTimeout(() => this.updateViewBounds(), 50);
@@ -214,6 +216,7 @@ class WindowsMethods {
     };
 
     this.incognitoWindow.on('resize',     () => this.throttledUpdateViewBounds(this.incognitoWindow));
+    this.incognitoWindow.on('restore',    () => this.updateViewBounds(this.incognitoWindow));
     this.incognitoWindow.on('maximize',   () => {
       broadcastIncognitoWindowState(true);
       setTimeout(() => this.updateViewBounds(this.incognitoWindow), 50);
@@ -303,6 +306,9 @@ class WindowsMethods {
     this.updateHeaderHeight();
 
     for (const win of wins) {
+      // Minimized (Windows sends a 'resize' with a window of almost no size on the way down): the page keeps the size
+      // it had. Sized down to that, it had to lay itself out again on restore — blank, then tiny, then whole (1.5.2).
+      if (win.isMinimized()) continue;
       const isIncognito = (win === this.incognitoWindow);
       const activeId = isIncognito ? this.activeIncognitoTabId : this.activeTabId;
       const activeTab = this.tabs[activeId];

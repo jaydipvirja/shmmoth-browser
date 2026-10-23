@@ -85,6 +85,31 @@ runTest('7. downloadManager includes anti-duplicate protection and 4000ms deboun
   assert(dm.includes('(now - d.startedAt) < 4000'), 'Missing 4000ms cooldown in downloadManager');
 });
 
+// 8. Minimize / restore (1.5.2): the page keeps its size while the window is minimized, and gets the window's size at
+//    once on restore (it used to be shrunk to 200×150 on the way down: blank, then tiny, then whole on restore)
+runTest('8. minimized: the page keeps its size; restored: it gets the window size at once', () => {
+  const Module = require('module');
+  const origLoad = Module._load;
+  Module._load = function (request, ...args) {
+    if (request === 'electron') return { app: { getPath: () => '' }, BrowserWindow: function () {}, WebContentsView: function () {}, nativeTheme: { on() {} }, protocol: {}, net: {}, session: {}, screen: {}, Menu: {}, shell: {}, dialog: {}, ipcMain: { on() {}, handle() {} } };
+    return origLoad.call(this, request, ...args);
+  };
+  let WindowsMethods;
+  try { WindowsMethods = require('../src/browser/windows'); } finally { Module._load = origLoad; }
+  const sets = [];
+  const win = { minimized: true, isDestroyed: () => false, isMinimized() { return this.minimized; }, isFullScreen: () => false, isMaximized: () => true, getContentBounds() { return this.minimized ? { x: 0, y: 0, width: 160, height: 28 } : { x: 0, y: 0, width: 1920, height: 1040 }; } };
+  const app = { mainWindow: win, incognitoWindow: null, activeTabId: 1, tabs: { 1: { view: { setBounds: (b) => sets.push(b) } } }, storage: { getSettings: () => ({}) } };
+  Object.setPrototypeOf(app, WindowsMethods.prototype);
+  app.updateViewBounds(win);
+  assert.strictEqual(sets.length, 0, 'the page was resized while minimized: ' + JSON.stringify(sets));
+  win.minimized = false;
+  app.updateViewBounds(win);
+  assert.deepStrictEqual(sets[0], { x: 0, y: 114, width: 1920, height: 1040 - 114 });
+  const src = fs.readFileSync(path.join(__dirname, '..', 'src', 'browser', 'windows.js'), 'utf8');
+  assert(/mainWindow\.on\('restore',\s*\(\) => this\.updateViewBounds\(this\.mainWindow\)\)/.test(src), 'no restore handler (main window)');
+  assert(/incognitoWindow\.on\('restore',\s*\(\) => this\.updateViewBounds\(this\.incognitoWindow\)\)/.test(src), 'no restore handler (incognito window)');
+});
+
 console.log('\n══════════════════════════════════════════════════════════');
 console.log(`  Window Frame & Resize Suite: ${testsPassed} passed, ${testsFailed} failed`);
 console.log('══════════════════════════════════════════════════════════\n');
