@@ -70,6 +70,35 @@ function makeFetcher(routes) {
   };
 }
 
+/**
+ * Like makeFetcher, but the CDN serves byte ranges (206 + Content-Range), as GitHub's does. `opts.cut` = a set of range
+ * starts whose FIRST answer stops halfway (a dropped connection); `opts.lie` = a range start answered with the wrong part.
+ */
+function makeRangeFetcher(routes, opts = {}) {
+  const base = makeFetcher(routes);
+  const ranges = [];
+  let active = 0; let maxActive = 0;
+  return {
+    requested: base.requested, ranges, get maxActive() { return maxActive; },
+    async get(url, o = {}) {
+      const r = await base.get(url, o);
+      const range = o.headers && o.headers.Range && /^bytes=(\d+)-(\d+)$/.exec(o.headers.Range);
+      if (!range || r.statusCode !== 200) return r;
+      const body = Buffer.concat(await (async () => { const a = []; for await (const c of r.stream) a.push(c); return a; })());
+      const start = Number(range[1]); const end = Math.min(Number(range[2]), body.length - 1);
+      ranges.push(start);
+      let part = body.subarray(start, end + 1);
+      let shownStart = start;
+      if (opts.lie === start) shownStart = start + 1;
+      if (opts.cut && opts.cut.has(start)) { opts.cut.delete(start); part = part.subarray(0, Math.floor(part.length / 2)); }
+      active++; maxActive = Math.max(maxActive, active);
+      const chunks = []; for (let i = 0; i < part.length; i += 65536) chunks.push(part.subarray(i, i + 65536));
+      const stream = Readable.from((async function* () { for (const c of chunks) { await sleep(1); yield c; } active--; })());
+      return { statusCode: 206, headers: { 'content-length': String(part.length), 'content-range': `bytes ${shownStart}-${end}/${body.length}` }, stream, abort() {} };
+    }
+  };
+}
+
 /** Builds a release + the routes serving it. Options let each test break one thing. */
 function buildWorld(o = {}) {
   const version = o.version || '1.0.17';
@@ -103,7 +132,7 @@ function buildWorld(o = {}) {
 }
 
 function newManager(world, extra = {}) {
-  const fetcher = makeFetcher(world.routes);
+  const fetcher = extra.fetcher || makeFetcher(world.routes);
   const launched = [];
   const quits = [];
   const mgr = new UpdateManager({
@@ -213,6 +242,57 @@ const filesIn = (dir) => (fs.existsSync(dir) ? fs.readdirSync(dir) : []);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // ═══════════════════════════════════════════════════════════════════════════
+  console.log('\n📋 2b. Big updates come in pieces over several connections (1.5.2)');
+
+  const BIG = 21 * 1024 * 1024 + 12345;                    // 6 pieces of 4 MB (the last one short)
+  const bigWorld = () => buildWorld({ installerBytes: crypto.randomBytes(BIG) });
+
+  await test('a big installer is fetched in 4 MB pieces, several at once, and passes every check', async () => {
+    const w = bigWorld(); const fetcher = makeRangeFetcher(w.routes);
+    const { mgr } = newManager(w, { fetcher });
+    const st = await checkAndSettle(mgr);
+    assert(st.status === 'downloaded', JSON.stringify(st));
+    assert(fetcher.ranges.length === Math.ceil(BIG / (4 * 1024 * 1024)), 'pieces: ' + fetcher.ranges.length);
+    assert(fetcher.maxActive >= 3, 'connections at once: ' + fetcher.maxActive);
+    assert(sha(fs.readFileSync(mgr.verifiedUpdate.path)) === sha(w.installer), 'the pieces were put together wrong');
+  });
+
+  await test('a piece whose connection drops continues from where it stopped', async () => {
+    const w = bigWorld(); const fetcher = makeRangeFetcher(w.routes, { cut: new Set([4 * 1024 * 1024, 12 * 1024 * 1024]) });
+    const { mgr } = newManager(w, { fetcher });
+    const st = await checkAndSettle(mgr);
+    assert(st.status === 'downloaded', JSON.stringify(st));
+    const resumed = fetcher.ranges.filter((r) => r % (4 * 1024 * 1024) !== 0);
+    assert(resumed.length === 2, 'expected two resumed pieces (from the middle), got ' + JSON.stringify(fetcher.ranges));
+    assert(sha(fs.readFileSync(mgr.verifiedUpdate.path)) === sha(w.installer));
+  });
+
+  await test('a server that sends the wrong part is refused; nothing is kept', async () => {
+    const w = bigWorld(); const fetcher = makeRangeFetcher(w.routes, { lie: 8 * 1024 * 1024 });
+    const { mgr, launched } = newManager(w, { fetcher });
+    const st = await checkAndSettle(mgr);
+    assert(st.status === 'error' && /wrong part/.test(st.error), JSON.stringify(st));
+    assert(!mgr.verifiedUpdate && launched.length === 0);
+    assert(filesIn(mgr._getUpdatesDir()).length === 0, 'left: ' + filesIn(mgr._getUpdatesDir()));
+  });
+
+  await test('a big installer from a server without ranges still downloads in one stream', async () => {
+    const w = bigWorld(); const { mgr, fetcher } = newManager(w);
+    const st = await checkAndSettle(mgr);
+    assert(st.status === 'downloaded', JSON.stringify(st));
+    assert(fetcher.requested.filter((u) => u.includes('githubusercontent.com')).length === 1);
+  });
+
+  await test('a tampered piece still fails the signature check', async () => {
+    const w = bigWorld();
+    const bad = Buffer.from(w.installer); bad[9 * 1024 * 1024] ^= 1;
+    w.routes['https://release-assets.githubusercontent.com/x/' + w.name] = { body: bad };
+    const { mgr, launched } = newManager(w, { fetcher: makeRangeFetcher(w.routes) });
+    const st = await checkAndSettle(mgr);
+    assert(st.status === 'error' && !mgr.verifiedUpdate && launched.length === 0, JSON.stringify(st));
+  });
+
   console.log('\n📋 3. Attacks on the release (all must be rejected, nothing may run)');
   // ═══════════════════════════════════════════════════════════════════════════
 

@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 1.5.3
+
+- **Updates download much faster.** SHMMOTH fetched an update (about 110 MB) over a single connection, and one connection to GitHub's download servers is often slow. Now, like a download manager, it fetches the update in 4 MB pieces over six connections at once; a piece whose connection drops continues where it stopped instead of starting the whole update again. As before, nothing is installed until the whole file matches its published checksum and its signature.
+
 ## 1.5.2
 
 - **YouTube: "Ad blockers violate YouTube's Terms of Service".** Since 1.5.1 YouTube could stop the video with this notice. The fingerprinting protection of 1.5.1 replaced some of the page's browser functions (canvas, `toString`, `window.open` …) with versions that, unlike the browser's own, had a `prototype` — a sure sign of tampering that YouTube's anti-abuse check looks for. Now:
