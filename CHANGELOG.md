@@ -6,6 +6,7 @@
   - the replaced functions look exactly like the browser's own everywhere (native code, no `prototype`, cannot be called with `new`);
   - YouTube (like Google's sign-in pages) gets no fingerprinting protection at all: it runs Google's anti-abuse check on every video, and Google knows who watches anyway. The ad blocker and Global Privacy Control stay on there.
 - **Many tabs: a new tab is always in sight.** Tabs stopped getting narrower at 120 px, so once the strip was full a new tab opened out of sight: the strip ran on past the window edge with no way to see it (no scroll bar, the mouse wheel did nothing). Now, as in Chrome, tabs share the strip and get narrower down to the icon — the title and the close button of the other tabs give way first, the tab you are on keeps its close button — and only then does the strip scroll; a new or selected tab is always brought into view, and the mouse wheel scrolls the tabs.
+- **Back from the taskbar without a blank page.** After minimizing SHMMOTH and opening it again, the page was white for a moment, then drawn tiny in a corner, then whole. Windows reports an almost size-less window while minimizing, and the page was shrunk to fit it; it then had to lay itself out again. Now the page keeps its size while the window is minimized and gets the window's size the moment it is restored.
 - The battery API is back, always reporting a full battery on mains power (a Chrome without it is itself unusual); it no longer tells sites your battery level.
 
 ## 1.5.1
