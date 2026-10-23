@@ -4,7 +4,7 @@
  * With fakes (tests/e2e/29-fingerprint.e2e.js and 28-privacy.e2e.js check the real browser):
  *   - the page script against a fake page: WebGL names the maker only (the test machines have no graphics card),
  *     canvas / audio read-backs change per seed and stay the same for one seed, the changed functions read as native,
- *     cores / memory / battery, frames the page makes itself
+ *     cores / memory / battery, frames the page makes itself; the changed functions have no prototype (1.5.2)
  *   - seeds: stable for a site in one session, different between sites, partitions and sessions
  *   - the report: per day, 30 days, tracker sites with the sites they were on, companies, Incognito never counted,
  *     the shield's per-page count and its reset
@@ -65,7 +65,11 @@ function fakeWindow() {
     function Navigator() {}
     Object.defineProperty(Navigator.prototype, 'hardwareConcurrency', { get: function () { return 16; }, configurable: true, enumerable: true });
     Object.defineProperty(Navigator.prototype, 'deviceMemory', { get: function () { return 32; }, configurable: true, enumerable: true });
-    Navigator.prototype.getBattery = function getBattery() { return Promise.resolve({}); };
+    Navigator.prototype.getBattery = function getBattery() { return Promise.resolve(new BatteryManager()); };
+    function BatteryManager() {}
+    ['charging', 'chargingTime', 'dischargingTime', 'level'].forEach(function (k, i) {
+      Object.defineProperty(BatteryManager.prototype, k, { get: function () { return [false, Infinity, 5400, 0.37][i]; }, configurable: true, enumerable: true });
+    });
     function HTMLIFrameElement() {}
     var window = this; var document = new Document(); var navigator = new Navigator();
     window.open = function open() { return null; };
@@ -125,12 +129,31 @@ test('audio: a level change far below hearing, once per buffer; another seed, an
   assert(other !== read1[0], 'same change on another site');
 });
 
-test('2/4/8 cores, 4 or 8 GB, no battery API; the changed functions read as native code', () => {
-  eq(vm.runInContext('[navigator.hardwareConcurrency, navigator.deviceMemory, typeof navigator.getBattery]', A), [8, 8, 'undefined']);
+test('2/4/8 cores, 4 or 8 GB, a full battery on mains power; the changed functions read as native code', () => {
+  eq(vm.runInContext('[navigator.hardwareConcurrency, navigator.deviceMemory, typeof navigator.getBattery]', A), [8, 8, 'function']);
+  eq(vm.runInContext('(() => { const b = new BatteryManager(); return [b.charging, b.chargingTime, b.dischargingTime, b.level]; })()', A), [true, 0, Infinity, 1]);
   const src = vm.runInContext('[HTMLCanvasElement.prototype.toDataURL.toString(), Function.prototype.toString.toString(), Object.getOwnPropertyDescriptor(Navigator.prototype, "hardwareConcurrency").get.toString(), HTMLCanvasElement.prototype.toDataURL.name, CanvasRenderingContext2D.prototype.getImageData.length]', A);
   assert(/^function toDataURL\(\) \{ return 'data:'/.test(src[0]), 'shows the original, not the wrapper: ' + src[0]);
   assert(!/native\.get|noisyCopy/.test(src.join(' ')), src.join(' | '));
   eq(src[3], 'toDataURL'); eq(src[4], 4);
+});
+
+test('the changed functions look like the browser\'s own: no prototype, cannot be called with new (1.5.2)', () => {
+  // in 1.5.1 they were `function () {}` expressions: they had a prototype, which a native function never has — a
+  // well-known sign of tampering (YouTube answered it with its anti-adblock notice)
+  const r = vm.runInContext(`(() => {
+    const d = (o, k) => Object.getOwnPropertyDescriptor(o, k);
+    const fns = [Function.prototype.toString, HTMLCanvasElement.prototype.toDataURL, CanvasRenderingContext2D.prototype.getImageData,
+      WebGLRenderingContext.prototype.getParameter, WebGLRenderingContext.prototype.readPixels, AudioBuffer.prototype.getChannelData,
+      AudioBuffer.prototype.copyFromChannel, window.open, d(Navigator.prototype, 'hardwareConcurrency').get,
+      d(Navigator.prototype, 'deviceMemory').get, d(BatteryManager.prototype, 'level').get];
+    return fns.map((f) => {
+      let ctor = false;
+      try { Reflect.construct(String, [], f); ctor = true; } catch (e) { ctor = false; }
+      return [Object.prototype.hasOwnProperty.call(f, 'prototype'), ctor, Object.getOwnPropertyNames(f).sort().join()];
+    });
+  })()`, A);
+  r.forEach((x, i) => eq(x, [false, false, 'length,name'], 'function #' + i));
 });
 
 test('a second run in the same page does nothing more (frames patched by their parent and by their own preload)', () => {
@@ -150,6 +173,10 @@ test('the shield hands the script only to web pages, per settings and per site',
   const shield = new PrivacyShield({ getSettings: () => settings });
   eq(shield.pageScripts('mtc://settings').length, 0);
   eq(shield.pageScripts('https://accounts.google.com/signin').length, 1, 'Google\'s sign-in pages get only GPC');
+  for (const u of ['https://www.youtube.com/watch?v=x', 'https://m.youtube.com/', 'https://www.youtube-nocookie.com/embed/x', 'https://www.youtubekids.com/']) {
+    eq(shield.pageScripts(u).length, 1, 'YouTube gets only GPC: ' + u);
+  }
+  assert(!/function\s*\(/.test(shield.pageScripts('https://www.youtube.com/')[0]), 'the GPC getter is a method too');
   const s = shield.pageScripts('https://news.example.com/a');
   eq(s.length, 2, 'GPC + fingerprinting');
   assert(s[1].includes(String(seedFor(shield.secret, 'default', 'example.com'))), 'the site\'s seed');

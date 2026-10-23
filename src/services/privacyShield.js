@@ -54,6 +54,10 @@ RELATED.forEach((group, i) => group.forEach((site) => GROUP_OF.set(site, i)));
 // names of this network, and the names reserved for tests and examples (RFC 6761 — they can never have a public
 // certificate, so an upgrade could only fail)
 const SIGN_IN_HOSTS = new Set(['accounts.google.com', 'accounts.youtube.com']);
+// YouTube runs the same Google anti-abuse check on every watch page (it measures canvas and WebGL, and looks for
+// changed browser functions); what it does not like ends in "Ad blockers violate YouTube's Terms of Service" (1.5.2).
+// Google knows who watches anyway, so the noise would hide nothing there.
+const FINGERPRINT_EXEMPT_SITES = new Set(['youtube.com', 'youtube-nocookie.com', 'youtubekids.com']);
 
 const LOCAL_SUFFIXES = ['.local', '.lan', '.internal', '.home', '.localhost', '.home.arpa', '.test', '.example', '.invalid'];
 const HTTPS_DOWNGRADE_WINDOW_MS = 15000;
@@ -141,15 +145,15 @@ class PrivacyShield {
     if (!/^https?:/i.test(String(topUrl || ''))) return [];
     const scripts = [];
     if (this._on('privacyGpc')) {
-      scripts.push("try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:function(){return true},configurable:true,enumerable:true})}catch(e){}");
+      scripts.push("try{Object.defineProperty(Navigator.prototype,'globalPrivacyControl',{get:Object.getOwnPropertyDescriptor({get globalPrivacyControl(){return true}},'globalPrivacyControl').get,configurable:true,enumerable:true})}catch(e){}");
     }
     const site = siteOfUrl(topUrl);
-    // Google's sign-in pages measure the browser to tell people from bots: they get the real values (a changed canvas
-    // there could make Google refuse the sign-in — see services/googleSignIn.js)
+    // Google's sign-in pages and YouTube measure the browser to tell people from bots: they get the real values (a
+    // changed canvas there could make Google refuse the sign-in — see services/googleSignIn.js — or YouTube stop the video)
     let host = '';
     try { host = new URL(topUrl).hostname.toLowerCase(); } catch (_) { host = ''; }
-    const signIn = SIGN_IN_HOSTS.has(host);
-    if (site && !signIn && this._on('privacyFingerprintProtection') && !this.allowsCrossSiteCookies(site)) {
+    const exempt = SIGN_IN_HOSTS.has(host) || FINGERPRINT_EXEMPT_SITES.has(site);
+    if (site && !exempt && this._on('privacyFingerprintProtection') && !this.allowsCrossSiteCookies(site)) {
       scripts.push(fingerprintShield.buildPageScript(fingerprintShield.seedFor(this.secret, partition, site), this.secret));
     }
     return scripts;

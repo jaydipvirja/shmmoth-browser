@@ -6,7 +6,8 @@
  * processor cores, the battery — also from an about:blank frame it creates itself.
  *   - one site reads the same values every time (reload, a second tab): pages that use canvas still work
  *   - another site reads different canvas / audio values: the fingerprint cannot be linked across sites
- *   - the graphics card shows its maker only; 2/4/8 cores; no battery API; the changed functions read as native code
+ *   - the graphics card shows its maker only; 2/4/8 cores; a full battery on mains power; the changed functions look
+ *     like the browser's own (native code, no prototype — 1.5.2)
  *   - the drawing itself is untouched (the page's canvas keeps its pixels; the change is too small to see)
  *   - switched off for a site from the shield ("Tracking protection"), or in Settings, the real values come back
  *
@@ -57,6 +58,10 @@ const PROBE = `<!doctype html><title>probe</title><body><script>
       renderer,
       cores: navigator.hardwareConcurrency,
       battery: typeof navigator.getBattery,
+      batteryState: navigator.getBattery ? await navigator.getBattery().then((b) => [b.charging, b.level].join()) : '',
+      prototypes: [Function.prototype.toString, HTMLCanvasElement.prototype.toDataURL, CanvasRenderingContext2D.prototype.getImageData,
+        window.open, Object.getOwnPropertyDescriptor(Navigator.prototype, 'hardwareConcurrency').get]
+        .filter((f) => Object.prototype.hasOwnProperty.call(f, 'prototype')).length,
       nativeLook: HTMLCanvasElement.prototype.toDataURL.toString(),
       gpc: navigator.globalPrivacyControl
     };
@@ -98,12 +103,14 @@ runSuite('SHMMOTH Browser — E2E 29: fingerprinting protection', async (t) => {
       assert(b1.frameDataUrl !== a1.frameDataUrl, 'an about:blank frame gives the real canvas');
     });
 
-    await t.test('the graphics card shows its maker only; 2/4/8 cores; no battery API; the functions read as native code', async () => {
+    await t.test('the graphics card shows its maker only; 2/4/8 cores; a full battery; the functions look like the browser\'s own', async () => {
       // (no WebGL at all on a machine without a graphics driver: nothing to hide there)
       if (!/\(none\)|error/.test(a1.renderer)) assert(/^ANGLE \([^,]+, [^,]+ GPU\)$/.test(a1.renderer), a1.renderer);
       console.log('    renderer seen by the page: ' + a1.renderer);
       assert([2, 4, 8].includes(a1.cores), String(a1.cores));
-      assertEqual(a1.battery, 'undefined');
+      assertEqual(a1.battery, 'function');
+      assertEqual(a1.batteryState, 'true,1');
+      assertEqual(a1.prototypes, 0, 'a changed function has a prototype (a sign of tampering)');
       assert(/\[native code\]/.test(a1.nativeLook) && !/noise|copy/.test(a1.nativeLook), a1.nativeLook);
       assertEqual(a1.gpc, true);
     });
@@ -116,7 +123,7 @@ runSuite('SHMMOTH Browser — E2E 29: fingerprinting protection', async (t) => {
       const off2 = await read(siteB, 'off2');
       assert(off1.dataUrl !== a1.dataUrl, 'still the protected value');
       assert(off2.dataUrl === b1.dataUrl, 'the other site lost its protection');
-      assertEqual(off1.battery, 'function');
+      assertEqual(off1.prototypes, 0);
       await api(chrome, 'updateSettings', { privacyCookieAllowSites: [] });
     });
 

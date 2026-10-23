@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.5.2
+
+- **YouTube: "Ad blockers violate YouTube's Terms of Service".** Since 1.5.1 YouTube could stop the video with this notice. The fingerprinting protection of 1.5.1 replaced some of the page's browser functions (canvas, `toString`, `window.open` …) with versions that, unlike the browser's own, had a `prototype` — a sure sign of tampering that YouTube's anti-abuse check looks for. Now:
+  - the replaced functions look exactly like the browser's own everywhere (native code, no `prototype`, cannot be called with `new`);
+  - YouTube (like Google's sign-in pages) gets no fingerprinting protection at all: it runs Google's anti-abuse check on every video, and Google knows who watches anyway. The ad blocker and Global Privacy Control stay on there.
+- The battery API is back, always reporting a full battery on mains power (a Chrome without it is itself unusual); it no longer tells sites your battery level.
+
 ## 1.5.1
 
 Privacy, phase 2: fingerprinting protection and the Privacy Report.

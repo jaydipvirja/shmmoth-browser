@@ -15,6 +15,7 @@
  * on the first right-click on the player (the browser's on the second), the class "ad-showing" during an ad, and an
  * anti-adblock notice and ad elements left over in the page. The filter lists are seeded into the profile. When the
  * notice is in the page the browser fetches the newest YouTube fixes of the lists (1.4.4), at most every 30 minutes.
+ * YouTube gets no fingerprinting protection (1.5.2).
  *
  * Run: npm run test:e2e   (or: node tests/e2e/18-youtube-playback.e2e.js)
  */
@@ -189,6 +190,18 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
       const url = await open('/watch?v=rules');
       assertEqual(await evalIn(app, url, 'window.__adPlacementsAtStart'), true, 'the page saw adPlacements: the rule ran too late');
       assertEqual(await evalIn(app, url, 'window.ytInitialPlayerResponse.videoDetails.videoId'), 'e2e', 'the rest of the data must stay');
+    });
+
+    await t.test('YouTube gets no fingerprinting protection (its anti-abuse check took the changed functions for an ad blocker, 1.5.2)', async () => {
+      const url = await open('/watch?v=fp');
+      const r = await evalIn(app, url, `({
+        marks: Object.getOwnPropertySymbols(window).filter((s) => /shmmoth-fp/.test(String(s))).length,
+        prototypes: [Function.prototype.toString, HTMLCanvasElement.prototype.toDataURL, window.open].filter((f) => Object.prototype.hasOwnProperty.call(f, 'prototype')).length,
+        gpc: navigator.globalPrivacyControl
+      })`);
+      assertEqual(r.marks, 0, 'the fingerprint script ran on YouTube');
+      assertEqual(r.prototypes, 0, 'a browser function was changed on YouTube');
+      assertEqual(r.gpc, true, 'GPC stays');
     });
 
     await t.test('with the blocker paused for YouTube they do not run', async () => {

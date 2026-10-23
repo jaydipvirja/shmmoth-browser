@@ -8,9 +8,13 @@
  *     copyFromChannel, getFloatFrequencyData) with a tiny change no one can see or hear. It is the same every time on
  *     one site, and different on every other site and in every browser session — so the "fingerprint" cannot follow
  *     you from site to site;
- *   - the graphics card's maker only, not its model; 2, 4 or 8 processor cores; 4 or 8 GB of memory; no battery API.
+ *   - the graphics card's maker only, not its model; 2, 4 or 8 processor cores; 4 or 8 GB of memory; a battery that is
+ *     always full and charging.
  * The script runs in the page itself, before the page's own scripts (preload-privacy.js), in every frame, and patches
- * the about:blank frames and windows a page creates itself. The changed functions still read as native code.
+ * the about:blank frames and windows a page creates itself. The changed functions look like the browser's own: they
+ * read as native code, have no `prototype` and cannot be called with `new` (1.5.2: in 1.5.1 they had a `prototype`, a
+ * sure sign of tampering that YouTube's anti-adblock check reacts to). They are written as methods (`{ name() {} }`)
+ * for that reason.
  *
  * Only `buildPageScript` runs in a page: it must not use anything outside its own text.
  */
@@ -87,7 +91,7 @@ function pageScript(SEED, SECRET) {
     try {
       // the changed functions read as native code
       method(w.Function.prototype, 'toString', function (orig) {
-        return { toString: function () { return orig.call(native.get(this) || this); } }.toString;
+        return { toString() { return orig.call(native.get(this) || this); } }.toString;
       });
 
       var Canvas = w.HTMLCanvasElement && w.HTMLCanvasElement.prototype;
@@ -112,21 +116,21 @@ function pageScript(SEED, SECRET) {
         return copy;
       };
       method(Canvas, 'toDataURL', function (orig) {
-        return { toDataURL: function () {
+        return { toDataURL() {
           var copy = null;
           try { copy = noisyCopy(this); } catch (e) { copy = null; }
           return orig.apply(copy || this, arguments);
         } }.toDataURL;
       });
       method(Canvas, 'toBlob', function (orig) {
-        return { toBlob: function () {
+        return { toBlob() {
           var copy = null;
           try { copy = noisyCopy(this); } catch (e) { copy = null; }
           return orig.apply(copy || this, arguments);
         } }.toBlob;
       });
       var readImage = function (orig) {
-        return { getImageData: function () {
+        return { getImageData() {
           var img = orig.apply(this, arguments);
           try { noisePixels(img.data, img.width, img.height, 2); } catch (e) { /* as read */ }
           return img;
@@ -139,7 +143,7 @@ function pageScript(SEED, SECRET) {
       var glPatch = function (proto) {
         if (!proto) return;
         method(proto, 'getParameter', function (orig) {
-          return { getParameter: function (p) {
+          return { getParameter(p) {
             var v = orig.apply(this, arguments);
             if ((p === 0x9245 || p === 0x9246) && typeof v === 'string') {
               var m = /ANGLE \(([^,()]+)/.exec(orig.call(this, 0x9246) || '');
@@ -150,7 +154,7 @@ function pageScript(SEED, SECRET) {
           } }.getParameter;
         });
         method(proto, 'readPixels', function (orig) {
-          return { readPixels: function (x, y, rw, rh, format, type, pixels) {
+          return { readPixels(x, y, rw, rh, format, type, pixels) {
             var out = orig.apply(this, arguments);
             try { if (pixels && pixels.BYTES_PER_ELEMENT === 1 && pixels.length >= rw * rh * 4) noisePixels(pixels, rw, rh, 3); } catch (e) { /* as read */ }
             return out;
@@ -168,10 +172,10 @@ function pageScript(SEED, SECRET) {
       };
       var AB = w.AudioBuffer && w.AudioBuffer.prototype;
       method(AB, 'getChannelData', function (orig) {
-        return { getChannelData: function () { var a = orig.apply(this, arguments); scale(a); return a; } }.getChannelData;
+        return { getChannelData() { var a = orig.apply(this, arguments); scale(a); return a; } }.getChannelData;
       });
       method(AB, 'copyFromChannel', function (orig) {
-        return { copyFromChannel: function (dest) {
+        return { copyFromChannel(dest) {
           var r = orig.apply(this, arguments);
           try { for (var i = 0; i < dest.length; i++) dest[i] = dest[i] * AUDIO_FACTOR; } catch (e) { /* as read */ }
           return r;
@@ -179,7 +183,7 @@ function pageScript(SEED, SECRET) {
       });
       var AN = w.AnalyserNode && w.AnalyserNode.prototype;
       method(AN, 'getFloatFrequencyData', function (orig) {
-        return { getFloatFrequencyData: function (arr) {
+        return { getFloatFrequencyData(arr) {
           var r = orig.apply(this, arguments);
           try { for (var i = 0; i < arr.length; i++) arr[i] = arr[i] * AUDIO_FACTOR; } catch (e) { /* as read */ }
           return r;
@@ -200,7 +204,14 @@ function pageScript(SEED, SECRET) {
           return n >= 8 ? 8 : 4;
         } }, 'deviceMemory').get;
       });
-      if (Nav && 'getBattery' in Nav) { try { delete Nav.getBattery; } catch (e) { /* kept */ } }
+      // the battery reads like a desktop computer on mains power. The API itself stays: every Chrome has it, and a
+      // Chrome without it is itself unusual (sites that look for tampering notice it)
+      var Battery = w.BatteryManager && w.BatteryManager.prototype;
+      var FIXED = { charging: true, chargingTime: 0, dischargingTime: Infinity, level: 1 };
+      getter(Battery, 'charging', function () { return Object.getOwnPropertyDescriptor({ get charging() { return FIXED.charging; } }, 'charging').get; });
+      getter(Battery, 'chargingTime', function () { return Object.getOwnPropertyDescriptor({ get chargingTime() { return FIXED.chargingTime; } }, 'chargingTime').get; });
+      getter(Battery, 'dischargingTime', function () { return Object.getOwnPropertyDescriptor({ get dischargingTime() { return FIXED.dischargingTime; } }, 'dischargingTime').get; });
+      getter(Battery, 'level', function () { return Object.getOwnPropertyDescriptor({ get level() { return FIXED.level; } }, 'level').get; });
 
       // frames and windows the page makes itself (about:blank) get the same treatment before the page can use them
       var IFrame = w.HTMLIFrameElement && w.HTMLIFrameElement.prototype;
@@ -219,7 +230,7 @@ function pageScript(SEED, SECRET) {
         } }, 'contentDocument').get;
       });
       method(w, 'open', function (orig) {
-        return { open: function () { var nw = orig.apply(this, arguments); if (nw) patch(nw); return nw; } }.open;
+        return { open() { var nw = orig.apply(this, arguments); if (nw) patch(nw); return nw; } }.open;
       });
     } catch (e) { /* a page without some of these still works */ }
   }
