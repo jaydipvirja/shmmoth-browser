@@ -49,6 +49,10 @@ class StorageService {
         privacyHttpsOnly:              true,   // http:// pages are asked for over https:// first
         privacyFingerprintProtection:  true,   // canvas / audio / WebGL / hardware read-outs differ per site (1.5.1)
         privacyCookieAllowSites:       [],     // sites the user allowed cross-site cookies on (shield)
+        downloadSpeedLimit:            0,      // bytes/s for all downloads together; 0 = no limit (1.5.4)
+        downloadSlowMode:              false,  // Slow mode: downloadSlowModeSpeed stands in for the limit (calls, video)
+        downloadSlowModeSpeed:         512 * 1024,
+        downloadNetworkLimits:         {},     // { network name: bytes/s } when downloads use several networks
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,

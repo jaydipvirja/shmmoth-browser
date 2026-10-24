@@ -643,18 +643,70 @@
           <!-- Turbo Concurrent Streams -->
           <div class="setting-row">
             <div class="setting-info">
-              <label class="setting-label">Maximum Concurrent Streams</label>
-              <span class="setting-desc">Number of parallel sockets opened per file download.</span>
+              <label class="setting-label">Connections per Download</label>
+              <span class="setting-desc">Auto starts with a few and adds more while every connection gets data; it uses fewer when the server refuses some or the disk cannot keep up.</span>
             </div>
             <div class="setting-control">
               <select id="select-turbo-threads" class="select-dropdown">
+                <option value="auto" selected>Auto (Recommended)</option>
                 <option value="4">4 Connections</option>
-                <option value="8" selected>8 Connections (Recommended)</option>
-                <option value="16">16 Connections (Ultra Fast)</option>
-                <option value="32">32 Connections (Maximum Aggression)</option>
+                <option value="8">8 Connections</option>
+                <option value="16">16 Connections</option>
+                <option value="32">32 Connections</option>
               </select>
             </div>
           </div>
+
+          <div class="divider"></div>
+
+          <!-- Speed limits (services/speedLimiter.js, 1.5.4) -->
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Download Speed Limit</label>
+              <span class="setting-desc">For all downloads together, so browsing and other programs stay fast.</span>
+            </div>
+            <div class="setting-control">
+              <select id="select-speed-limit" class="select-dropdown" aria-label="Download speed limit">
+                <option value="0">No limit</option>
+                <option value="262144">256 KB/s</option>
+                <option value="524288">512 KB/s</option>
+                <option value="1048576">1 MB/s</option>
+                <option value="2097152">2 MB/s</option>
+                <option value="5242880">5 MB/s</option>
+                <option value="10485760">10 MB/s</option>
+                <option value="20971520">20 MB/s</option>
+                <option value="52428800">50 MB/s</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Slow Mode</label>
+              <span class="setting-desc">One switch for calls and video: downloads slow down to the speed on the right until you switch it off.</span>
+            </div>
+            <div class="setting-control" style="display:flex;gap:10px;align-items:center">
+              <select id="select-slow-speed" class="select-dropdown" aria-label="Slow mode speed">
+                <option value="131072">128 KB/s</option>
+                <option value="262144">256 KB/s</option>
+                <option value="524288" selected>512 KB/s</option>
+                <option value="1048576">1 MB/s</option>
+                <option value="2097152">2 MB/s</option>
+              </select>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-slow-mode" aria-label="Slow mode">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="setting-row" id="row-network-limits">
+            <div class="setting-info">
+              <label class="setting-label">Speed Limit per Network</label>
+              <span class="setting-desc">When downloads combine several connections (Multi-WAN), each one can have its own limit — a mobile hotspot, for example.</span>
+            </div>
+          </div>
+          <ul id="network-limits" class="check-list" aria-live="polite"></ul>
         </div>
       </section>
 
