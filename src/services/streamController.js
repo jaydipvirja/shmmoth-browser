@@ -18,7 +18,8 @@
  *     doubles. A hard drive is down to the streams it writes fastest with within seconds.
  *   - Nothing grows while the waiting blocks could not keep another stream busy.
  *
- * Pure: it reads a snapshot (time included) and says what to do, so every rule can be tested exactly. *
+ * Pure: it reads a snapshot (time included) and says what to do, so every rule can be tested exactly.
+ *
  * Parts of this file are adapted from Plexo, under the MIT License:
  *   Copyright (c) 2026 Anmol Kapil
  *   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated

@@ -5,7 +5,8 @@
  * for calls and video). After Plexo (MIT, github.com/anmolkapil/plexo, src/main/network/limits.ts).
  *
  * Every byte the download engine receives passes through take(), with the network it came in on, which says how long
- * to stop reading for. Stopping reading is what slows the sender: TCP's window fills, and it waits. *
+ * to stop reading for. Stopping reading is what slows the sender: TCP's window fills, and it waits.
+ *
  * Parts of this file are adapted from Plexo, under the MIT License:
  *   Copyright (c) 2026 Anmol Kapil
  *   Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
