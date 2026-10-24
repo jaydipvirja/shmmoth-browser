@@ -7,6 +7,7 @@ Downloads, after [Plexo](https://github.com/anmolkapil/plexo) (MIT):
 - **Download speed limit** for all downloads together, so browsing and other programs stay fast.
 - **Slow mode**: one switch for calls and video, which slows every download to the chosen speed (512 KB/s by default) until it is switched off.
 - **Speed limit per network** when downloads combine several connections — a mobile hotspot, for example.
+- Security: Electron 44.9.3 (stops trusting the compromised eMudhra intermediate certificates) and newer `undici` / `fast-uri`.
 
 ## 1.5.3
 
