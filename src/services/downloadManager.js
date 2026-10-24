@@ -28,6 +28,7 @@ const fs    = require('fs');
 const { app, shell } = require('electron');
 const { downloadLogger: log } = require('../utils/logger');
 const TurboDownloadEngine = require('./turboDownloadEngine');
+const { SpeedLimiter } = require('./speedLimiter');
 
 let _idCounter = 1;
 function generateId() {
@@ -258,10 +259,14 @@ class DownloadManager {
     this._resuming = new Set();
 
     // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
+    // Speed limits for every download together (Settings → Downloads; Slow mode), see services/speedLimiter.js
+    this.speedLimiter = new SpeedLimiter();
+    this.applySpeedSettings();
     this.turboEngine = new TurboDownloadEngine({
       defaultThreads: 8,
       minTurboSize: 2 * 1024 * 1024,
-      multiSource: true
+      multiSource: true,
+      limiter: this.speedLimiter
     });
 
     this._setupTurboListeners();
@@ -568,14 +573,23 @@ class DownloadManager {
     return true;
   }
 
+  /** The connections per download: a number the user picked, or 'auto' (the default since 1.5.4: decided while it runs). */
   getTurboThreads() {
     if (this.storage) {
       try {
         const settings = this.storage.getSettings ? this.storage.getSettings() : (this.storage.get('settings') || {});
-        return Number(settings.turboThreads) || 8;
+        return Number(settings.turboThreads) > 0 ? Number(settings.turboThreads) : 'auto';
       } catch (_) {}
     }
-    return 8;
+    return 'auto';
+  }
+
+  /** Takes up the speed limits of the settings (called at start and whenever they change). */
+  applySpeedSettings() {
+    try {
+      const settings = this.storage && this.storage.getSettings ? this.storage.getSettings() : {};
+      this.speedLimiter.configure(settings || {});
+    } catch (_) { /* no limits */ }
   }
 
   async getNetworkInterfaces() {
@@ -670,7 +684,8 @@ class DownloadManager {
       isIncognito: Boolean(isIncognito),
       isTurbo: true,
       isMultiSource: multiSource,
-      threadsCount: threadCount,
+      threadsCount: threadCount === 'auto' ? 4 : threadCount,
+      autoStreams: threadCount === 'auto',
       referrer: (headers && typeof headers.Referer === 'string' && /^https?:\/\//i.test(headers.Referer)) ? headers.Referer.slice(0, 2048) : '',
       received: 0,
       total: opts.totalBytes || probe.totalBytes || 0,
@@ -1212,7 +1227,7 @@ class DownloadManager {
           url: record.url,
           savePath: record.savePath,
           headers: record.headers || {},
-          threads: record.threadsCount || this.getTurboThreads(),
+          threads: record.autoStreams ? 'auto' : (record.threadsCount || this.getTurboThreads()),
           totalBytes: record.total,
           multiSource: record.isMultiSource
         }).catch(err => {

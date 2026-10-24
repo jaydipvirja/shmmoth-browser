@@ -271,8 +271,9 @@ async function initSettings() {
         toggleMultiSourceBonding.checked = currentSettings.multiSourceBonding !== false;
       }
       if (selectTurboThreads) {
-        selectTurboThreads.value = String(currentSettings.turboThreads || 8);
+        selectTurboThreads.value = Number(currentSettings.turboThreads) > 0 ? String(currentSettings.turboThreads) : 'auto';
       }
+      loadSpeedLimits();
     } catch (e) {
       console.error('Error loading settings:', e);
     }
@@ -636,8 +637,77 @@ if (toggleMultiSourceBonding) {
 
 if (selectTurboThreads) {
   selectTurboThreads.addEventListener('change', () => {
-    saveSettingChange({ turboThreads: Number(selectTurboThreads.value) });
+    const v = selectTurboThreads.value;
+    saveSettingChange({ turboThreads: v === 'auto' ? 'auto' : Number(v) });
   });
+}
+
+// ─── Speed limits (1.5.4) ───
+const selectSpeedLimit = document.getElementById('select-speed-limit');
+const selectSlowSpeed  = document.getElementById('select-slow-speed');
+const toggleSlowMode   = document.getElementById('toggle-slow-mode');
+const networkLimitList = document.getElementById('network-limits');
+const NETWORK_LIMIT_CHOICES = [[0, 'No limit'], [262144, '256 KB/s'], [524288, '512 KB/s'], [1048576, '1 MB/s'], [2097152, '2 MB/s'], [5242880, '5 MB/s'], [10485760, '10 MB/s']];
+
+/** Shows a value in a select, adding it as a choice when it is not one of them (set elsewhere). */
+function selectValue(select, value) {
+  const v = String(value);
+  if (!Array.from(select.options).some((o) => o.value === v)) {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = (Number(value) / 1048576).toFixed(2) + ' MB/s';
+    select.appendChild(o);
+  }
+  select.value = v;
+}
+
+async function loadSpeedLimits() {
+  if (!selectSpeedLimit) return;
+  selectValue(selectSpeedLimit, Number(currentSettings.downloadSpeedLimit) > 0 ? Number(currentSettings.downloadSpeedLimit) : 0);
+  selectValue(selectSlowSpeed, Number(currentSettings.downloadSlowModeSpeed) > 0 ? Number(currentSettings.downloadSlowModeSpeed) : 524288);
+  toggleSlowMode.checked = currentSettings.downloadSlowMode === true;
+  // one row per physical network this computer has (built with DOM calls: names come from the system)
+  let nets = [];
+  try { nets = (await window.mtcAPI.getNetworkInterfaces()) || []; } catch (_) { nets = []; }
+  const limits = (currentSettings.downloadNetworkLimits && typeof currentSettings.downloadNetworkLimits === 'object') ? currentSettings.downloadNetworkLimits : {};
+  const names = [...new Set(nets.filter((n) => !n.isVirtual).map((n) => n.name).concat(Object.keys(limits)))];
+  networkLimitList.replaceChildren();
+  if (names.length === 0) {
+    const li = document.createElement('li');
+    li.textContent = 'No network connections found.';
+    networkLimitList.appendChild(li);
+    return;
+  }
+  for (const name of names) {
+    const li = document.createElement('li');
+    li.style.display = 'flex'; li.style.alignItems = 'center'; li.style.justifyContent = 'space-between'; li.style.gap = '12px';
+    const label = document.createElement('span');
+    label.textContent = name;
+    const select = document.createElement('select');
+    select.className = 'select-dropdown';
+    select.setAttribute('aria-label', 'Speed limit for ' + name);
+    select.dataset.network = name;
+    for (const [value, text] of NETWORK_LIMIT_CHOICES) {
+      const o = document.createElement('option');
+      o.value = String(value); o.textContent = text;
+      select.appendChild(o);
+    }
+    selectValue(select, Number(limits[name]) > 0 ? Number(limits[name]) : 0);
+    select.addEventListener('change', () => {
+      const next = { ...((currentSettings.downloadNetworkLimits && typeof currentSettings.downloadNetworkLimits === 'object') ? currentSettings.downloadNetworkLimits : {}) };
+      if (Number(select.value) > 0) next[name] = Number(select.value); else delete next[name];
+      currentSettings.downloadNetworkLimits = next;
+      saveSettingChange({ downloadNetworkLimits: next });
+    });
+    li.append(label, select);
+    networkLimitList.appendChild(li);
+  }
+}
+
+if (selectSpeedLimit) {
+  selectSpeedLimit.addEventListener('change', () => saveSettingChange({ downloadSpeedLimit: Number(selectSpeedLimit.value) }));
+  selectSlowSpeed.addEventListener('change', () => saveSettingChange({ downloadSlowModeSpeed: Number(selectSlowSpeed.value) }));
+  toggleSlowMode.addEventListener('change', () => saveSettingChange({ downloadSlowMode: toggleSlowMode.checked }));
 }
 
 if (btnChangeDownloadFolder) {

@@ -206,7 +206,7 @@ function renderDownloads() {
     // Turbo & Bonding Badges
     let turboBadges = '';
     if (record.isTurbo) {
-      turboBadges += `<span class="badge-turbo"><span class="sh-icon" data-icon="bolt" aria-hidden="true"></span>Turbo (${record.threadsCount || 8} Streams)</span>`;
+      turboBadges += `<span class="badge-turbo"><span class="sh-icon" data-icon="bolt" aria-hidden="true"></span>Turbo (${record.threadsCount || 8} Streams${record.autoStreams ? ', Auto' : ''})</span>`;
       if (record.isMultiSource) {
         turboBadges += `<span class="badge-turbo badge-bonding"><span class="sh-icon" data-icon="globe" aria-hidden="true"></span>Multi-Source</span>`;
       }

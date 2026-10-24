@@ -315,6 +315,9 @@ class IpcMethods {
       }
       if (delta.micaEffect !== undefined) this.applyWindowMaterial();
       if (delta.privacyFingerprintProtection !== undefined) this.refreshWebRtcPolicies();
+      if (this.downloads && ['downloadSpeedLimit', 'downloadSlowMode', 'downloadSlowModeSpeed', 'downloadNetworkLimits'].some((k) => delta[k] !== undefined)) {
+        this.downloads.applySpeedSettings();
+      }
       if (delta.showBookmarksBar !== undefined) {
         this.updateHeaderHeight(true);
         this.updateViewBounds();

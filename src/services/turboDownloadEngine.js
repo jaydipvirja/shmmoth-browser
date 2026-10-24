@@ -25,6 +25,12 @@
  *     blocks and the started ones up to their last byte (fsync'ed before each checkpoint); start() with
  *     `resume` (a checkpoint) continues there when the server still has the same file (size, ETag, Last-Modified).
  *
+ *   - Auto streams (threads: 'auto', 1.5.4): each network starts with a few connections and the count is decided while
+ *     the download runs — more while every connection gets data, fewer when the server refuses some or the disk
+ *     cannot keep up (services/streamController.js, after Plexo).
+ *   - Speed limits (options.limiter, services/speedLimiter.js): every byte that arrives is counted; over a limit, the
+ *     connection stops reading for a moment, which slows the sender.
+ *
  * EVENTS: progress, completed, error (+ resume), paused, resumed, cancelled, checkpoint ({ id, resume })
  */
 
@@ -38,6 +44,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { URL } = require('url');
+const { StreamController, DiskWatch, START_STREAMS, MAX_STREAMS } = require('./streamController');
 
 // Fallback UA for downloads started without browser headers: match the running Chromium
 const CHROME_MAJOR = String((process.versions && process.versions.chrome) || '130').split('.')[0];
@@ -304,6 +311,7 @@ class TurboDownloadEngine extends EventEmitter {
       if (Number.isFinite(options[key]) && options[key] > 0) this.limits[key] = options[key];
     }
     this._net = options.net !== undefined ? options.net : electronNet();    // Chromium's network stack (null in plain Node)
+    this.limiter = options.limiter || null;                                  // speed limits (services/speedLimiter.js)
     this.activeTasks = new Map();
     this._starting = new Set();      // ids whose start() is still probing / looking for network interfaces
     this._precancelled = new Set();  // ... and that were cancelled meanwhile
@@ -574,7 +582,8 @@ class TurboDownloadEngine extends EventEmitter {
   async _start(taskOpts) {
     const { id, url, savePath } = taskOpts;
     let headers = taskOpts.headers || {};
-    const requestedThreads = Math.max(1, Math.min(this.limits.maxWorkers, taskOpts.threads || this.defaultThreads));
+    const auto = taskOpts.threads === 'auto';
+    const requestedThreads = auto ? START_STREAMS : Math.max(1, Math.min(this.limits.maxWorkers, Number(taskOpts.threads) || this.defaultThreads));
     const multiSourceRequested = taskOpts.multiSource !== undefined ? taskOpts.multiSource : this.multiSourceEnabled;
 
     let probeInfo = taskOpts.probe || { acceptsRanges: true, totalBytes: taskOpts.totalBytes || 0, finalUrl: url, filename: '' };
@@ -630,6 +639,7 @@ class TurboDownloadEngine extends EventEmitter {
       isMultiSource: networks.length > 1,
       networkNote,                               // why one network is used although multi-network is on ('' = n/a)
       threadsCount: isTurboEligible ? requestedThreads : 1,
+      auto: auto && isTurboEligible,             // auto streams: the connection count is decided while it runs
       segments: [],
       interfaces: networks,
       speed: 0,
@@ -691,11 +701,15 @@ class TurboDownloadEngine extends EventEmitter {
     const networks = task.interfaces;
     // enough connections for every network to be busy, but never more workers than blocks
     let workerCount = networks.length > 1 ? Math.max(task.threadsCount, networks.length * 2) : task.threadsCount;
+    if (task.auto) workerCount = START_STREAMS * Math.max(1, networks.length);
     workerCount = Math.min(workerCount, this.limits.maxWorkers);
+    // auto streams may grow to this many: the blocks are cut for it
+    const perNetworkMax = Math.max(1, Math.min(MAX_STREAMS, Math.floor(this.limits.maxWorkers / Math.max(1, networks.length))));
+    const plannedWorkers = task.auto ? perNetworkMax * Math.max(1, networks.length) : workerCount;
 
     let blockSize = task.resumeFrom ? task.resumeFrom.blockSize : this.blockBytes;
     if (!blockSize) {
-      blockSize = Math.ceil(task.totalBytes / (workerCount * 16));
+      blockSize = Math.ceil(task.totalBytes / (plannedWorkers * 16));
       blockSize = Math.max(this.limits.minBlockBytes, Math.min(this.limits.maxBlockBytes, blockSize));
     }
     task.blockSize = blockSize;
@@ -748,17 +762,89 @@ class TurboDownloadEngine extends EventEmitter {
     }
 
     task.workers = [];
-    for (let i = 0; i < workerCount; i++) {
-      task.workers.push({
-        id: i,
-        iface: networks.length > 1 ? networks[i % networks.length] : null,
-        running: false, idle: false, dead: false, restart: false,
-        block: null, req: null, timer: null, failures: 0
-      });
+    task.nextWorkerId = 0;
+    for (let i = 0; i < workerCount; i++) task.workers.push(this._newWorker(task, networks.length > 1 ? networks[i % networks.length] : null));
+    if (task.auto) {
+      task.controller = new StreamController(perNetworkMax);
+      task.diskWatch = new DiskWatch();
     }
 
     this._startSpeedMonitoring(task);
     task.workers.forEach((w) => this._workerLoop(task, w));
+  }
+
+  _newWorker(task, iface) {
+    return {
+      id: task.nextWorkerId++,
+      iface,
+      running: false, idle: false, dead: false, restart: false,
+      block: null, req: null, timer: null, failures: 0,
+      // for auto streams: data ever / since the last look, a refusal since the last look, writes the disk has not taken
+      answered: false, served: false, refused: false, pending: 0
+    };
+  }
+
+  /**
+   * Auto streams, once per tick: asks the controller how many connections each network should run now, and adds or
+   * retires them. A retired connection's block goes back to the queue and continues where it stopped.
+   */
+  _autoStreams(task) {
+    if (!task.controller || task.state !== 'progressing' || task.isPaused || task.degraded) return;
+    const now = Date.now();
+    const keyOf = (iface) => (iface ? iface.address : '');
+    const groups = new Map();
+    const healthy = task.interfaces.length ? task.interfaces.filter((i) => !i.failed) : [null];
+    for (const iface of (healthy.length ? healthy : [null])) {
+      groups.set(keyOf(iface), { id: keyOf(iface), iface, streams: 0, answered: 0, refused: 0, served: 0, workers: [] });
+    }
+    const alive = task.workers.filter((w) => !w.dead);
+    for (const w of alive) {
+      const g = groups.get(keyOf(w.iface));
+      if (!g) continue;
+      g.workers.push(w);
+      g.streams++;
+      if (w.answered) g.answered++;
+      if (w.refused) g.refused++;
+      if (w.served) g.served++;
+    }
+    task.diskWatch.sample(now, alive.filter((w) => w.block).length, alive.filter((w) => w.pending > 0).length);
+    const spareWork = Math.max(0, task.blockCount - task.nextBlock) + task.requeue.length;
+    const actions = task.controller.tick({
+      now,
+      networks: [...groups.values()].map(({ id, streams, answered, refused, served }) => ({ id, streams, answered, refused, served })),
+      spareWork,
+      disk: { reading: task.diskWatch.reading, since: task.diskWatch.since }
+    });
+    for (const w of task.workers) { w.refused = false; w.served = false; }
+
+    for (const action of actions) {
+      const g = groups.get(action.networkId);
+      if (!g) continue;
+      if (action.kind === 'add') {
+        for (let i = 0; i < action.count && task.workers.filter((w) => !w.dead).length < this.limits.maxWorkers; i++) {
+          const w = this._newWorker(task, g.iface);
+          task.workers.push(w);
+          this._workerLoop(task, w);
+        }
+      } else {
+        // the refused ones first, then those that never got data, then the newest
+        const order = g.workers.slice().sort((a, b) => (Number(b.refusedOnce) - Number(a.refusedOnce)) || (Number(a.answered) - Number(b.answered)) || (b.id - a.id));
+        for (const w of order.slice(0, action.count)) this._retireWorker(task, w);
+      }
+    }
+    task.workers = task.workers.filter((w) => !w.dead || w.running || w.timer);
+    task.threadsCount = task.workers.filter((w) => !w.dead).length;
+  }
+
+  _retireWorker(task, worker) {
+    worker.dead = true;
+    if (worker.timer) { clearTimeout(worker.timer); worker.timer = null; }
+    if (worker.req) { try { worker.req.destroy(); } catch (_) {} }
+    if (worker.block && !worker.block.done && worker.block.fetchers.size <= 1) {
+      worker.block.fetchers.delete(worker);
+      this._requeue(task, worker.block);
+    }
+    this._wake(task);
   }
 
   _blockLength(task, index) {
@@ -942,19 +1028,22 @@ class TurboDownloadEngine extends EventEmitter {
 
         res.pause();
         pending++;
+        worker.pending++;
         task.pendingWrites++;
         const offset = pos;
         pos += chunk.length;
         fs.write(fd, chunk, 0, chunk.length, offset, (err, written) => {
           pending--;
+          worker.pending--;
           task.pendingWrites--;
+          if (task.diskWatch) task.diskWatch.landed(Date.now());
           if (!err) this._commit(task, worker, block, offset, written);
           this._afterWrite(task);
           if (err) return finish(err);
           if (settled) return;
           if (block.done) return finish(null);
           if (ended) return maybeEnd();
-          res.resume();
+          this._resumeLimited(res, worker.iface ? worker.iface.name : '', written, () => settled);
         });
       });
       res.on('end', () => { ended = true; maybeEnd(); });
@@ -965,6 +1054,13 @@ class TurboDownloadEngine extends EventEmitter {
         finish(new Error('The connection was closed before the file was complete'));
       });
     });
+  }
+
+  /** Reads on from `res` — at once, or after the pause a speed limit asks for (stopping reading slows the sender). */
+  _resumeLimited(res, networkName, bytes, gone) {
+    const wait = this.limiter ? this.limiter.take(networkName, bytes) : 0;
+    if (wait < 1) { res.resume(); return; }
+    setTimeout(() => { if (!gone()) { try { res.resume(); } catch (_) { /* closed meanwhile */ } } }, Math.min(wait, 5000));
   }
 
   /** Accounts for bytes that reached the disk. A block's `received` is the contiguous part written from its start. */
@@ -978,6 +1074,8 @@ class TurboDownloadEngine extends EventEmitter {
     task.receivedBytes += gained;
     task.lastProgressAt = Date.now();
     worker.failures = 0;
+    worker.answered = true;
+    worker.served = true;
     if (worker.iface) {
       worker.iface.receivedBytes += gained;
       worker.iface.failures = 0;
@@ -1023,6 +1121,8 @@ class TurboDownloadEngine extends EventEmitter {
     worker.failures++;
     task.lastError = err;
     this._requeue(task, block);
+    // auto streams: the server turned this connection away (it may want fewer connections from this address)
+    if (err.status === 403 || err.status === 429 || err.status === 503) { worker.refused = true; worker.refusedOnce = true; }
 
     // The server accepts fewer connections than asked for: this one stops trying, the others carry on
     const others = task.workers.filter((w) => w !== worker && !w.dead && w.failures < 3);
@@ -1162,7 +1262,7 @@ class TurboDownloadEngine extends EventEmitter {
           seg.received = task.receivedBytes;
           if (settled) return;
           if (ended) return complete();
-          res.resume();
+          this._resumeLimited(res, '', chunk.length, () => settled || seg.dead);
         });
       });
 
@@ -1273,6 +1373,7 @@ class TurboDownloadEngine extends EventEmitter {
         return;
       }
       emitProgressNow();
+      if (task.controller) this._autoStreams(task);
       // every ~5 s: what is on the disk, so the download can continue after a crash or a closed browser
       if (++task.ticks % 12 === 0 && task.receivedBytes !== task.checkpointedBytes) this._emitCheckpoint(task);
 

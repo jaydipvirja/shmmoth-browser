@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.5.4
+
+Downloads, after [Plexo](https://github.com/anmolkapil/plexo) (MIT):
+- **Auto connections** (*Settings → Downloads → Connections per Download*, the new default). A download starts with four connections per network and doubles them while every one of them gets data, up to 16 per network. When the server turns some connections away while it serves the others, those close and the download stays at what the server accepts; one more is tried each minute. When the disk cannot keep up (a hard drive), the connections are halved, and they come back once it keeps up. A fixed number (4, 8, 16, 32) can still be chosen.
+- **Download speed limit** for all downloads together, so browsing and other programs stay fast.
+- **Slow mode**: one switch for calls and video, which slows every download to the chosen speed (512 KB/s by default) until it is switched off.
+- **Speed limit per network** when downloads combine several connections — a mobile hotspot, for example.
+
 ## 1.5.3
 
 - **Updates download much faster.** SHMMOTH fetched an update (about 110 MB) over a single connection, and one connection to GitHub's download servers is often slow. Now, like a download manager, it fetches the update in 4 MB pieces over six connections at once; a piece whose connection drops continues where it stopped instead of starting the whole update again. As before, nothing is installed until the whole file matches its published checksum and its signature.
