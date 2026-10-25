@@ -191,6 +191,7 @@ function renderDownloads() {
       // Stopped with its blocks kept on the disk: Resume continues there, Start over downloads it again
       actionButtons = `
         <button class="btn-dl-action btn-resume" data-id="${escapeHtml(record.id)}"><span class="sh-icon" data-icon="play" aria-hidden="true"></span>Resume</button>
+        <button class="btn-dl-action btn-fix-link" data-id="${escapeHtml(record.id)}" title="The link expired? Paste a new link to the same file: the download continues where it stopped">Fix link</button>
         <button class="btn-dl-action btn-retry" data-url="${escapeHtml(record.url)}"><span class="sh-icon" data-icon="reload" aria-hidden="true"></span>Start over</button>
         <button class="btn-dl-action danger btn-remove" data-id="${escapeHtml(record.id)}" title="Remove from list" aria-label="Remove from list"><span class="sh-icon" data-icon="close" aria-hidden="true"></span></button>
       `;
@@ -268,6 +269,7 @@ function renderDownloads() {
           <div class="dl-meta">
             <span class="dl-size">${sizeStr}</span>
             ${record.error && (record.state === 'interrupted' || record.state === 'cancelled') ? `<span class="dl-error" title="${escapeHtml(record.error)}">${escapeHtml(record.error)}</span>` : ''}
+            ${record.pauseReason && record.state === 'paused' ? `<span class="dl-error" title="${escapeHtml(record.pauseReason)}">${escapeHtml(record.pauseReason)}</span>` : ''}
             ${speedStr ? `<span class="dl-speed">${speedStr}</span>` : ''}
             ${etaStr ? `<span class="dl-eta">• ${etaStr}</span>` : ''}
             ${ifaceChipsHtml}
@@ -342,6 +344,50 @@ function renderDownloads() {
           downloads = downloads.filter(d => d.id !== record.id);
           renderDownloads();
         }
+      });
+    }
+
+    // "Fix link" (1.5.5): a new link to the same file continues the download where it stopped
+    const fixBtn = div.querySelector('.btn-fix-link');
+    if (fixBtn) {
+      fixBtn.addEventListener('click', () => {
+        if (div.querySelector('.fix-link-form')) return;
+        const form = document.createElement('form');
+        form.className = 'fix-link-form';
+        form.style.cssText = 'display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap';
+        const input = document.createElement('input');
+        input.type = 'url';
+        input.required = true;
+        input.placeholder = 'Paste a new link to the same file';
+        input.setAttribute('aria-label', 'New link to the same file');
+        input.style.cssText = 'flex:1;min-width:220px;padding:7px 10px;border-radius:8px;border:1px solid var(--sh-border);background:var(--sh-surface);color:var(--sh-text)';
+        const save = document.createElement('button');
+        save.type = 'submit';
+        save.className = 'btn-dl-action';
+        save.textContent = 'Continue';
+        const cancel = document.createElement('button');
+        cancel.type = 'button';
+        cancel.className = 'btn-dl-action';
+        cancel.textContent = 'Cancel';
+        const note = document.createElement('div');
+        note.className = 'fix-link-note';
+        note.setAttribute('role', 'status');
+        note.style.cssText = 'flex-basis:100%;font-size:12px;color:var(--sh-text-2)';
+        note.textContent = 'Copy the link again from the page you downloaded it from. It must be the same file (same size).';
+        cancel.addEventListener('click', () => form.remove());
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          save.disabled = true;
+          note.textContent = 'Checking the new link…';
+          let res = null;
+          try { res = await api.replaceDownloadLink(record.id, input.value); } catch (err) { res = { success: false, error: String(err && err.message || err) }; }
+          if (res && res.success) { form.remove(); loadDownloads(); return; }
+          save.disabled = false;
+          note.textContent = (res && res.error) || 'The new link could not be used.';
+        });
+        form.append(input, save, cancel, note);
+        div.appendChild(form);
+        input.focus();
       });
     }
 

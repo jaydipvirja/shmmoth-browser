@@ -647,7 +647,15 @@ const selectSpeedLimit = document.getElementById('select-speed-limit');
 const selectSlowSpeed  = document.getElementById('select-slow-speed');
 const toggleSlowMode   = document.getElementById('toggle-slow-mode');
 const networkLimitList = document.getElementById('network-limits');
-const NETWORK_LIMIT_CHOICES = [[0, 'No limit'], [262144, '256 KB/s'], [524288, '512 KB/s'], [1048576, '1 MB/s'], [2097152, '2 MB/s'], [5242880, '5 MB/s'], [10485760, '10 MB/s']];
+const DATA_LIMIT_CHOICES = [[0, 'No data limit'], [536870912, '512 MB'], [1073741824, '1 GB'], [2147483648, '2 GB'], [5368709120, '5 GB'], [10737418240, '10 GB'], [21474836480, '20 GB'], [53687091200, '50 GB'], [107374182400, '100 GB']];
+/** 1536 → "1.5 KB" */
+function formatBytes(n) {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0; let v = Number(n) || 0;
+  while (v >= 1024 && i < units.length - 1) { v /= 1024; i++; }
+  return (i === 0 ? String(v) : v.toFixed(v >= 10 ? 0 : 1)) + ' ' + units[i];
+}
+const NETWORK_LIMIT_CHOICES = [[0, 'No speed limit'], [262144, '256 KB/s'], [524288, '512 KB/s'], [1048576, '1 MB/s'], [2097152, '2 MB/s'], [5242880, '5 MB/s'], [10485760, '10 MB/s']];
 
 /** Shows a value in a select, adding it as a choice when it is not one of them (set elsewhere). */
 function selectValue(select, value) {
@@ -669,8 +677,11 @@ async function loadSpeedLimits() {
   // one row per physical network this computer has (built with DOM calls: names come from the system)
   let nets = [];
   try { nets = (await window.mtcAPI.getNetworkInterfaces()) || []; } catch (_) { nets = []; }
+  let usage = { used: {} };
+  try { usage = (await window.mtcAPI.getDataUsage()) || usage; } catch (_) { /* no counts yet */ }
+  const dataLimits = (currentSettings.downloadDataLimits && typeof currentSettings.downloadDataLimits === 'object') ? currentSettings.downloadDataLimits : {};
   const limits = (currentSettings.downloadNetworkLimits && typeof currentSettings.downloadNetworkLimits === 'object') ? currentSettings.downloadNetworkLimits : {};
-  const names = [...new Set(nets.filter((n) => !n.isVirtual).map((n) => n.name).concat(Object.keys(limits)))];
+  const names = [...new Set(nets.filter((n) => !n.isVirtual).map((n) => n.name).concat(Object.keys(limits), Object.keys(dataLimits)))];
   networkLimitList.replaceChildren();
   if (names.length === 0) {
     const li = document.createElement('li');
@@ -699,7 +710,62 @@ async function loadSpeedLimits() {
       currentSettings.downloadNetworkLimits = next;
       saveSettingChange({ downloadNetworkLimits: next });
     });
-    li.append(label, select);
+    // data limit (1.5.5): how much this network may download per day / week / month, and what it used
+    const data = document.createElement('select');
+    data.className = 'select-dropdown';
+    data.setAttribute('aria-label', 'Data limit for ' + name);
+    for (const [value, text] of DATA_LIMIT_CHOICES) {
+      const o = document.createElement('option');
+      o.value = String(value); o.textContent = text;
+      data.appendChild(o);
+    }
+    const period = document.createElement('select');
+    period.className = 'select-dropdown';
+    period.setAttribute('aria-label', 'Data limit period for ' + name);
+    for (const [value, text] of [['day', 'per day'], ['week', 'per week'], ['month', 'per month']]) {
+      const o = document.createElement('option');
+      o.value = value; o.textContent = text;
+      period.appendChild(o);
+    }
+    const mine = dataLimits[name] || {};
+    const dataValue = Number(mine.bytes) > 0 ? Number(mine.bytes) : 0;
+    if (!Array.from(data.options).some((o) => o.value === String(dataValue))) {
+      const o = document.createElement('option');
+      o.value = String(dataValue); o.textContent = formatBytes(dataValue);
+      data.appendChild(o);
+    }
+    data.value = String(dataValue);
+    period.value = ['day', 'week', 'month'].includes(mine.period) ? mine.period : 'month';
+    period.disabled = !(dataValue > 0);
+    const used = document.createElement('span');
+    used.className = 'setting-desc';
+    used.style.minWidth = '120px';
+    const usedBytes = Number(usage.used && usage.used[name]) || 0;
+    used.textContent = 'Used: ' + formatBytes(usedBytes) + (dataValue > 0 ? ' of ' + formatBytes(dataValue) : '');
+    const reset = document.createElement('button');
+    reset.type = 'button';
+    reset.className = 'btn-secondary';
+    reset.textContent = 'Reset';
+    reset.title = 'Start counting this period again';
+    reset.addEventListener('click', async () => {
+      try { await window.mtcAPI.resetDataUsage(name); } catch (_) { /* ignore */ }
+      loadSpeedLimits();
+    });
+    const saveData = () => {
+      const next = { ...((currentSettings.downloadDataLimits && typeof currentSettings.downloadDataLimits === 'object') ? currentSettings.downloadDataLimits : {}) };
+      if (Number(data.value) > 0) next[name] = { bytes: Number(data.value), period: period.value };
+      else delete next[name];
+      currentSettings.downloadDataLimits = next;
+      period.disabled = !(Number(data.value) > 0);
+      saveSettingChange({ downloadDataLimits: next });
+    };
+    data.addEventListener('change', saveData);
+    period.addEventListener('change', saveData);
+    const controls = document.createElement('span');
+    controls.style.cssText = 'display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end';
+    controls.append(select, data, period, used, reset);
+    li.style.flexWrap = 'wrap';
+    li.append(label, controls);
     networkLimitList.appendChild(li);
   }
 }

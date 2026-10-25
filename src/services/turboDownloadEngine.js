@@ -1043,7 +1043,7 @@ class TurboDownloadEngine extends EventEmitter {
           if (settled) return;
           if (block.done) return finish(null);
           if (ended) return maybeEnd();
-          this._resumeLimited(res, worker.iface ? worker.iface.name : '', written, () => settled);
+          this._resumeLimited(task, res, worker.iface ? worker.iface.name : '', written, () => settled);
         });
       });
       res.on('end', () => { ended = true; maybeEnd(); });
@@ -1057,10 +1057,33 @@ class TurboDownloadEngine extends EventEmitter {
   }
 
   /** Reads on from `res` — at once, or after the pause a speed limit asks for (stopping reading slows the sender). */
-  _resumeLimited(res, networkName, bytes, gone) {
+  _resumeLimited(task, res, networkName, bytes, gone) {
     const wait = this.limiter ? this.limiter.take(networkName, bytes) : 0;
+    if (this.limiter && this.limiter.limitReached(networkName) && this._dataLimitHit(task, networkName)) return;
     if (wait < 1) { res.resume(); return; }
     setTimeout(() => { if (!gone()) { try { res.resume(); } catch (_) { /* closed meanwhile */ } } }, Math.min(wait, 5000));
+  }
+
+  /**
+   * A network used up its data limit (1.5.5). A download split over several networks drops that one and goes on over
+   * the others (the block on its way still finishes: a few MB over at most); otherwise the download pauses and says why.
+   * @returns {boolean} true when the download paused (the caller must not read on)
+   */
+  _dataLimitHit(task, networkName) {
+    if (task.state !== 'progressing') return true;
+    const name = this.limiter.resolve(networkName);
+    if (networkName && task.interfaces.length > 1) {
+      const iface = task.interfaces.find((i) => i.name === networkName && !i.failed);
+      const others = task.interfaces.filter((i) => i !== iface && !i.failed && !this.limiter.limitReached(i.name));
+      if (iface && others.length) {
+        iface.dataLimit = true;
+        this._failInterface(task, iface);
+        return false;
+      }
+    }
+    this.pause(task.id);
+    this.emit('data-limit', { id: task.id, network: name });
+    return true;
   }
 
   /** Accounts for bytes that reached the disk. A block's `received` is the contiguous part written from its start. */
@@ -1262,7 +1285,7 @@ class TurboDownloadEngine extends EventEmitter {
           seg.received = task.receivedBytes;
           if (settled) return;
           if (ended) return complete();
-          this._resumeLimited(res, '', chunk.length, () => settled || seg.dead);
+          this._resumeLimited(task, res, '', chunk.length, () => settled || seg.dead);
         });
       });
 

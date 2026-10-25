@@ -315,7 +315,7 @@ class IpcMethods {
       }
       if (delta.micaEffect !== undefined) this.applyWindowMaterial();
       if (delta.privacyFingerprintProtection !== undefined) this.refreshWebRtcPolicies();
-      if (this.downloads && ['downloadSpeedLimit', 'downloadSlowMode', 'downloadSlowModeSpeed', 'downloadNetworkLimits'].some((k) => delta[k] !== undefined)) {
+      if (this.downloads && ['downloadSpeedLimit', 'downloadSlowMode', 'downloadSlowModeSpeed', 'downloadNetworkLimits', 'downloadDataLimits'].some((k) => delta[k] !== undefined)) {
         this.downloads.applySpeedSettings();
       }
       if (delta.showBookmarksBar !== undefined) {
@@ -470,6 +470,14 @@ class IpcMethods {
       return this.downloads
         ? this.downloads.resumeDownload(sanitizeString(id, 64, 'id'))
         : false;
+    }));
+
+    ipcMain.handle('download:getDataUsage', secureHandlerRaw(() => (this.downloads ? this.downloads.getDataUsage() : { used: {}, defaultNetwork: '' })));
+    ipcMain.handle('download:resetDataUsage', secureHandlerRaw((_, name) => (this.downloads ? this.downloads.resetDataUsage(sanitizeString(name, 200, 'name')) : false)));
+
+    ipcMain.handle('download:replaceLink', secureHandlerRaw(async (_, id, url) => {
+      if (!this.downloads) return { success: false, error: 'Downloads are not available right now' };
+      return this.downloads.replaceLink(sanitizeString(id, 64, 'id'), sanitizeString(url, 8192, 'url'));
     }));
 
     ipcMain.handle('download:cancel', secureHandlerRaw((_, id) => {

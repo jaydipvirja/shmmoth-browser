@@ -260,7 +260,10 @@ class DownloadManager {
 
     // Turbo Multi-Thread & Multi-Source Internet Bonding Engine
     // Speed limits for every download together (Settings → Downloads; Slow mode), see services/speedLimiter.js
-    this.speedLimiter = new SpeedLimiter();
+    this.speedLimiter = new SpeedLimiter({
+      defaultNetwork: () => this._defaultNetworkName(),
+      store: this._usageStore()
+    });
     this.applySpeedSettings();
     this.turboEngine = new TurboDownloadEngine({
       defaultThreads: 8,
@@ -347,6 +350,15 @@ class DownloadManager {
       this._persist({ soon: true });
     });
 
+    // a network used up its data limit (Settings → Downloads): the download waits, and says why
+    this.turboEngine.on('data-limit', (data) => {
+      const record = this.downloads[data.id];
+      if (!record) return;
+      record.pauseReason = `Paused: the data limit of ${data.network || 'this network'} is used up. Raise the limit or reset its count in Settings → Downloads, then Resume.`;
+      log.info(`Download paused at a data limit: ${record.filename}`, { id: data.id, network: data.network });
+      this._notify(record);
+    });
+
     this.turboEngine.on('paused', (data) => {
       const record = this.downloads[data.id];
       if (!record) return;
@@ -362,6 +374,7 @@ class DownloadManager {
       if (!record) return;
       record.state = 'progressing';
       record.isPaused = false;
+      delete record.pauseReason;
       this._notify(record);
     });
 
@@ -582,6 +595,47 @@ class DownloadManager {
       } catch (_) {}
     }
     return 'auto';
+  }
+
+  /**
+   * The network the normal route uses, for counting and limiting downloads that are not split over networks: the only
+   * physical network this computer has, or '' when there are several (Windows picks one; which is not known here).
+   */
+  _defaultNetworkName() {
+    const now = Date.now();
+    if (this._defaultNet && now - this._defaultNet.at < 30000) return this._defaultNet.name;
+    let name = '';
+    try {
+      const physical = [...new Set(TurboDownloadEngine.getAvailableNetworkInterfaces().filter((i) => !i.isVirtual).map((i) => i.name))];
+      if (physical.length === 1) name = physical[0];
+    } catch (_) { name = ''; }
+    this._defaultNet = { name, at: now };
+    return name;
+  }
+
+  /** Where the data each network used is kept between runs (userData/network-usage.json). */
+  _usageStore() {
+    let file = '';
+    try { file = path.join(app.getPath('userData'), 'network-usage.json'); } catch (_) { return null; }
+    return {
+      load: () => { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch (_) { return null; } },
+      save: (data) => {
+        const tmp = file + '.tmp';
+        fs.writeFileSync(tmp, JSON.stringify(data));
+        fs.renameSync(tmp, file);
+      }
+    };
+  }
+
+  /** What each network used this period (Settings shows it next to its data limit). */
+  getDataUsage() {
+    return { used: this.speedLimiter.used(), defaultNetwork: this._defaultNetworkName() };
+  }
+
+  resetDataUsage(name) {
+    if (typeof name !== 'string' || !name) return false;
+    this.speedLimiter.resetUsage(name);
+    return true;
   }
 
   /** Takes up the speed limits of the settings (called at start and whenever they change). */
@@ -1261,6 +1315,71 @@ class DownloadManager {
    * size, same ETag / Last-Modified) continues; a changed file starts again from the beginning.
    * @returns {Promise<boolean>}
    */
+  /**
+   * "Fix link" (1.5.5, after Plexo): an interrupted download whose link expired (a 403 / 410, a link that only works for a
+   * few hours) continues from the blocks it has, with a new link to the same file. The new link must lead to a file of
+   * exactly the same size that can be fetched in parts; the server's ETag / Last-Modified of the old link are not
+   * compared (another server's say nothing about it). @returns {Promise<{success:boolean, error?:string}>}
+   */
+  async replaceLink(id, newUrl) {
+    const record = this.downloads[id];
+    if (!record || !record.isTurbo || record.state !== 'interrupted' || !record.resumable || !record.resume) {
+      return { success: false, error: 'Only a stopped download that kept its part can get a new link.' };
+    }
+    let parsed;
+    try { parsed = new URL(String(newUrl || '').trim()); } catch (_) { parsed = null; }
+    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { success: false, error: 'Paste a link that starts with http:// or https://.' };
+    if (this._resuming.has(id)) return { success: false, error: 'The download is already being continued.' };
+    const sess = this._sessions[record.isIncognito ? 'incognito' : 'default'] || undefined;
+    let headers = {};
+    try { headers = await this._requestHeaders(parsed.href, sess, record.referrer || ''); } catch (_) { headers = {}; }
+    let probe = null;
+    try { probe = await this.turboEngine.probe(parsed.href, headers, { timeout: 10000, session: sess }); } catch (_) { probe = null; }
+    if (!probe || !probe.status || probe.status >= 400) {
+      return { success: false, error: 'The new link did not work' + (probe && probe.status ? ` (HTTP ${probe.status})` : '') + '.' };
+    }
+    if (!probe.totalBytes || probe.totalBytes !== record.total) {
+      return { success: false, error: 'The new link is a different file (its size is not the same), so the part already downloaded cannot be used.' };
+    }
+    if (probe.acceptsRanges === false) return { success: false, error: 'The new link cannot continue a download (its server sends files only from the start).' };
+    if (!this.downloads[id] || record.state !== 'interrupted') return { success: false, error: 'The download changed meanwhile.' };
+    record.url = parsed.href;
+    record.headers = headers;
+    record.resume = Object.assign({}, record.resume, { validator: {} });
+    this._persist();
+    log.info(`Download link replaced: ${record.filename}`, { id, host: parsed.host });
+    const ok = await this.resumeInterrupted(id);
+    return ok ? { success: true } : { success: false, error: record.error || 'The download could not be continued.' };
+  }
+
+  /**
+   * The computer went to sleep / woke up (main.js, powerMonitor). Before sleeping, every download's progress is saved;
+   * after waking, the downloads that were cut off by the sleep (stopped since shortly before it, with their part kept)
+   * continue by themselves once the network is back — tried again a little later if it is not yet.
+   */
+  onSystemSuspend() {
+    this._sleptAt = Date.now();
+    try { this.checkpointAll(); } catch (_) { /* best effort */ }
+  }
+
+  onSystemResume({ delays = [5000, 30000] } = {}) {
+    const since = (this._sleptAt || Date.now()) - 60 * 1000;
+    const pick = () => Object.values(this.downloads).filter((r) => r && r.isTurbo && r.state === 'interrupted' && r.resumable &&
+      (r.endedAt || 0) >= since);
+    const attempt = (i) => {
+      const due = pick();
+      if (!due.length || i >= delays.length) return;
+      this._wakeTimer = setTimeout(async () => {
+        for (const r of due) {
+          try { await this.resumeInterrupted(r.id); } catch (_) { /* tried again below */ }
+        }
+        attempt(i + 1);
+      }, delays[i]);
+    };
+    if (this._wakeTimer) clearTimeout(this._wakeTimer);
+    attempt(0);
+  }
+
   async resumeInterrupted(id) {
     const record = this.downloads[id];
     if (!record || !record.isTurbo || record.state !== 'interrupted' || this._resuming.has(id)) return false;
