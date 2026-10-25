@@ -53,6 +53,7 @@ class StorageService {
         downloadSlowMode:              false,  // Slow mode: downloadSlowModeSpeed stands in for the limit (calls, video)
         downloadSlowModeSpeed:         512 * 1024,
         downloadNetworkLimits:         {},     // { network name: bytes/s } when downloads use several networks
+        downloadDataLimits:            {},     // { network name: { bytes, period: 'day'|'week'|'month' } } (1.5.5)
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,

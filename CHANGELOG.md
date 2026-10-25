@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.5.5
+
+Downloads, after [Plexo](https://github.com/anmolkapil/plexo) (MIT):
+- **Fix link.** Many sites give download links that work only for a few hours. When such a link expires, the download stops with its part kept — and now a **Fix link** button takes a new link to the same file (copied again from the site): the download continues where it stopped, fetching only what was missing. A link to a different file (another size) is refused and changes nothing.
+- **Continues after sleep.** Before the computer sleeps every download's progress is saved; after it wakes up, the downloads the sleep cut off continue by themselves once the network is back.
+- **Data limits per network** (*Settings → Downloads → Speed and Data Limit per Network*): how much a connection may download per day, week or month — a mobile hotspot, for example. What each one used is shown and kept between runs; when a connection used up its data, downloads on it pause and say why (a download split over several connections drops that one and goes on over the others). *Reset* starts the count again.
+- Speed limits per network now also apply on a computer with one network (the download's network was not known unless it was split over several).
+
 ## 1.5.4
 
 Downloads, after [Plexo](https://github.com/anmolkapil/plexo) (MIT):

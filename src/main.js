@@ -368,6 +368,13 @@ class ShmmothBrowserApp {
       }, 15000);
     }
 
+    // Sleep / wake: save every download's progress before sleeping, continue the ones the sleep cut off after waking
+    try {
+      const { powerMonitor } = require('electron');
+      powerMonitor.on('suspend', () => { if (this.downloads) this.downloads.onSystemSuspend(); });
+      powerMonitor.on('resume', () => { if (this.downloads) this.downloads.onSystemResume(); });
+    } catch (_) { /* no power events here */ }
+
     app.on('before-quit', (event) => {
       this._finalizeSession();
       // a copied password does not outlive the browser
@@ -375,6 +382,7 @@ class ShmmothBrowserApp {
       // fast-engine downloads still running: which blocks are on the disk is saved now, so Resume after the next
       // start continues from the last one
       try { if (this.downloads) this.downloads.checkpointAll(); } catch (_) { /* best effort */ }
+      try { if (this.downloads) this.downloads.speedLimiter.save(); } catch (_) { /* best effort */ }
       try { if (this.privacyStats) this.privacyStats.flush(); } catch (_) { /* best effort */ }
       if (this._dataFlushed) return;
       // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
