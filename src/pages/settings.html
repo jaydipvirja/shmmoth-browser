@@ -261,6 +261,48 @@
 
           <div class="divider"></div>
 
+          <!-- Privacy phase 3 (services/privacyCleaner.js, 1.5.6) -->
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="setting-info">
+              <label class="setting-label">When SHMMOTH closes, clear</label>
+              <span class="setting-desc">Cleared each time the browser closes (or, if it was cut off, as soon as it starts again). Passwords, bookmarks, saved addresses and downloaded files are never touched.</span>
+              <div class="clear-on-exit" style="display:flex; flex-wrap:wrap; gap:6px 18px; margin-top:10px;">
+                <label><input type="checkbox" id="exit-clear-history"> Browsing history</label>
+                <label><input type="checkbox" id="exit-clear-cookies"> Cookies and site data</label>
+                <label><input type="checkbox" id="exit-clear-cache"> Cached images and files</label>
+                <label><input type="checkbox" id="exit-clear-downloads"> Download list</label>
+              </div>
+            </div>
+          </div>
+
+          <div class="setting-row" style="align-items:flex-start;">
+            <div class="setting-info">
+              <label class="setting-label">Keep cookies for</label>
+              <span class="setting-desc">These sites (and the other sites of the same company) stay signed in: their cookies are never cleared when the browser closes or by the tracker cleanup. The shield can add the site in view.</span>
+              <ul id="keep-cookie-sites" class="check-list" style="margin-top:8px;"></ul>
+              <form id="keep-site-form" style="display:flex; gap:8px; margin-top:6px;">
+                <input type="text" id="keep-site-input" placeholder="example.com" aria-label="Site to keep" style="flex:1; max-width:260px;">
+                <button type="submit" class="btn-secondary">Add</button>
+              </form>
+            </div>
+          </div>
+
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Remove tracker cookies after 7 days</label>
+              <span class="setting-desc" id="tracker-cleanup-desc">Like Safari: a site the shield saw tracking you on other sites loses its cookies once you have not used it yourself for 7 days. Sites you use are never touched.</span>
+            </div>
+            <div class="setting-control" style="display:flex; gap:10px; align-items:center;">
+              <button id="btn-clean-trackers" class="btn-secondary">Clean now</button>
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-tracker-cleanup" checked>
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
           <div class="setting-row">
             <div class="setting-info">
               <label class="setting-label">Filter lists</label>

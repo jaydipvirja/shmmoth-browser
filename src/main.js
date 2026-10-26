@@ -37,6 +37,8 @@ const {
   FormAutofill,
   PrivacyShield,
   PrivacyStats,
+  PrivacyCleaner,
+  siteOfUrl,
   webRequestHub,
   AutofillService,
   ProxyManager,
@@ -191,6 +193,19 @@ class ShmmothBrowserApp {
       stats: this.privacyStats,
       log
     });
+    // Privacy phase 3 (1.5.6): clear on exit, and the cookies of trackers not used for 7 days (services/privacyCleaner.js)
+    this.privacyCleaner = new PrivacyCleaner({
+      getSession: () => session.defaultSession,
+      storage: this.storage,
+      getDownloads: () => this.downloads,
+      stats: this.privacyStats,
+      openSites: () => Object.values(this.tabs || {}).filter((t) => t && !t.isIncognito).map((t) => siteOfUrl(t.url || '')),
+      file: path.join(app.getPath('userData'), 'privacy-interactions.json'),
+      log
+    });
+    // a clear-on-exit that was cut off (a crash, the power going) is finished before any page opens
+    try { await this.privacyCleaner.finishPendingAtStart(); } catch (_) { /* best effort */ }
+    this.privacyCleaner.start();
     this.privacyShield.attach(webRequestHub.install(session.defaultSession), 'default');
     this.privacyShield.attach(webRequestHub.install(session.fromPartition('incognito')), 'incognito');
     this.registerPrivacyPreload();
@@ -352,7 +367,7 @@ class ShmmothBrowserApp {
     this.updateManager = new UpdateManager({
       storage: this.storage,
       // the installer may end this process the hard way: everything must be on disk before it starts
-      prepareToQuit: () => Promise.race([this.flushBrowserData('quit'), new Promise((resolve) => setTimeout(resolve, 3000))])
+      prepareToQuit: () => Promise.race([this._dataOnQuit(), new Promise((resolve) => setTimeout(resolve, 8000))])
     });
     this.updateManager.on('status-changed', (status) => {
       this.broadcastUpdateStatus(status);
@@ -384,13 +399,14 @@ class ShmmothBrowserApp {
       try { if (this.downloads) this.downloads.checkpointAll(); } catch (_) { /* best effort */ }
       try { if (this.downloads) this.downloads.speedLimiter.save(); } catch (_) { /* best effort */ }
       try { if (this.privacyStats) this.privacyStats.flush(); } catch (_) { /* best effort */ }
+      try { if (this.privacyCleaner) this.privacyCleaner.flush(); } catch (_) { /* best effort */ }
       if (this._dataFlushed) return;
       // Cookies and page storage are written to disk before the process goes away. Chromium writes them in batches
       // (about every 30 s): what is still in the last batch would be lost, and a session that Google has already
       // renewed would come back with the old cookies and be refused ("signed out").
       event.preventDefault();
       this._dataFlushed = true;
-      Promise.race([Promise.all([this.flushBrowserData('quit'), clipboardCleared]), new Promise((resolve) => setTimeout(resolve, 3000))])
+      Promise.race([Promise.all([this._dataOnQuit(), clipboardCleared]), new Promise((resolve) => setTimeout(resolve, 8000))])
         .catch(() => {})
         .then(() => app.quit());
     });

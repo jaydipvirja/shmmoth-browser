@@ -79,8 +79,14 @@ async function main() {
 
   await test('quitting writes cookies and page storage first, then really quits (with a time limit)', async () => {
     const block = main.slice(main.indexOf("app.on('before-quit'"), main.indexOf('this.setupLoginDurability()'));
-    assert(block.includes('event.preventDefault()') && block.includes("flushBrowserData('quit')"), 'before-quit must flush');
-    assert(/setTimeout\(resolve, 3000\)/.test(block), 'the flush must have a time limit, a quit must never hang');
+    assert(block.includes('event.preventDefault()') && block.includes('this._dataOnQuit()'), 'before-quit must flush');
+    // 1.5.6: _dataOnQuit writes the data first, then clears what "When SHMMOTH closes, clear" asks
+    const sess = fs.readFileSync(path.join(__dirname, '..', 'src', 'browser', 'session.js'), 'utf8');
+    const onQuit = sess.slice(sess.indexOf('async _dataOnQuit()'), sess.indexOf('async flushBrowserData('));
+    assert(/^async _dataOnQuit\(\) \{\s*await this\.flushBrowserData\('quit'\);/.test(onQuit), '_dataOnQuit flushes first');
+    // 1.5.6: 8 s (clearing data on exit takes longer than writing it); never unbounded
+    const limit = /setTimeout\(resolve, (\d+)\)/.exec(block);
+    assert(limit && Number(limit[1]) <= 10000, 'the flush must have a time limit, a quit must never hang');
     assert(block.includes('app.quit()') && block.includes('_dataFlushed'), 'it quits again afterwards and does not loop');
   });
 

@@ -169,6 +169,14 @@ class PrivacyStats {
     return p ? { ...p } : { blocked: 0, cookies: 0 };
   }
 
+  /** Every site seen as a tracker in the last 30 days (blocked, or refused its cookies on another site). */
+  trackerSites() {
+    this._prune();
+    const out = new Set();
+    for (const day of Object.values(this.days)) for (const t of Object.keys(day.trackers || {})) out.add(t);
+    return out;
+  }
+
   /** The report of the last 30 days. */
   report() {
     this._prune();

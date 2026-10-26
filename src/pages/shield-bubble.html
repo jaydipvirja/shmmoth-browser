@@ -267,6 +267,17 @@
           <span class="slider"></span>
         </label>
       </div>
+
+      <div class="toggle-card" id="keep-card" style="margin-top:8px;">
+        <div class="toggle-text" style="min-width:0;">
+          <strong>Keep cookies</strong>
+          <span id="keep-status-sub" style="display:block; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:170px;">—</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="toggle-keep" disabled>
+          <span class="slider"></span>
+        </label>
+      </div>
     </div>
 
     <div class="bubble-footer">
@@ -358,6 +369,27 @@
         console.error('Shield bubble cookie error', e);
       }
     }
+    // "Keep cookies" (1.5.6): this site stays signed in when the browser clears cookies on closing, and the tracker
+    // cleanup never touches it
+    const toggleKeep = document.getElementById('toggle-keep');
+    const keepStatus = document.getElementById('keep-status-sub');
+    async function refreshKeep() {
+      if (!api || !api.getPrivacySite) return;
+      try {
+        const p = await api.getPrivacySite();
+        toggleKeep.disabled = !p.canChange;
+        toggleKeep.checked = Boolean(p.kept);
+        keepStatus.textContent = !p.canChange ? 'Only available on websites' : p.kept ? p.site + ' — kept when cleaning' : 'Cleared with the rest';
+      } catch (e) {
+        console.error('Shield bubble keep error', e);
+      }
+    }
+    toggleKeep.addEventListener('change', async () => {
+      toggleKeep.disabled = true;
+      try { if (api && api.setPrivacySiteKept) await api.setPrivacySiteKept(toggleKeep.checked); } finally { await refreshKeep(); }
+    });
+    refreshKeep();
+
     toggleCookies.addEventListener('change', async () => {
       const block = toggleCookies.checked;
       toggleCookies.disabled = true;

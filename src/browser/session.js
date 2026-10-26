@@ -39,6 +39,14 @@ class SessionMethods {
   /** Writes the session one last time and stops further writes (window closing / app quitting). */
   // ─── Login durability ────────────────────────────────────────────────────
 
+  /** What closing the browser does with the data: write it to disk, then clear what Settings asks (privacyCleaner). */
+  async _dataOnQuit() {
+    await this.flushBrowserData('quit');
+    if (this.privacyCleaner) {
+      try { await this.privacyCleaner.clearOnExit(); } catch (_) { /* finished at the next start (pending flag) */ }
+    }
+  }
+
   /** Writes the cookies and page storage of the normal profile to disk now (incognito is in memory by design). */
   async flushBrowserData(tag = 'flush') {
     const normal = session.defaultSession;

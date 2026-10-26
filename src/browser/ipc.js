@@ -1361,8 +1361,31 @@ class IpcMethods {
         site,
         canChange: Boolean(site && this.privacyShield),
         enabled: s.privacyBlockThirdPartyCookies !== false || s.privacyFingerprintProtection !== false,
-        allowed: Boolean(site && this.privacyShield && this.privacyShield.allowsCrossSiteCookies(site))
+        allowed: Boolean(site && this.privacyShield && this.privacyShield.allowsCrossSiteCookies(site)),
+        // its cookies are kept when the browser closes and by the tracker cleanup (1.5.6)
+        kept: Boolean(site && this.privacyCleaner && this.privacyCleaner.keptSites().includes(site))
       };
+    }));
+
+    // "Keep cookies for": the shield's switch for the site in view (1.5.6)
+    ipcMain.handle('privacy:setSiteKept', secureHandlerRaw((event, keep) => {
+      const { host } = shieldTarget(event);
+      const site = host ? siteOf(host) : '';
+      if (!site) return { success: false, error: 'Only available on websites.' };
+      const list = (this.storage.getSettings().clearOnExitKeepSites || []).filter((s) => typeof s === 'string' && s !== site);
+      if (keep === true) list.push(site);
+      const updated = this.storage.updateSettings({ clearOnExitKeepSites: list });
+      this.broadcastSettingsUpdated(updated);
+      return { success: true, site, kept: keep === true };
+    }));
+
+    // Settings: the last tracker cleanup, and "Clean now"
+    ipcMain.handle('privacy:getCleaner', secureHandlerRaw(() => ({
+      lastCleanup: this.privacyCleaner ? this.privacyCleaner.lastCleanup : null
+    })));
+    ipcMain.handle('privacy:cleanTrackersNow', secureHandlerRaw(async () => {
+      const sites = this.privacyCleaner ? await this.privacyCleaner.cleanTrackers() : [];
+      return { success: true, sites };
     }));
 
     ipcMain.handle('privacy:setSiteCookies', secureHandlerRaw((event, allowed) => {

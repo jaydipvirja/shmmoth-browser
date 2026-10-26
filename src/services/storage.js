@@ -53,7 +53,10 @@ class StorageService {
         downloadSlowMode:              false,  // Slow mode: downloadSlowModeSpeed stands in for the limit (calls, video)
         downloadSlowModeSpeed:         512 * 1024,
         downloadNetworkLimits:         {},     // { network name: bytes/s } when downloads use several networks
-        downloadDataLimits:            {},     // { network name: { bytes, period: 'day'|'week'|'month' } } (1.5.5)
+        downloadDataLimits:            {},
+        clearOnExit:                   { history: false, cookies: false, cache: false, downloads: false },   // 1.5.6
+        clearOnExitKeepSites:          ['google.com', 'youtube.com'],   // cookies never cleared (with their company's sites)
+        trackerCookieCleanup:          true,   // trackers not used for 7 days lose their cookies (like Safari's ITP)     // { network name: { bytes, period: 'day'|'week'|'month' } } (1.5.5)
         secureDnsProvider:      'adguard',     // see services/secureDns.js
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,

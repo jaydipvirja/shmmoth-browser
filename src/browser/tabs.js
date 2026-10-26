@@ -191,6 +191,14 @@ class TabsMethods {
       }
     });
 
+    // you clicked or typed on this page: its site counts as one you use (tracker cookie cleanup, privacyCleaner.js)
+    if (!isIncognito) {
+      wc.on('input-event', (_, input) => {
+        if (!this.privacyCleaner || !input || !/^(mouseDown|keyDown|rawKeyDown|touchStart|gestureTap)$/.test(input.type)) return;
+        try { this.privacyCleaner.noteInteraction(wc.getURL()); } catch (_) { /* a note less */ }
+      });
+    }
+
     wc.on('did-navigate', (_, navUrl) => {
       updateTabUa(navUrl);
       if (this.privacyShield) this.privacyShield.noteNavigation(wc.id, navUrl);
