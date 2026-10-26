@@ -57,9 +57,13 @@ function selfSignedCert(hostname) {
   const name = seq(set(seq(oid('2.5.4.3'), utf8(hostname))));
   const now = Date.now();
   const san = seq(seq(oid('2.5.29.17'), octets(seq(tlv(0x82, Buffer.from(hostname, 'ascii'))))));
+  // a positive serial whose first byte is never 0: DER allows no leading zero byte (unless the next has its top bit
+  // set), and OpenSSL refuses such a certificate ("illegal padding") — it happened about once in 512 runs
+  const serial = crypto.randomBytes(8);
+  serial[0] = (serial[0] & 0x7f) | 0x01;
   const tbs = seq(
     explicit(0, int(Buffer.from([2]))),                                    // version 3
-    int(crypto.randomBytes(8)),
+    int(serial),
     sha256WithRSA,
     name,
     seq(utcTime(new Date(now - 24 * 3600 * 1000)), utcTime(new Date(now + 7 * 24 * 3600 * 1000))),
