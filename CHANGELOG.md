@@ -1,5 +1,12 @@
 # CHANGELOG
 
+## 1.5.6
+
+Privacy, phase 3:
+- **Clear data when SHMMOTH closes** (*Settings → Ad-Blocker & Privacy*, all off by default). Tick what should be cleared each time the browser closes: browsing history, cookies and site data, cached images and files, the download list. Passwords, bookmarks, saved addresses and downloaded files are never touched. If the browser was cut off while clearing (a crash, the power going), it finishes as soon as it starts again, before any page opens.
+- **Keep cookies for** chosen sites: they stay signed in when cookies are cleared — google.com and youtube.com are on the list from the start (with the other sites of the same company, so a Google sign-in survives). Add or remove sites in Settings, or with the new **Keep cookies** switch in the shield for the site in view.
+- **Tracker cookies are removed after 7 days** (on by default, like Safari's Intelligent Tracking Prevention). A site the shield saw tracking you on other sites loses its cookies and site data once you have not used it yourself — clicked or typed there — for 7 days. Sites you use (and the other sites of their company), kept sites, sites where tracking protection is off and sites open in a tab are never touched. It runs a minute after start and once a day; Settings shows the last result and has *Clean now*. Which sites you used is kept on this computer only, never for Incognito.
+
 ## 1.5.5
 
 Downloads, after [Plexo](https://github.com/anmolkapil/plexo) (MIT):

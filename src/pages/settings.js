@@ -240,6 +240,7 @@ async function initSettings() {
         if (el) el.checked = currentSettings[key] !== false;
       }
       renderCookieSites(currentSettings.privacyCookieAllowSites);
+      loadPrivacyCleaner();
       if (inputCustomFilters) inputCustomFilters.value = typeof currentSettings.adBlockerCustomFilters === 'string' ? currentSettings.adBlockerCustomFilters : '';
       loadAdBlockerStatus();
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
@@ -356,6 +357,92 @@ const btnPrivacyReport = document.getElementById('btn-open-privacy-report');
 if (btnPrivacyReport) {
   btnPrivacyReport.addEventListener('click', () => {
     if (window.mtcAPI && window.mtcAPI.navigateCurrentTab) window.mtcAPI.navigateCurrentTab('mtc://privacy');
+  });
+}
+
+// ─── Privacy phase 3 (1.5.6): clear on exit, sites whose cookies are kept, tracker cookie cleanup ───
+const EXIT_CLEAR = { 'exit-clear-history': 'history', 'exit-clear-cookies': 'cookies', 'exit-clear-cache': 'cache', 'exit-clear-downloads': 'downloads' };
+
+function exitChoices() {
+  const c = currentSettings.clearOnExit && typeof currentSettings.clearOnExit === 'object' ? currentSettings.clearOnExit : {};
+  return { history: Boolean(c.history), cookies: Boolean(c.cookies), cache: Boolean(c.cache), downloads: Boolean(c.downloads) };
+}
+
+function describeCleanup(last) {
+  const desc = document.getElementById('tracker-cleanup-desc');
+  if (!desc) return;
+  const base = 'Like Safari: a site the shield saw tracking you on other sites loses its cookies once you have not used it yourself for 7 days. Sites you use are never touched.';
+  if (!last || !last.at) { desc.textContent = base; return; }
+  const when = new Date(last.at).toLocaleString();
+  desc.textContent = base + ` Last cleanup (${when}): ${last.sites.length} tracker site${last.sites.length === 1 ? '' : 's'}` + (last.sites.length ? ' — ' + last.sites.slice(0, 5).join(', ') + (last.sites.length > 5 ? ' …' : '') : '') + '.';
+}
+
+async function loadPrivacyCleaner() {
+  const choices = exitChoices();
+  for (const [id, key] of Object.entries(EXIT_CLEAR)) { const el = document.getElementById(id); if (el) el.checked = choices[key]; }
+  const t = document.getElementById('toggle-tracker-cleanup');
+  if (t) t.checked = currentSettings.trackerCookieCleanup !== false;
+  renderKeepSites(Array.isArray(currentSettings.clearOnExitKeepSites) ? currentSettings.clearOnExitKeepSites : []);
+  try { const s = await window.mtcAPI.getPrivacyCleaner(); describeCleanup(s && s.lastCleanup); } catch (_) { /* no result yet */ }
+}
+
+/** The sites whose cookies are kept, each with a Remove button (built with DOM calls). */
+function renderKeepSites(list) {
+  const ul = document.getElementById('keep-cookie-sites');
+  if (!ul) return;
+  ul.replaceChildren();
+  if (!list.length) {
+    const li = document.createElement('li');
+    li.className = 'setting-desc';
+    li.textContent = 'None: every site\'s cookies are cleared.';
+    ul.appendChild(li);
+    return;
+  }
+  for (const site of list) {
+    const li = document.createElement('li');
+    li.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:10px; padding:4px 0;';
+    const name = document.createElement('span');
+    name.textContent = site;
+    const btn = document.createElement('button');
+    btn.className = 'btn-secondary';
+    btn.textContent = 'Remove';
+    btn.addEventListener('click', async () => {
+      const rest = list.filter((s) => s !== site);
+      await saveSettingChange({ clearOnExitKeepSites: rest });
+      renderKeepSites(rest);
+    });
+    li.append(name, btn);
+    ul.appendChild(li);
+  }
+}
+
+for (const [id, key] of Object.entries(EXIT_CLEAR)) {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', () => saveSettingChange({ clearOnExit: { ...exitChoices(), [key]: el.checked } }));
+}
+{
+  const t = document.getElementById('toggle-tracker-cleanup');
+  if (t) t.addEventListener('change', () => saveSettingChange({ trackerCookieCleanup: t.checked }));
+  const clean = document.getElementById('btn-clean-trackers');
+  if (clean) clean.addEventListener('click', async () => {
+    clean.disabled = true;
+    try { await window.mtcAPI.cleanTrackersNow(); const s = await window.mtcAPI.getPrivacyCleaner(); describeCleanup(s && s.lastCleanup); } catch (_) { /* ignore */ }
+    clean.disabled = false;
+  });
+  const form = document.getElementById('keep-site-form');
+  if (form) form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const input = document.getElementById('keep-site-input');
+    const raw = String(input.value || '').trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/^www\./, '');
+    if (!/^[a-z0-9.-]+\.[a-z]{2,}$/.test(raw)) { input.setCustomValidity('Type a site such as example.com'); input.reportValidity(); return; }
+    input.setCustomValidity('');
+    const list = Array.isArray(currentSettings.clearOnExitKeepSites) ? currentSettings.clearOnExitKeepSites : [];
+    if (!list.includes(raw)) {
+      const next = list.concat(raw);
+      await saveSettingChange({ clearOnExitKeepSites: next });
+      renderKeepSites(next);
+    }
+    input.value = '';
   });
 }
 

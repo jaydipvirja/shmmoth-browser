@@ -40,11 +40,15 @@ function rangeServer(payload, { rate = 4 * 1024 * 1024, maxConns = Infinity } = 
     if (!m) { res.writeHead(200, { 'Content-Length': payload.length, 'Accept-Ranges': 'bytes' }); return res.end(req.method === 'HEAD' ? undefined : payload); }
     if (active >= maxConns && req.headers.range !== 'bytes=0-0') { refused++; res.writeHead(503); return res.end(); }
     const start = Number(m[1]); const end = m[2] ? Math.min(Number(m[2]), payload.length - 1) : payload.length - 1;
-    active++; peak = Math.max(peak, active);
+    // a connection counts while it sends a part of the file (the engine's 1-byte probe does not), once
+    const counted = !(start === 0 && end === 0);
+    if (counted) { active++; peak = Math.max(peak, active); }
     res.writeHead(206, { 'Content-Range': `bytes ${start}-${end}/${payload.length}`, 'Content-Length': end - start + 1, 'Accept-Ranges': 'bytes' });
     let pos = start;
     const step = 64 * 1024; const every = Math.max(1, Math.round((step / rate) * 1000));
-    const done = () => { active--; };
+    let left = false;
+    const done = () => { if (counted && !left) { left = true; active--; } };
+    res.on('finish', done);
     res.on('close', done);
     const pump = () => {
       if (res.destroyed) return;

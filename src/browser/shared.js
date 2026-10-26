@@ -19,7 +19,8 @@ const DownloadManager  = require('../services/downloadManager');
 const { PasswordVault }   = require('../services/passwordVault');
 const { PasswordAutofill } = require('../services/passwordAutofill');
 const { FormAutofill } = require('../services/formAutofill');
-const { PrivacyShield, siteOf } = require('../services/privacyShield');
+const { PrivacyShield, siteOf, siteOfUrl } = require('../services/privacyShield');
+const { PrivacyCleaner } = require('../services/privacyCleaner');
 const { PrivacyStats } = require('../services/privacyStats');
 const webRequestHub = require('../services/webRequestHub');
 const { AutofillService } = require('../services/autofillService');
@@ -111,7 +112,9 @@ module.exports = {
   FormAutofill,
   PrivacyShield,
   PrivacyStats,
+  PrivacyCleaner,
   siteOf,
+  siteOfUrl,
   webRequestHub,
   PasswordGate,
   PasswordVault,

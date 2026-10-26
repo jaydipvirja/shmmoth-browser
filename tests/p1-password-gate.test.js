@@ -144,7 +144,7 @@ async function main() {
 
   await test('main.js: the dialog is native and modal on the asking window, Cancel is the default, the clipboard is cleared when the browser quits', () => {
     assert(/dialog\.showMessageBox\(parent, options\)/.test(main) && /defaultId: 1, cancelId: 1, noLink: true/.test(main));
-    assert(/app\.on\('before-quit', \(event\) => \{[\s\S]{0,200}this\.passwordGate\.clearClipboardNow\(\)/.test(main) && /Promise\.all\(\[this\.flushBrowserData\('quit'\), clipboardCleared\]\)/.test(main), 'clipboard cleared before quitting');
+    assert(/app\.on\('before-quit', \(event\) => \{[\s\S]{0,200}this\.passwordGate\.clearClipboardNow\(\)/.test(main) && /Promise\.all\(\[this\._dataOnQuit\(\), clipboardCleared\]\)/.test(main), 'clipboard cleared before quitting');
     assert(read('preload-internal.js').includes("'passwords:copy'"));
   });
 
