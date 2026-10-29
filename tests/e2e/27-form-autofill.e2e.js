@@ -130,7 +130,8 @@ runSuite('SHMMOTH Browser — E2E 27: form autofill', async (t) => {
     await t.test('picking it fills the form: text, email, phone, textarea, select, PIN; search, coupon and landmark stay empty; nothing is submitted', async () => {
       const url = site.url + '/checkout';
       const win = await waitBubble();
-      await win.evaluate(() => document.querySelector('.row').click());
+      // clicked after evaluate has answered: picking closes the list's window (else "Target page … has been closed")
+      await win.evaluate(() => { const row = document.querySelector('.row'); setTimeout(() => row.click(), 0); });
       await waitFor(async () => (await val(url, 'email')) === 'asha@example.com', { message: 'the form to be filled in' });
       assertEqual(await val(url, 'name'), 'Asha Patel');
       assertEqual(await val(url, 'phone'), '9876543210');

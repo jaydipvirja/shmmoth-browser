@@ -117,9 +117,12 @@ runSuite('SHMMOTH Browser — E2E 15: saved logins on sign-in pages', async (t) 
   };
   const expectNoBubble = async (why) => { await sleep(900); assert(!bubble(), 'a list opened, but it should not: ' + why); };
   const entries = (win) => win.evaluate(() => Array.from(document.querySelectorAll('.row')).map((r) => r.textContent.trim()));
+  // the click comes after evaluate has answered: picking closes the list's window, and a close that beat the answer
+  // failed the test with "Target page, context or browser has been closed"
   const pick = (win, name) => win.evaluate((name) => {
     const row = Array.from(document.querySelectorAll('.row')).find((r) => r.textContent.includes(name));
-    row.click();
+    if (!row) throw new Error('no entry ' + name);
+    setTimeout(() => row.click(), 0);
   }, name);
   const passwordBubbleOpen = async () => (await listWebContents(app)).some((w) => w.url.includes('password-bubble.html'));
   const closePasswordBubble = () => app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows().forEach((w) => {
