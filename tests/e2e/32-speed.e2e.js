@@ -1,5 +1,5 @@
 /**
- * E2E 32 — speed (1.5.7), in the real browser
+ * E2E 32 — speed (1.5.6), in the real browser
  *
  *   - typing an address connects to the site before Enter (a connection, no request); Enter then uses it; with
  *     "Open pages faster" off nothing connects ahead

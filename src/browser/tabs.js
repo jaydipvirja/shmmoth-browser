@@ -1191,7 +1191,7 @@ class TabsMethods {
   }
 
   /**
-   * Connects ahead (1.5.7): while the address bar is being typed in, the connection to where Enter would go (the site,
+   * Connects ahead (1.5.6): while the address bar is being typed in, the connection to where Enter would go (the site,
    * or the search engine for a search) is opened now — the name lookup, TCP and TLS handshakes then are already done
    * when the page is asked for, which saves 100–300 ms on a typical connection. Nothing is requested or sent: Chromium
    * keeps the idle socket for a few seconds. The same origin is not asked again within 10 s. Off in Settings →

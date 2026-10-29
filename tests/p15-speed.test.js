@@ -1,5 +1,5 @@
 /**
- * P15 — Speed (1.5.7)
+ * P15 — Speed (1.5.6)
  *
  *   - the ad-block engine is built in a worker thread with the real engine: it blocks what the lists say, the engine
  *     file is written by the worker and read back at the next start, and the browser's thread keeps running meanwhile

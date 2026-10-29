@@ -1,5 +1,5 @@
 /**
- * AD-BLOCK ENGINE BUILDER — adblockWorker.js (1.5.7), runs in a worker thread (services/adblocker.js)
+ * AD-BLOCK ENGINE BUILDER — adblockWorker.js (1.5.6), runs in a worker thread (services/adblocker.js)
  *
  * Turning about 13 MB of filter lists into an engine takes 1.5 s on a fast computer and several seconds on a slow one.
  * On the browser's main thread that froze everything for that long: the window, typing, and every page that was

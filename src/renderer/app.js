@@ -320,7 +320,7 @@ function showBookmarkFolderDropdown(anchorEl, items) {
 // Tabs this window has drawn before: a tab not among them is new and slides in once (the strip is redrawn on every
 // update, so the animation must not replay). Nothing animates on the first drawing (start-up, restored session).
 let knownTabIds = null;
-// Each tab's element and what it was drawn from (1.5.7): an update redraws only the tabs that changed — a title, a
+// Each tab's element and what it was drawn from (1.5.6): an update redraws only the tabs that changed — a title, a
 // favicon or the loading spinner of one tab used to rebuild the whole strip, several times per page load.
 let drawnTabs = new Map();
 
@@ -944,7 +944,7 @@ function setupEventListeners() {
     omniboxInput.select();
   });
 
-  // Connect ahead while typing (1.5.7): a short pause in typing opens the connection to where Enter would go
+  // Connect ahead while typing (1.5.6): a short pause in typing opens the connection to where Enter would go
   let preconnectTimer = null;
   omniboxInput.addEventListener('input', () => {
     clearTimeout(preconnectTimer);
