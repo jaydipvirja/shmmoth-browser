@@ -244,6 +244,8 @@ async function initSettings() {
       if (inputCustomFilters) inputCustomFilters.value = typeof currentSettings.adBlockerCustomFilters === 'string' ? currentSettings.adBlockerCustomFilters : '';
       loadAdBlockerStatus();
       toggleRamSaver.checked = currentSettings.ramSaverEnabled ?? true;
+      const preconnect = document.getElementById('toggle-preconnect');
+      if (preconnect) preconnect.checked = currentSettings.preconnectWhileTyping !== false;
       selectRamTimeout.value = String(currentSettings.ramSaverTimeoutMinutes || 15);
       // "midnight" (until 1.2.0) is shown as Dark, like the browser does (services/theme.js)
       selectTheme.value = ['system', 'light', 'dark'].includes(currentSettings.theme) ? currentSettings.theme : 'dark';
@@ -641,6 +643,9 @@ toggleAdblocker.addEventListener('change', () => {
 toggleRamSaver.addEventListener('change', () => {
   saveSettingChange({ ramSaverEnabled: toggleRamSaver.checked });
 });
+
+const togglePreconnect = document.getElementById('toggle-preconnect');
+if (togglePreconnect) togglePreconnect.addEventListener('change', () => saveSettingChange({ preconnectWhileTyping: togglePreconnect.checked }));
 
 selectRamTimeout.addEventListener('change', () => {
   saveSettingChange({ ramSaverTimeoutMinutes: parseInt(selectRamTimeout.value, 10) });

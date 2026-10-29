@@ -18,24 +18,38 @@
 const EVENTS = ['onBeforeRequest', 'onBeforeSendHeaders', 'onHeadersReceived'];
 const HUB = Symbol('shmmothWebRequestHub');
 
+// the parts of each pattern, worked out once (every request is checked against the patterns: 1.5.7)
+const compiled = new Map();
+function compile(pattern) {
+  let c = compiled.get(pattern);
+  if (c !== undefined) return c;
+  const m = /^(\*|[a-z][a-z0-9+.-]*):\/\/([^/]*)(\/.*)?$/i.exec(pattern);
+  c = m ? {
+    scheme: m[1].toLowerCase(),
+    host: m[2].toLowerCase().replace(/:\d+$/, ''),
+    path: new RegExp('^' + (m[3] || '/*').split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$')
+  } : null;
+  if (compiled.size > 500) compiled.clear();
+  compiled.set(pattern, c);
+  return c;
+}
+
 /** Does `url` match one Chrome-style match pattern ("<all_urls>", "*://*.google.com/*", "https://x.com/path*")? */
 function matchesPattern(pattern, url) {
   if (pattern === '<all_urls>') return true;
-  const m = /^(\*|[a-z][a-z0-9+.-]*):\/\/([^/]*)(\/.*)?$/i.exec(pattern);
-  if (!m) return false;
+  const c = compile(pattern);
+  if (!c) return false;
   let u;
   try { u = new URL(url); } catch (_) { return false; }
   const scheme = u.protocol.slice(0, -1).toLowerCase();
-  if (m[1] === '*' ? !['http', 'https', 'ws', 'wss'].includes(scheme) : m[1].toLowerCase() !== scheme) return false;
-  const host = m[2].toLowerCase().replace(/:\d+$/, '');
+  if (c.scheme === '*' ? !['http', 'https', 'ws', 'wss'].includes(scheme) : c.scheme !== scheme) return false;
+  const host = c.host;
   const h = u.hostname.toLowerCase();
   if (host !== '*' && host !== '') {
     if (host.startsWith('*.')) { const base = host.slice(2); if (h !== base && !h.endsWith('.' + base)) return false; }
     else if (h !== host) return false;
   }
-  const path = m[3] || '/*';
-  const re = new RegExp('^' + path.split('*').map((s) => s.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('.*') + '$');
-  return re.test(u.pathname + u.search);
+  return c.path.test(u.pathname + u.search);
 }
 
 function matchesFilter(filter, details) {

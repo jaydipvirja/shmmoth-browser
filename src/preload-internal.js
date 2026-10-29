@@ -37,6 +37,7 @@ const apiSurface = {
 
   // ─── Tab Controls ────────────────────────────────────────────────────────────
   createTab:              (url)                => ipcRenderer.invoke('tab:create', url),
+  preconnect:             (text)               => ipcRenderer.invoke('omnibox:preconnect', text),
   closeTab:               (tabId)              => ipcRenderer.invoke('tab:close', tabId),
   switchTab:              (tabId)              => ipcRenderer.invoke('tab:switch', tabId),
   navigateTab:            (tabId, url)         => ipcRenderer.invoke('tab:navigate', tabId, url),
