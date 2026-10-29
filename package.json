@@ -35,7 +35,7 @@
     "playwright-core": "^1.63.0"
   },
   "dependencies": {
-    "@ghostery/adblocker-electron": "^2.18.2",
+    "@ghostery/adblocker-electron": "^2.20.1",
     "tldts-experimental": "^7.4.18"
   },
   "build": {
