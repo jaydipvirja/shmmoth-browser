@@ -102,6 +102,13 @@ class IpcMethods {
       return this.createTab(targetUrl, null, false, isIncognito);
     }));
 
+    // the address bar is being typed in: connect ahead to where Enter would go (browser/tabs.js preconnectFor)
+    ipcMain.handle('omnibox:preconnect', secureHandlerRaw((event, text) => {
+      if (typeof text !== 'string') return '';
+      const win = (event && event.sender) ? BrowserWindow.fromWebContents(event.sender) : null;
+      return this.preconnectFor(text.slice(0, 2048), Boolean(win && win === this.incognitoWindow));
+    }));
+
     ipcMain.handle('tab:close', secureHandlerRaw((_, tabId) => {
       sanitizeString(tabId, 64, 'tabId');
       return this.closeTab(tabId);

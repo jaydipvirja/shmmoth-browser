@@ -1190,6 +1190,38 @@ class TabsMethods {
     return finalUrl;
   }
 
+  /**
+   * Connects ahead (1.5.7): while the address bar is being typed in, the connection to where Enter would go (the site,
+   * or the search engine for a search) is opened now — the name lookup, TCP and TLS handshakes then are already done
+   * when the page is asked for, which saves 100–300 ms on a typical connection. Nothing is requested or sent: Chromium
+   * keeps the idle socket for a few seconds. The same origin is not asked again within 10 s. Off in Settings →
+   * Performance ("Open pages faster"). @returns {string} the origin connected to, '' when none
+   */
+  preconnectFor(input, isIncognito = false) {
+    const settings = this.storage ? this.storage.getSettings() : {};
+    if (settings.preconnectWhileTyping === false) return '';
+    const text = String(input || '').trim();
+    if (!text || text.length > 2048 || /^(javascript|data|vbscript|file|mtc|about):/i.test(text)) return '';
+    let origin = '';
+    try {
+      const u = new URL(this.formatUrl(text));
+      if (u.protocol !== 'https:' && u.protocol !== 'http:') return '';
+      if (u.protocol === 'http:' && settings.privacyHttpsOnly !== false && !/^(localhost|127\.|\[::1\])/i.test(u.host)) u.protocol = 'https:';
+      origin = u.origin;
+    } catch (_) { return ''; }
+    const now = Date.now();
+    if (!this._preconnected) this._preconnected = new Map();
+    const key = (isIncognito ? 'i|' : 'n|') + origin;
+    if (now - (this._preconnected.get(key) || 0) < 10000) return '';
+    this._preconnected.set(key, now);
+    if (this._preconnected.size > 200) this._preconnected.clear();
+    try {
+      const ses = isIncognito ? session.fromPartition('incognito') : session.defaultSession;
+      ses.preconnect({ url: origin, numSockets: 1 });
+    } catch (_) { return ''; }
+    return origin;
+  }
+
   _getSearchUrl(query) {
     const settings   = this.storage ? this.storage.getSettings() : {};
     const engine     = (settings.searchEngine || 'google').toLowerCase();

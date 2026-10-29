@@ -320,169 +320,36 @@ function showBookmarkFolderDropdown(anchorEl, items) {
 // Tabs this window has drawn before: a tab not among them is new and slides in once (the strip is redrawn on every
 // update, so the animation must not replay). Nothing animates on the first drawing (start-up, restored session).
 let knownTabIds = null;
+// Each tab's element and what it was drawn from (1.5.7): an update redraws only the tabs that changed — a title, a
+// favicon or the loading spinner of one tab used to rebuild the whole strip, several times per page load.
+let drawnTabs = new Map();
 
 function renderTabs(tabs, activeId) {
   currentTabs = tabs || [];
   const activeChanged = activeTabId !== activeId;
   activeTabId = activeId;
-  // the strip is redrawn on every update (a title, a favicon, loading …): it stays where the user scrolled it
+  // the strip stays where the user scrolled it
   const scrollLeft = tabsStrip.scrollLeft;
-  tabsStrip.innerHTML = '';
   const previousTabIds = knownTabIds;
   knownTabIds = new Set(currentTabs.map((t) => t.id));
+  const drawn = new Map();
 
   currentTabs.forEach((tab, index) => {
-    const tabEl = document.createElement('div');
-    tabEl.className = `browser-tab ${tab.id === activeTabId ? 'active' : ''} ${tab.isPinned ? 'pinned' : ''}`;
-    if (previousTabIds && !previousTabIds.has(tab.id)) tabEl.classList.add('tab-enter');
-    tabEl.title = tab.title || 'New Tab';
-    tabEl.dataset.tabId = tab.id;
+    const key = JSON.stringify(tab) + (tab.id === activeTabId ? '|active' : '');
+    const kept = drawnTabs.get(tab.id);
+    let tabEl = kept && kept.key === key ? kept.el : null;
+    if (!tabEl) {
+      tabEl = buildTabElement(tab, previousTabIds);
+      drawIcons(tabEl);
+    }
     tabEl.dataset.index = index;
-    tabEl.draggable = true;
-
-    // Loading indicator vs Favicon
-    let iconHtml = '';
-    if (tab.isLoading) {
-      iconHtml = `<div class="tab-spinner" title="Loading..."></div>`;
-    } else {
-      // the browser's own pages show their icon (the New Tab page the logo), sites their favicon
-      const page = (tab.url || '').match(/^mtc:\/\/([a-z]+)/);
-      const PAGE_ICONS = { settings: 'settings', history: 'history', bookmarks: 'star', downloads: 'download', extensions: 'puzzle', notes: 'notes', error: 'warning', crash: 'warning' };
-      let icon = iconMarkup('globe');
-      if (page && page[1] === 'newtab') icon = '<img src="../pages/logo.svg" alt=""/>';
-      else if (page && PAGE_ICONS[page[1]]) icon = iconMarkup(PAGE_ICONS[page[1]]);
-      else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" alt="" data-fallback-icon="globe"/>`;
-
-      iconHtml = `<div class="tab-favicon">${icon}</div>`;
-    }
-
-    // Audio / Mute badge
-    let audioHtml = '';
-    if (tab.isAudible) {
-      const audioIcon = iconMarkup(tab.isMuted ? 'volume-off' : 'volume');
-      const audioTitle = tab.isMuted ? 'Unmute tab' : 'Mute tab';
-      audioHtml = `<button class="tab-audio-btn" title="${audioTitle}">${audioIcon}</button>`;
-    }
-
-    // Sleep badge (RAM saver)
-    let badgeHtml = '';
-    if (tab.isSleeping) {
-      badgeHtml = `<span class="tab-badge" title="Sleeping (RAM Saver)">${iconMarkup('sleep')}</span>`;
-    }
-
-    tabEl.innerHTML = `
-      ${iconHtml}
-      <div class="tab-title">${escapeHtml(tab.title || 'New Tab')}</div>
-      ${audioHtml}
-      ${badgeHtml}
-      <button class="tab-close-btn" title="Close Tab (Ctrl+W)" aria-label="Close tab">${iconMarkup('close')}</button>
-    `;
-
-    // Audio button click (mute / unmute toggle)
-    const audioBtn = tabEl.querySelector('.tab-audio-btn');
-    if (audioBtn) {
-      audioBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (api && api.toggleMuteTab) {
-          api.toggleMuteTab(tab.id);
-        }
-      });
-    }
-
-    // Left click to switch tab
-    tabEl.addEventListener('click', (e) => {
-      if (e.target.classList.contains('tab-close-btn') || e.target.classList.contains('tab-audio-btn')) return;
-      if (api && api.switchTab) {
-        api.switchTab(tab.id);
-      }
-    });
-
-    // Middle click to close tab
-    tabEl.addEventListener('auxclick', (e) => {
-      if (e.button === 1) {
-        e.preventDefault();
-        if (api && api.closeTab) {
-          api.closeTab(tab.id);
-        }
-      }
-    });
-
-    // Close button
-    const closeBtn = tabEl.querySelector('.tab-close-btn');
-    if (closeBtn) {
-      closeBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (api && api.closeTab) {
-          api.closeTab(tab.id);
-        }
-      });
-    }
-
-    // ── Drag and Drop Tab Reordering ──
-    tabEl.addEventListener('dragstart', (e) => {
-      draggedTabId = tab.id;
-      tabEl.classList.add('dragging');
-      e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', tab.id);
-    });
-
-    tabEl.addEventListener('dragend', () => {
-      tabEl.classList.remove('dragging');
-      document.querySelectorAll('.browser-tab').forEach(el => {
-        el.classList.remove('drag-over-left', 'drag-over-right');
-      });
-      draggedTabId = null;
-    });
-
-    tabEl.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      if (!draggedTabId || draggedTabId === tab.id) return;
-      const rect = tabEl.getBoundingClientRect();
-      const midpoint = rect.left + rect.width / 2;
-      tabEl.classList.toggle('drag-over-left', e.clientX < midpoint);
-      tabEl.classList.toggle('drag-over-right', e.clientX >= midpoint);
-    });
-
-    tabEl.addEventListener('dragleave', () => {
-      tabEl.classList.remove('drag-over-left', 'drag-over-right');
-    });
-
-    tabEl.addEventListener('drop', (e) => {
-      e.preventDefault();
-      tabEl.classList.remove('drag-over-left', 'drag-over-right');
-      if (!draggedTabId || draggedTabId === tab.id) return;
-
-      const rect = tabEl.getBoundingClientRect();
-      const insertBefore = e.clientX < (rect.left + rect.width / 2);
-      let targetIndex = Number(tabEl.dataset.index);
-      if (!insertBefore) targetIndex += 1;
-
-      if (api && api.reorderTabs) {
-        api.reorderTabs(draggedTabId, targetIndex);
-      }
-    });
-
-    // Right-click context menu on tab
-    tabEl.addEventListener('contextmenu', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      hideContextMenus();
-      contextMenuTabId = tab.id;
-
-      // Update dynamic labels
-      if (ctxPinLabel) {
-        ctxPinLabel.textContent = tab.isPinned ? 'Unpin Tab' : 'Pin Tab';
-      }
-      if (ctxMuteLabel) {
-        ctxMuteLabel.textContent = tab.isMuted ? 'Unmute Tab' : 'Mute Tab';
-      }
-
-      showContextMenu(tabContextMenu, e.clientX, e.clientY);
-    });
-
-    tabsStrip.appendChild(tabEl);
+    drawn.set(tab.id, { key, el: tabEl });
+    const at = tabsStrip.children[index];
+    if (at !== tabEl) tabsStrip.insertBefore(tabEl, at || null);
   });
-  drawIcons(tabsStrip);
+  // what is left after the tabs: closed tabs and the old drawings of redrawn ones
+  while (tabsStrip.children.length > currentTabs.length) tabsStrip.lastElementChild.remove();
+  drawnTabs = drawn;
   tabsStrip.scrollLeft = scrollLeft;
   // a new or newly selected tab is always in view, also when the strip is full and scrolls (1.5.2)
   const isNew = previousTabIds && !previousTabIds.has(activeTabId);
@@ -500,6 +367,158 @@ function renderTabs(tabs, activeId) {
       }).catch(() => {});
     }
   }
+}
+
+/** One tab of the strip, with its handlers. */
+function buildTabElement(tab, previousTabIds) {
+  const tabEl = document.createElement('div');
+  tabEl.className = `browser-tab ${tab.id === activeTabId ? 'active' : ''} ${tab.isPinned ? 'pinned' : ''}`;
+  if (previousTabIds && !previousTabIds.has(tab.id)) tabEl.classList.add('tab-enter');
+  tabEl.title = tab.title || 'New Tab';
+  tabEl.dataset.tabId = tab.id;
+  tabEl.draggable = true;
+
+  // Loading indicator vs Favicon
+  let iconHtml = '';
+  if (tab.isLoading) {
+    iconHtml = `<div class="tab-spinner" title="Loading..."></div>`;
+  } else {
+    // the browser's own pages show their icon (the New Tab page the logo), sites their favicon
+    const page = (tab.url || '').match(/^mtc:\/\/([a-z]+)/);
+    const PAGE_ICONS = { settings: 'settings', history: 'history', bookmarks: 'star', downloads: 'download', extensions: 'puzzle', notes: 'notes', error: 'warning', crash: 'warning' };
+    let icon = iconMarkup('globe');
+    if (page && page[1] === 'newtab') icon = '<img src="../pages/logo.svg" alt=""/>';
+    else if (page && PAGE_ICONS[page[1]]) icon = iconMarkup(PAGE_ICONS[page[1]]);
+    else if (tab.favicon) icon = `<img src="${escapeHtml(tab.favicon)}" alt="" data-fallback-icon="globe"/>`;
+
+    iconHtml = `<div class="tab-favicon">${icon}</div>`;
+  }
+
+  // Audio / Mute badge
+  let audioHtml = '';
+  if (tab.isAudible) {
+    const audioIcon = iconMarkup(tab.isMuted ? 'volume-off' : 'volume');
+    const audioTitle = tab.isMuted ? 'Unmute tab' : 'Mute tab';
+    audioHtml = `<button class="tab-audio-btn" title="${audioTitle}">${audioIcon}</button>`;
+  }
+
+  // Sleep badge (RAM saver)
+  let badgeHtml = '';
+  if (tab.isSleeping) {
+    badgeHtml = `<span class="tab-badge" title="Sleeping (RAM Saver)">${iconMarkup('sleep')}</span>`;
+  }
+
+  tabEl.innerHTML = `
+    ${iconHtml}
+    <div class="tab-title">${escapeHtml(tab.title || 'New Tab')}</div>
+    ${audioHtml}
+    ${badgeHtml}
+    <button class="tab-close-btn" title="Close Tab (Ctrl+W)" aria-label="Close tab">${iconMarkup('close')}</button>
+  `;
+
+  // Audio button click (mute / unmute toggle)
+  const audioBtn = tabEl.querySelector('.tab-audio-btn');
+  if (audioBtn) {
+    audioBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (api && api.toggleMuteTab) {
+        api.toggleMuteTab(tab.id);
+      }
+    });
+  }
+
+  // Left click to switch tab
+  tabEl.addEventListener('click', (e) => {
+    if (e.target.classList.contains('tab-close-btn') || e.target.classList.contains('tab-audio-btn')) return;
+    if (api && api.switchTab) {
+      api.switchTab(tab.id);
+    }
+  });
+
+  // Middle click to close tab
+  tabEl.addEventListener('auxclick', (e) => {
+    if (e.button === 1) {
+      e.preventDefault();
+      if (api && api.closeTab) {
+        api.closeTab(tab.id);
+      }
+    }
+  });
+
+  // Close button
+  const closeBtn = tabEl.querySelector('.tab-close-btn');
+  if (closeBtn) {
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (api && api.closeTab) {
+        api.closeTab(tab.id);
+      }
+    });
+  }
+
+  // ── Drag and Drop Tab Reordering ──
+  tabEl.addEventListener('dragstart', (e) => {
+    draggedTabId = tab.id;
+    tabEl.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', tab.id);
+  });
+
+  tabEl.addEventListener('dragend', () => {
+    tabEl.classList.remove('dragging');
+    document.querySelectorAll('.browser-tab').forEach(el => {
+      el.classList.remove('drag-over-left', 'drag-over-right');
+    });
+    draggedTabId = null;
+  });
+
+  tabEl.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    if (!draggedTabId || draggedTabId === tab.id) return;
+    const rect = tabEl.getBoundingClientRect();
+    const midpoint = rect.left + rect.width / 2;
+    tabEl.classList.toggle('drag-over-left', e.clientX < midpoint);
+    tabEl.classList.toggle('drag-over-right', e.clientX >= midpoint);
+  });
+
+  tabEl.addEventListener('dragleave', () => {
+    tabEl.classList.remove('drag-over-left', 'drag-over-right');
+  });
+
+  tabEl.addEventListener('drop', (e) => {
+    e.preventDefault();
+    tabEl.classList.remove('drag-over-left', 'drag-over-right');
+    if (!draggedTabId || draggedTabId === tab.id) return;
+
+    const rect = tabEl.getBoundingClientRect();
+    const insertBefore = e.clientX < (rect.left + rect.width / 2);
+    let targetIndex = Number(tabEl.dataset.index);
+    if (!insertBefore) targetIndex += 1;
+
+    if (api && api.reorderTabs) {
+      api.reorderTabs(draggedTabId, targetIndex);
+    }
+  });
+
+  // Right-click context menu on tab
+  tabEl.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    hideContextMenus();
+    contextMenuTabId = tab.id;
+
+    // Update dynamic labels
+    if (ctxPinLabel) {
+      ctxPinLabel.textContent = tab.isPinned ? 'Unpin Tab' : 'Pin Tab';
+    }
+    if (ctxMuteLabel) {
+      ctxMuteLabel.textContent = tab.isMuted ? 'Unmute Tab' : 'Mute Tab';
+    }
+
+    showContextMenu(tabContextMenu, e.clientX, e.clientY);
+  });
+
+  return tabEl;
 }
 
 /** Scrolls the tab strip just enough to show the active tab (nothing when it is already visible). */
@@ -923,6 +942,15 @@ function setupEventListeners() {
 
   omniboxInput.addEventListener('focus', () => {
     omniboxInput.select();
+  });
+
+  // Connect ahead while typing (1.5.7): a short pause in typing opens the connection to where Enter would go
+  let preconnectTimer = null;
+  omniboxInput.addEventListener('input', () => {
+    clearTimeout(preconnectTimer);
+    preconnectTimer = setTimeout(() => {
+      if (api && api.preconnect && document.activeElement === omniboxInput) api.preconnect(omniboxInput.value).catch(() => {});
+    }, 200);
   });
 
   // Bookmark Star Button

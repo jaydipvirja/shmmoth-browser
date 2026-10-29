@@ -61,6 +61,7 @@ class StorageService {
         secureDnsCustomUrl:     '',
         secureDnsStrict:        false,
         ramSaverEnabled:        true,
+        preconnectWhileTyping:  true,          // the address bar connects ahead to where you are going (1.5.7)
         ramSaverTimeoutMinutes: 15,
         theme:                  DEFAULT_THEME, // 'system' follows Windows (services/theme.js)
         homepage:               'mtc://newtab',

@@ -225,6 +225,9 @@ class ShmmothBrowserApp {
 
     // 5. Create main browser window
     this.createMainWindow();
+    // the search engine's connection is opened ahead, so the first search of the day does not wait for it (1.5.7)
+    const warm = setTimeout(() => { try { this.preconnectFor(this._getSearchUrl('a')); } catch (_) { /* a convenience */ } }, 3000);
+    if (warm.unref) warm.unref();
 
     // 6. Wire DownloadManager to sessions (with multi-target broadcasting and dialog support)
     this.downloads = new DownloadManager(this.storage, {

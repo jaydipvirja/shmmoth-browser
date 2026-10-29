@@ -116,6 +116,9 @@ class AdBlockerService {
     this.cacheTtlMs = options.ttlMs || CACHE_TTL_MS;
     this._preloadPath = options.preloadPath || defaultPreloadPath;
     this._scriptletPreloadPath = options.scriptletPreloadPath || (() => path.join(__dirname, '..', 'preload-scriptlets.js'));
+    // the engine is built in a worker thread (1.5.7): the browser keeps working while the lists are parsed
+    this._buildInWorker = options.buildInWorker !== false;
+    this.lastBuild = null;                         // { where: 'worker' | 'main', ms }
     // Sites where the user paused the blocker ("Ad blocker on this site: off"). Matches the host and its subdomains.
     this._paused = new Set();
     this.reloadAllowlist();
@@ -510,15 +513,68 @@ class AdBlockerService {
       return { blocker: this.blocker, meta: this.meta, changed: false };
     }
 
-    const blocker = ElectronBlocker.parse(usable.map((l) => l.text).join('\n'), Object.assign({}, ENGINE_CONFIG));
-    if (resources.ok) blocker.updateResources(resources.text, String(resources.text.length));
-    const counts = this._countRules(blocker);
+    const text = usable.map((l) => l.text).join('\n');
+    const resourcesText = resources.ok ? resources.text : '';
+    let built = null;
+    if (this._buildInWorker) {
+      try { built = await this._buildInBackground(text, resourcesText); } catch (err) {
+        console.warn('Could not build the ad-block engine in the background, building it here:', err && err.message);
+      }
+    }
+    let blocker;
+    let counts;
+    if (built) {
+      blocker = built.blocker;
+      counts = built.counts;
+      this.lastBuild = { where: 'worker', ms: built.ms };
+    } else {
+      const started = Date.now();
+      blocker = ElectronBlocker.parse(text, Object.assign({}, ENGINE_CONFIG));
+      if (resourcesText) blocker.updateResources(resourcesText, String(resourcesText.length));
+      counts = this._countRules(blocker);
+      this.lastBuild = { where: 'main', ms: Date.now() - started };
+    }
+    console.log(`Ad-block engine built ${this.lastBuild.where === 'worker' ? 'in the background' : 'on the main thread'} in ${this.lastBuild.ms} ms.`);
     const meta = {
       version: META_VERSION, signature, builtAt: Date.now(), checkedAt: Date.now(),
       networkRules: counts.network, cosmeticRules: counts.cosmetic, lists: listInfo, resources: resourcesInfo
     };
-    this._writeEngineCache(blocker, meta);
+    if (built && built.written) this._writeMeta(meta);                // the worker wrote the engine file already
+    else this._writeEngineCache(blocker, meta);
     return { blocker, meta, changed: true };
+  }
+
+  /**
+   * Parses the lists in a worker thread (services/adblockWorker.js) so the browser does not freeze while it happens;
+   * the finished engine comes back serialized and is read here. Rejects when the worker cannot run (the caller then
+   * builds the engine on this thread, as before 1.5.7).
+   * @returns {Promise<{ blocker, counts: { network, cosmetic }, written: boolean, ms: number }>}
+   */
+  _buildInBackground(text, resourcesText) {
+    const { Worker } = require('worker_threads');
+    const started = Date.now();
+    return new Promise((resolve, reject) => {
+      let worker;
+      try {
+        worker = new Worker(path.join(__dirname, 'adblockWorker.js'), {
+          workerData: {
+            text, resources: resourcesText, config: Object.assign({}, ENGINE_CONFIG), cacheFile: this.cacheFile,
+            adblockerPath: require.resolve('@ghostery/adblocker', { paths: [path.dirname(require.resolve('@ghostery/adblocker-electron')), __dirname] })
+          }
+        });
+      } catch (err) { reject(err); return; }
+      let settled = false;
+      const done = (fn, v) => { if (settled) return; settled = true; fn(v); worker.terminate().catch(() => {}); };
+      worker.once('message', (m) => {
+        if (!m || !m.ok) { done(reject, new Error((m && m.error) || 'no answer')); return; }
+        try {
+          const blocker = ElectronBlocker.deserialize(m.engine);
+          done(resolve, { blocker, counts: { network: m.network, cosmetic: m.cosmetic }, written: Boolean(m.written), ms: Date.now() - started });
+        } catch (err) { done(reject, err); }
+      });
+      worker.once('error', (err) => done(reject, err));
+      worker.once('exit', (code) => done(reject, new Error('the worker stopped (' + code + ')')));
+    });
   }
 
   _countRules(blocker) {
@@ -799,6 +855,7 @@ class AdBlockerService {
       listsLoaded: lists.filter((l) => l.ok).length,
       listsTotal: lists.length || filterLists.LISTS.length,
       lists: lists.map((l) => ({ id: l.id, name: l.name, ok: l.ok, stale: l.stale, error: l.error || '' })),
+      builtIn: this.lastBuild ? this.lastBuild.where : '',
       error: this.blocker ? '' : this._lastRefreshError
     };
   }

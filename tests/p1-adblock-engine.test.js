@@ -75,7 +75,7 @@ function fakeSession() {
 function newAB(settings = {}, opts = {}) {
   const dir = fs.mkdtempSync(path.join(ROOT, 'ab_'));
   const f = opts.fetch || gm.makeFetch();
-  const ab = new AdBlockerService(newStorage(settings), Object.assign({ cacheFile: path.join(dir, 'engine.bin'), fetch: f, preloadPath: () => '/ghostery-preload.js', scriptletPreloadPath: () => '/scriptlet-preload.js' }, opts));
+  const ab = new AdBlockerService(newStorage(settings), Object.assign({ buildInWorker: false, cacheFile: path.join(dir, 'engine.bin'), fetch: f, preloadPath: () => '/ghostery-preload.js', scriptletPreloadPath: () => '/scriptlet-preload.js' }, opts));
   ab._dir = dir; ab._f = f;
   return ab;
 }

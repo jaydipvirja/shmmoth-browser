@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## 1.5.7
+
+Speed:
+- **No more freezes while the ad blocker loads its lists.** Turning the filter lists (about 13 MB) into the ad blocker took 1.5 seconds on a fast computer and several seconds on a slow one, and during that time the whole browser stood still — the window, typing, and every page that was loading. It happened at the first start and each time the lists were updated (YouTube's fixes: every 4 hours). Now that work runs beside the browser, in the background; the browser only takes the finished result (about a tenth of a second). The first start with the lists is about 1.7 s quicker.
+- **Pages from the address bar open sooner.** While you type, SHMMOTH already connects to the site — or to the search engine, for a search — so when you press Enter the name lookup and the secure connection are done (usually 100–300 ms saved, more on mobile data). Nothing is loaded or sent before Enter. The search engine's connection is also opened shortly after start. *Settings → Performance → Open pages faster* switches it off.
+- **A lighter tab strip.** A new title, icon or loading spinner of one tab redrew every tab of the strip, several times per page load; now only the tab that changed is redrawn (with 40 tabs: about 5 times less work per update).
+- The checks every web request goes through do less work.
+
 ## 1.5.6
 
 Privacy, phase 3:
