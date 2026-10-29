@@ -116,7 +116,7 @@ class AdBlockerService {
     this.cacheTtlMs = options.ttlMs || CACHE_TTL_MS;
     this._preloadPath = options.preloadPath || defaultPreloadPath;
     this._scriptletPreloadPath = options.scriptletPreloadPath || (() => path.join(__dirname, '..', 'preload-scriptlets.js'));
-    // the engine is built in a worker thread (1.5.7): the browser keeps working while the lists are parsed
+    // the engine is built in a worker thread (1.5.6): the browser keeps working while the lists are parsed
     this._buildInWorker = options.buildInWorker !== false;
     this.lastBuild = null;                         // { where: 'worker' | 'main', ms }
     // Sites where the user paused the blocker ("Ad blocker on this site: off"). Matches the host and its subdomains.
@@ -547,7 +547,7 @@ class AdBlockerService {
   /**
    * Parses the lists in a worker thread (services/adblockWorker.js) so the browser does not freeze while it happens;
    * the finished engine comes back serialized and is read here. Rejects when the worker cannot run (the caller then
-   * builds the engine on this thread, as before 1.5.7).
+   * builds the engine on this thread, as before 1.5.6).
    * @returns {Promise<{ blocker, counts: { network, cosmetic }, written: boolean, ms: number }>}
    */
   _buildInBackground(text, resourcesText) {

@@ -18,7 +18,7 @@
 const EVENTS = ['onBeforeRequest', 'onBeforeSendHeaders', 'onHeadersReceived'];
 const HUB = Symbol('shmmothWebRequestHub');
 
-// the parts of each pattern, worked out once (every request is checked against the patterns: 1.5.7)
+// the parts of each pattern, worked out once (every request is checked against the patterns: 1.5.6)
 const compiled = new Map();
 function compile(pattern) {
   let c = compiled.get(pattern);

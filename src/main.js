@@ -225,7 +225,7 @@ class ShmmothBrowserApp {
 
     // 5. Create main browser window
     this.createMainWindow();
-    // the search engine's connection is opened ahead, so the first search of the day does not wait for it (1.5.7)
+    // the search engine's connection is opened ahead, so the first search of the day does not wait for it (1.5.6)
     const warm = setTimeout(() => { try { this.preconnectFor(this._getSearchUrl('a')); } catch (_) { /* a convenience */ } }, 3000);
     if (warm.unref) warm.unref();
 

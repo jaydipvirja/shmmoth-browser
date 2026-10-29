@@ -1,19 +1,17 @@
 # CHANGELOG
 
-## 1.5.7
-
-Speed:
-- **No more freezes while the ad blocker loads its lists.** Turning the filter lists (about 13 MB) into the ad blocker took 1.5 seconds on a fast computer and several seconds on a slow one, and during that time the whole browser stood still — the window, typing, and every page that was loading. It happened at the first start and each time the lists were updated (YouTube's fixes: every 4 hours). Now that work runs beside the browser, in the background; the browser only takes the finished result (about a tenth of a second). The first start with the lists is about 1.7 s quicker.
-- **Pages from the address bar open sooner.** While you type, SHMMOTH already connects to the site — or to the search engine, for a search — so when you press Enter the name lookup and the secure connection are done (usually 100–300 ms saved, more on mobile data). Nothing is loaded or sent before Enter. The search engine's connection is also opened shortly after start. *Settings → Performance → Open pages faster* switches it off.
-- **A lighter tab strip.** A new title, icon or loading spinner of one tab redrew every tab of the strip, several times per page load; now only the tab that changed is redrawn (with 40 tabs: about 5 times less work per update).
-- The checks every web request goes through do less work.
-
 ## 1.5.6
 
 Privacy, phase 3:
 - **Clear data when SHMMOTH closes** (*Settings → Ad-Blocker & Privacy*, all off by default). Tick what should be cleared each time the browser closes: browsing history, cookies and site data, cached images and files, the download list. Passwords, bookmarks, saved addresses and downloaded files are never touched. If the browser was cut off while clearing (a crash, the power going), it finishes as soon as it starts again, before any page opens.
 - **Keep cookies for** chosen sites: they stay signed in when cookies are cleared — google.com and youtube.com are on the list from the start (with the other sites of the same company, so a Google sign-in survives). Add or remove sites in Settings, or with the new **Keep cookies** switch in the shield for the site in view.
 - **Tracker cookies are removed after 7 days** (on by default, like Safari's Intelligent Tracking Prevention). A site the shield saw tracking you on other sites loses its cookies and site data once you have not used it yourself — clicked or typed there — for 7 days. Sites you use (and the other sites of their company), kept sites, sites where tracking protection is off and sites open in a tab are never touched. It runs a minute after start and once a day; Settings shows the last result and has *Clean now*. Which sites you used is kept on this computer only, never for Incognito.
+
+Speed:
+- **No more freezes while the ad blocker loads its lists.** Turning the filter lists (about 13 MB) into the ad blocker took 1.5 seconds on a fast computer and several seconds on a slow one, and during that time the whole browser stood still — the window, typing, and every page that was loading. It happened at the first start and each time the lists were updated (YouTube's fixes: every 4 hours). Now that work runs beside the browser, in the background; the browser only takes the finished result (about a tenth of a second). The first start with the lists is about 1.7 s quicker.
+- **Pages from the address bar open sooner.** While you type, SHMMOTH already connects to the site — or to the search engine, for a search — so when you press Enter the name lookup and the secure connection are done (usually 100–300 ms saved, more on mobile data). Nothing is loaded or sent before Enter. The search engine's connection is also opened shortly after start. *Settings → Performance → Open pages faster* switches it off.
+- **A lighter tab strip.** A new title, icon or loading spinner of one tab redrew every tab of the strip, several times per page load; now only the tab that changed is redrawn (with 40 tabs: about 5 times less work per update).
+- The checks every web request goes through do less work.
 
 ## 1.5.5
 
