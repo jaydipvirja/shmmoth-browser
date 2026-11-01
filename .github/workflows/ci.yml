@@ -51,7 +51,7 @@ jobs:
       # the pictures of every screen (tests/e2e/20-screens.e2e.js): the before/after record of the redesign
       - name: Keep the screen pictures
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screens-linux
           path: test-results/screens
@@ -92,7 +92,7 @@ jobs:
         if: ${{ !cancelled() }}
       - name: Keep the screen pictures
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: screens-windows
           path: test-results/screens
