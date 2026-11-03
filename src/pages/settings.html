@@ -805,6 +805,20 @@
             </div>
           </div>
         </div>
+
+        <div class="card">
+          <div class="setting-row">
+            <div class="setting-info">
+              <label class="setting-label">Speed check</label>
+              <span class="setting-desc">Browse as usual for a few minutes, then open this. It shows how often the browser stuttered since it started, what it was busy with, and whether pages are drawn by the graphics card. Nothing is sent anywhere: <em>Copy report</em> puts it on the clipboard for you to share.</span>
+            </div>
+            <div class="setting-control" style="display:flex; gap:10px; align-items:center;">
+              <button id="btn-perf-check" class="btn-secondary">Check now</button>
+              <button id="btn-perf-copy" class="btn-secondary">Copy report</button>
+            </div>
+          </div>
+          <pre id="perf-report" class="perf-report" hidden></pre>
+        </div>
       </section>
 
       <!-- Appearance -->

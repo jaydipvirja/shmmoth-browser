@@ -12,7 +12,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { writeJsonAtomic, writeJsonAtomicAsync, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 
 const KEEP_DAYS = 30;
 const MAX_TRACKERS_PER_DAY = 500;
@@ -105,17 +105,19 @@ class PrivacyStats {
 
   _saveSoon() {
     if (!this.file || this._timer) return;
-    this._timer = setTimeout(() => this.flush(), SAVE_DELAY_MS);
+    this._timer = setTimeout(() => this.flush({ background: true }), SAVE_DELAY_MS);
     if (this._timer.unref) this._timer.unref();
   }
 
-  /** Writes the report now (the browser is closing). */
-  flush() {
+  /** Writes the report now (the browser is closing); `background`: off the main thread (the saves while browsing). */
+  flush({ background = false } = {}) {
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     if (!this.file) return;
     try {
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      writeJsonAtomic(this.file, { version: 1, days: this.days }, { validate: isPlainObject });
+      const data = { version: 1, days: this.days };
+      if (background) writeJsonAtomicAsync(this.file, data, { validate: isPlainObject }).catch(() => {});
+      else writeJsonAtomic(this.file, data, { validate: isPlainObject });
     } catch (_) { /* the report is a convenience, never a reason to fail */ }
   }
 

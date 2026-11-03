@@ -1,5 +1,11 @@
 # CHANGELOG
 
+## 1.5.7
+
+Smoothness:
+- **Saving no longer makes the browser stutter.** In SHMMOTH the browser's own work runs on the same thread that passes every scroll, click and key press on to the page. Your history, open tabs and the Privacy Report were saved there every few seconds while you browse — and on Windows each save waits for the disk (tens to hundreds of milliseconds on a hard disk, or while an antivirus scans the file), so scrolling and typing stopped for that moment. These saves now happen in the background. As before, nothing is lost: when the browser closes, everything still on its way is written at once.
+- **Speed check** (*Settings → Performance*). Browse as usual for a few minutes, then press *Check now*: it shows how often the browser stuttered since it started and for how long, what it was busy with, the pauses of its JavaScript, and whether your graphics card draws the pages (drawing in software alone makes scrolling and video stutter). *Copy report* puts it on the clipboard so it can be shared to find what is still slow on your computer. Nothing is sent anywhere.
+
 ## 1.5.6
 
 Privacy, phase 3:

@@ -33,6 +33,45 @@ class NetworkMethods {
     return provider;
   }
 
+  /** What the Speed check reports besides the stalls (services/perfMonitor.js): Electron's view of this computer. */
+  async perfExtras() {
+    const s = this.storage ? this.storage.getSettings() : {};
+    let gpuInfo = null;
+    try {
+      const info = await app.getGPUInfo('basic');
+      gpuInfo = (info && Array.isArray(info.gpuDevice) ? info.gpuDevice : []).map((d) => ({
+        vendorId: d.vendorId, deviceId: d.deviceId, active: d.active, driver: d.driverVersion || ''
+      }));
+    } catch (_) { /* not known */ }
+    let extensions = 0;
+    try { extensions = this.extensionManager ? this.extensionManager.getAllExtensions().length : 0; } catch (_) { extensions = 0; }
+    const tabs = Object.values(this.tabs || {});
+    const os = require('os');
+    return {
+      gpuStatus: (() => { try { return app.getGPUFeatureStatus(); } catch (_) { return {}; } })(),
+      gpuInfo,
+      metrics: (() => { try { return app.getAppMetrics(); } catch (_) { return []; } })(),
+      heapMB: Math.round(require('v8').getHeapStatistics().used_heap_size / 1048576),
+      tabs: tabs.length,
+      sleepingTabs: tabs.filter((t) => t && t.isSleeping).length,
+      extensions,
+      adblock: this.adBlocker ? (() => {
+        const st = this.adBlocker.getStatus();
+        return { enabled: st.enabled, engine: st.engine, rules: st.networkRules + st.cosmeticRules, builtIn: st.builtIn, lastBuildMs: this.adBlocker.lastBuild ? this.adBlocker.lastBuild.ms : 0 };
+      })() : null,
+      settings: {
+        adBlocker: s.adBlockerEnabled !== false,
+        fingerprint: s.privacyFingerprintProtection !== false,
+        thirdPartyCookies: s.privacyBlockThirdPartyCookies !== false,
+        httpsOnly: s.privacyHttpsOnly !== false,
+        secureDns: s.secureDnsProvider || 'adguard',
+        ramSaver: s.ramSaverEnabled !== false,
+        preconnect: s.preconnectWhileTyping !== false
+      },
+      versions: { app: app.getVersion(), electron: process.versions.electron, chrome: process.versions.chrome, os: `${process.platform} ${os.release()} ${os.arch()}, ${os.cpus().length} cores, ${Math.round(os.totalmem() / 1073741824)} GB RAM` }
+    };
+  }
+
   /** What the Settings page shows. */
   getSecureDnsState() {
     const s = this.storage.getSettings();

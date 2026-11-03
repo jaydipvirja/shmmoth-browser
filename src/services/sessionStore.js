@@ -13,7 +13,7 @@
 'use strict';
 
 const path = require('path');
-const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { writeJsonAtomic, writeJsonAtomicAsync, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 const { displayUrl } = require('../utils/errorPage');
 
 const FORMAT_VERSION = 1;
@@ -88,13 +88,27 @@ class SessionStore {
     }
   }
 
-  /** Writes the snapshot unless it is identical to the previous one. Never throws (a failed save must not break browsing). */
-  save(snapshot) {
+  /**
+   * Writes the snapshot unless it is identical to the previous one. Never throws (a failed save must not break browsing).
+   * `background`: written off the main thread (the saves while browsing, 1.5.7); the last save when the window closes
+   * is synchronous and always wins over one still on its way.
+   */
+  save(snapshot, { background = false } = {}) {
     try {
       const fingerprint = JSON.stringify(snapshot.tabs) + snapshot.active;
-      if (fingerprint === this._last) return false;
+      if (fingerprint === this._last && !this._pending) return false;
+      if (background) {
+        if (fingerprint === this._pending) return false;
+        this._pending = fingerprint;
+        writeJsonAtomicAsync(this.filePath, snapshot, { backupIntervalMs: 60000, space: 0 }).then(
+          () => { if (this._pending === fingerprint) { this._last = fingerprint; this._pending = null; } },
+          () => { if (this._pending === fingerprint) this._pending = null; }
+        );
+        return true;
+      }
       writeJsonAtomic(this.filePath, snapshot, { backupIntervalMs: 60000, space: 0 });
       this._last = fingerprint;
+      this._pending = null;
       return true;
     } catch (_) {
       return false;

@@ -12,7 +12,7 @@ const fs   = require('fs');
 const path = require('path');
 const { app } = require('electron');
 const { storageLogger: log } = require('../utils/logger');
-const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { writeJsonAtomic, writeJsonAtomicAsync, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 const { DEFAULT_THEME } = require('./theme');
 
 // settings/bookmarks/history change on every navigation; refresh the .bak at most once a minute
@@ -181,8 +181,17 @@ class StorageService {
    */
   saveSoon(delayMs = 2000) {
     if (this._saveTimer) return;
-    this._saveTimer = setTimeout(() => this.save(), delayMs);
+    // written in the background (1.5.7): a save while browsing no longer holds up scrolling and typing
+    this._saveTimer = setTimeout(() => { this._saveTimer = null; this._saveInBackground(); }, delayMs);
     if (this._saveTimer.unref) this._saveTimer.unref();
+  }
+
+  _saveInBackground() {
+    if (this.persistBlocked) return;
+    this._writing = (this._writing || 0) + 1;
+    writeJsonAtomicAsync(this.storagePath, this.data, { backupIntervalMs: BACKUP_INTERVAL_MS, validate: isPlainObject })
+      .catch((err) => log.error('Error saving storage file', { error: err.message }))
+      .then(() => { this._writing--; });
   }
 
   /** set() with a coalesced write (see saveSoon). */
@@ -193,7 +202,8 @@ class StorageService {
 
   /** Writes pending changes now (app quitting / window closing). */
   flush() {
-    if (this._saveTimer) this.save();
+    // a background write may not reach the disk before the process ends: what is in memory is written now
+    if (this._saveTimer || this._writing > 0) this.save();
   }
 
   save() {

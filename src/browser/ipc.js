@@ -23,7 +23,8 @@ const {
   securityLogger,
   displayUrl,
   secureDns,
-  siteOf
+  siteOf,
+  reportText
 } = require('./shared');
 const { normalizeTheme } = require('../services/theme');
 const { supportsMica } = require('../services/windowMaterial');
@@ -435,6 +436,13 @@ class IpcMethods {
     ipcMain.handle('notes:save', secureHandlerRaw((_, content) => {
       if (typeof content !== 'string') throw new Error('Notes content must be a string');
       return this.storage.saveNotes(content.slice(0, 1_000_000));
+    }));
+
+    // ── Speed check (Settings → Performance, 1.5.7) ──
+    ipcMain.handle('perf:report', secureHandlerRaw(async () => {
+      if (!this.perf) return null;
+      const report = this.perf.report(await this.perfExtras());
+      return { report, text: reportText(report) };
     }));
 
     // ── Ad Blocker ──

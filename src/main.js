@@ -38,6 +38,7 @@ const {
   PrivacyShield,
   PrivacyStats,
   PrivacyCleaner,
+  PerfMonitor,
   siteOfUrl,
   webRequestHub,
   AutofillService,
@@ -156,6 +157,12 @@ class ShmmothBrowserApp {
   async init() {
     await app.whenReady();
     log.info('App ready — starting SHMMOTH Browser initialisation');
+    // Speed check (1.5.7): stalls of this thread — the one every scroll, click and key press passes through — and the
+    // work that caused them (Settings → Performance)
+    this.perf = new PerfMonitor();
+    this.perf.start();
+    require('./utils/atomicJson').setTimingHook((what, ms) => this.perf.note(what, ms));
+    webRequestHub.setTimingHook((ms) => this.perf.note('web request checks', ms));
 
     // 1. Storage
     this.storage = new StorageService();
@@ -295,7 +302,10 @@ class ShmmothBrowserApp {
     });
 
     // 8. Wire AdBlocker (Ghostery engine; a short built-in list covers the first seconds and offline starts)
-    this.adBlocker = new AdBlockerService(this.storage, { cacheFile: path.join(app.getPath('userData'), 'adblock-engine-2.bin') });
+    this.adBlocker = new AdBlockerService(this.storage, {
+      cacheFile: path.join(app.getPath('userData'), 'adblock-engine-2.bin'),
+      onTiming: (what, ms) => this.perf.note(what, ms)
+    });
     // the engine of 1.1.6 and before (EasyList + EasyPrivacy only, no element hiding) is replaced by the new one
     for (const old of ['adblock-engine.bin', 'adblock-engine.bin.stale', 'adblock-engine.bin.tmp']) {
       fs.rm(path.join(app.getPath('userData'), old), { force: true }, () => {});

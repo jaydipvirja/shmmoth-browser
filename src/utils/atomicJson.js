@@ -19,6 +19,12 @@
  *          last good <file>.bak is restored if there is one. A file that cannot
  *          even be read (locked, permissions) is reported as "unreadable" so the
  *          caller can avoid writing over it.
+ *
+ *   writeJsonAtomicAsync (1.5.7): the same guarantees, but the slow part — writing and fsync'ing, which on Windows
+ *          can take tens to hundreds of milliseconds (a hard disk, an antivirus that scans every write) — happens off
+ *          the browser's main thread. That thread also passes on every scroll, click and key press, so a write there
+ *          made the whole browser stutter. Writes of one file run one at a time and coalesce (only the newest data is
+ *          written next); a synchronous write (closing the browser) always wins over one still on its way.
  */
 
 'use strict';
@@ -28,6 +34,17 @@ const path = require('path');
 
 const KEEP_CORRUPT_COPIES = 3;
 const lastBackupAt = new Map(); // filePath -> epoch ms
+const writers = new Map();      // filePath -> { gen, next, running } (writeJsonAtomicAsync)
+let onTiming = null;            // (what, ms) => void: how long a write held the main thread (services/perfMonitor.js)
+
+function writerOf(filePath) {
+  let w = writers.get(filePath);
+  if (!w) { w = { gen: 0, next: null, running: null }; writers.set(filePath, w); }
+  return w;
+}
+
+/** `fn(what, ms)` hears how long each synchronous write held the thread. */
+function setTimingHook(fn) { onTiming = typeof fn === 'function' ? fn : null; }
 
 function sleepSync(ms) {
   try {
@@ -120,6 +137,15 @@ function maybeBackup(filePath, backupIntervalMs, validate) {
  * @param {number} [opts.space=2]
  */
 function writeJsonAtomic(filePath, data, { backupIntervalMs = 0, validate, space = 2 } = {}) {
+  // the newest data: a write still on its way (writeJsonAtomicAsync) must not replace it afterwards
+  const w = writers.get(filePath);
+  if (w) { w.gen++; w.next = null; }
+  const started = onTiming ? Date.now() : 0;
+  try { writeJsonAtomicNow(filePath, data, { backupIntervalMs, validate, space }); }
+  finally { if (onTiming) { try { onTiming('write ' + path.basename(filePath), Date.now() - started); } catch (_) { /* ignore */ } } }
+}
+
+function writeJsonAtomicNow(filePath, data, { backupIntervalMs, validate, space }) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const json = JSON.stringify(data, null, space);
   const tmp = `${filePath}.tmp-${process.pid}`;
@@ -131,6 +157,101 @@ function writeJsonAtomic(filePath, data, { backupIntervalMs = 0, validate, space
     try { fs.unlinkSync(tmp); } catch (_) { /* ignore */ }
     throw err;
   }
+}
+
+const delay = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** maybeBackup without blocking: the old file is read, checked and copied in the background. */
+async function maybeBackupAsync(filePath, backupIntervalMs, validate) {
+  const bakPath = filePath + '.bak';
+  const now = Date.now();
+  const hasBak = await fs.promises.access(bakPath).then(() => true, () => false);
+  if (hasBak && backupIntervalMs > 0 && now - (lastBackupAt.get(filePath) || 0) < backupIntervalMs) return;
+  let text;
+  try { text = await fs.promises.readFile(filePath, 'utf8'); } catch (_) { return; }       // no file yet
+  try {
+    const data = JSON.parse(stripBom(text));
+    if (validate && !validate(data)) return;            // only back up good data
+  } catch (_) { return; }
+  const tmp = `${bakPath}.tmp-${process.pid}-a`;
+  try {
+    await fs.promises.writeFile(tmp, text, 'utf8');
+    await renameAsync(tmp, bakPath, () => true);
+    lastBackupAt.set(filePath, now);
+  } catch (_) {
+    try { await fs.promises.unlink(tmp); } catch (__) { /* ignore */ }
+  }
+}
+
+/**
+ * The rename that publishes a file, with the same retries as renameWithRetry but waiting between them instead of
+ * blocking. `stillNewest()` is asked right before each try: a newer write makes this one give up.
+ */
+async function renameAsync(from, to, stillNewest) {
+  let lastErr;
+  for (let attempt = 0; attempt < 6; attempt++) {
+    if (!stillNewest()) return false;
+    try {
+      fs.renameSync(from, to);              // fast (no data is written), and nothing else runs between check and rename
+      return true;
+    } catch (err) {
+      lastErr = err;
+      if (!['EPERM', 'EBUSY', 'EACCES'].includes(err.code)) throw err;
+      await delay(20 * (attempt + 1));
+    }
+  }
+  throw lastErr;
+}
+
+async function writeOnce(filePath, job, w) {
+  const my = ++w.gen;
+  const tmp = `${filePath}.tmp-${process.pid}-${my}`;
+  const newest = () => w.gen === my;
+  try {
+    await fs.promises.mkdir(path.dirname(filePath), { recursive: true });
+    const fh = await fs.promises.open(tmp, 'w', 0o600);
+    try {
+      await fh.writeFile(job.json, 'utf8');
+      await fh.sync();
+    } finally {
+      await fh.close();
+    }
+    if (newest()) await maybeBackupAsync(filePath, job.backupIntervalMs, job.validate);
+    const done = await renameAsync(tmp, filePath, newest);
+    if (!done) await fs.promises.unlink(tmp).catch(() => {});
+    return done;
+  } catch (err) {
+    await fs.promises.unlink(tmp).catch(() => {});
+    throw err;
+  }
+}
+
+/**
+ * writeJsonAtomic for the frequent saves while browsing (history, the open tabs, the privacy report …): the data is
+ * turned into JSON now (later changes do not leak into this write) and written in the background.
+ * @returns {Promise<void>} settles when this file has no write left; rejects with the last write's error
+ */
+function writeJsonAtomicAsync(filePath, data, { backupIntervalMs = 0, validate, space = 2 } = {}) {
+  let json;
+  try { json = JSON.stringify(data, null, space); } catch (err) { return Promise.reject(err); }
+  const w = writerOf(filePath);
+  w.next = { json, backupIntervalMs, validate };
+  if (!w.running) {
+    w.running = (async () => {
+      let lastErr = null;
+      try {
+        while (w.next) {
+          const job = w.next;
+          w.next = null;
+          try { await writeOnce(filePath, job, w); lastErr = null; } catch (err) { lastErr = err; }
+        }
+      } finally {
+        w.running = null;
+      }
+      if (lastErr) throw lastErr;
+    })();
+  }
+  return w.running;
 }
 
 function pruneCorruptCopies(filePath) {
@@ -198,4 +319,4 @@ function readJsonRecovering(filePath, { validate } = {}) {
 
 const isPlainObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 
-module.exports = { writeJsonAtomic, readJsonRecovering, isPlainObject };
+module.exports = { writeJsonAtomic, writeJsonAtomicAsync, setTimingHook, readJsonRecovering, isPlainObject };

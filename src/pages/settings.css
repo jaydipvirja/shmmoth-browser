@@ -1222,3 +1222,17 @@ body.searching .nav-item.active { background: transparent; color: var(--sh-text-
 .check-item.fail .sh-icon { color: var(--sh-danger); }
 .check-item strong { display: block; color: var(--sh-text); font-weight: 600; }
 .check-item p { margin: 3px 0 0; color: var(--sh-text-2); line-height: 1.5; user-select: text; }
+
+/* Speed check report (1.5.7) */
+.perf-report {
+  margin: 12px 0 0;
+  padding: 12px;
+  max-height: 260px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font: 12px/1.5 ui-monospace, Consolas, monospace;
+  border-radius: 8px;
+  background: rgba(127, 127, 127, 0.12);
+  user-select: text;
+}
