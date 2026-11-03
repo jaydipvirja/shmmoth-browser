@@ -257,6 +257,7 @@ const apiSurface = {
   setSecureDns:             (choice)                     => ipcRenderer.invoke('dns:set', choice),
   testSecureDns:            ()                           => ipcRenderer.invoke('dns:test'),
   getAdBlockerStatus:       ()                           => ipcRenderer.invoke('adblocker:getStatus'),
+  getPerfReport:            ()                           => ipcRenderer.invoke('perf:report'),
   updateAdBlockerLists:     ()                           => ipcRenderer.invoke('adblocker:updateLists'),
   onUpdateStatus:           (callback)                   => ipcRenderer.on('updater:status', (_, data) => callback(data)),
 };

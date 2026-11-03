@@ -6,6 +6,7 @@
  *   - the tab strip keeps the elements of tabs that did not change (one tab's new title redraws that tab only), and
  *     closing a tab in the middle leaves the others in order
  *   - the ad-block engine is built in the background (a worker thread — also from inside the packaged app)
+ *   - the Speed check (1.5.7) reports this run, in Settings too; history written in the background survives a restart
  *
  * Run: npm run test:e2e   (or: node tests/e2e/32-speed.e2e.js)
  */
@@ -100,6 +101,38 @@ runSuite('SHMMOTH Browser — E2E 32: speed', async (t) => {
         assertEqual(status.builtIn, 'worker', 'where the engine was built');
         assert(status.networkRules > 50, 'rules: ' + status.networkRules);
         assert(fs.existsSync(path.join(ud, 'adblock-engine-2.bin')), 'engine file written');
+      } finally { await ctx.close(); }
+    });
+
+    await t.test('Speed check (1.5.7): Settings shows the report of this run, and the browser\'s data is still saved', async () => {
+      const ud = tmpDir('shmmoth-e2e-speedcheck-');
+      let ctx = await launchApp({ userData: ud });
+      try {
+        await api(ctx.chrome, 'createTab', site.url + '/history-entry');
+        await waitForWebContents(ctx.app, site.url + '/history-entry');
+        const r = await api(ctx.chrome, 'getPerfReport');
+        assert(r && r.report && typeof r.text === 'string', 'a report');
+        assert(r.report.tabs >= 2 && r.report.processes.Browser && r.report.gpu && r.report.gpu.status, JSON.stringify(r.report).slice(0, 300));
+        assert(r.text.startsWith('SHMMOTH speed check'), r.text.slice(0, 80));
+        await api(ctx.chrome, 'createTab', 'mtc://settings');
+        await waitForWebContents(ctx.app, 'mtc://settings');
+        const shown = await ctx.app.evaluate(async ({ webContents }) => {
+          const wc = webContents.getAllWebContents().find((w) => w.getURL().startsWith('mtc://settings'));
+          await wc.executeJavaScript('document.getElementById("btn-perf-check").click()');
+          for (let i = 0; i < 50; i++) {
+            const text = await wc.executeJavaScript('(() => { const p = document.getElementById("perf-report"); return p && !p.hidden ? p.textContent : ""; })()');
+            if (text) return text;
+            await new Promise((res) => setTimeout(res, 100));
+          }
+          return '';
+        });
+        assert(shown.includes('Stalls:') && shown.includes('graphics card'), 'shown in Settings: ' + shown.slice(0, 120));
+        // history is now written in the background: it is on the disk after closing all the same
+        await waitFor(async () => ((await api(ctx.chrome, 'getHistory', '')) || []).some((h) => String(h.url).includes('/history-entry')), { message: 'history entry' });
+      } finally { await ctx.close(); }
+      ctx = await launchApp({ userData: ud });
+      try {
+        assert(((await api(ctx.chrome, 'getHistory', '')) || []).some((h) => String(h.url).includes('/history-entry')), 'history kept after a restart');
       } finally { await ctx.close(); }
     });
   } finally { site.close(); }

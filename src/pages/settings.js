@@ -647,6 +647,21 @@ toggleRamSaver.addEventListener('change', () => {
 const togglePreconnect = document.getElementById('toggle-preconnect');
 if (togglePreconnect) togglePreconnect.addEventListener('change', () => saveSettingChange({ preconnectWhileTyping: togglePreconnect.checked }));
 
+// Speed check (1.5.7): what the browser's main thread was busy with (services/perfMonitor.js)
+async function showPerfReport(copy) {
+  const out = document.getElementById('perf-report');
+  if (!out || !window.mtcAPI || !window.mtcAPI.getPerfReport) return;
+  const res = await window.mtcAPI.getPerfReport().catch(() => null);
+  if (!res) return;
+  out.textContent = res.text;
+  out.hidden = false;
+  if (copy) navigator.clipboard.writeText(res.text).then(() => showToast('Speed check report copied to the clipboard'), () => {});
+}
+const btnPerfCheck = document.getElementById('btn-perf-check');
+if (btnPerfCheck) btnPerfCheck.addEventListener('click', () => showPerfReport(false));
+const btnPerfCopy = document.getElementById('btn-perf-copy');
+if (btnPerfCopy) btnPerfCopy.addEventListener('click', () => showPerfReport(true));
+
 selectRamTimeout.addEventListener('change', () => {
   saveSettingChange({ ramSaverTimeoutMinutes: parseInt(selectRamTimeout.value, 10) });
 });

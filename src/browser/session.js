@@ -131,14 +131,14 @@ class SessionMethods {
   /** Called on every tab change; writes at most once a second. */
   _scheduleSessionSave() {
     if (!this._sessionReady || this._sessionTimer) return;
-    this._sessionTimer = setTimeout(() => { this._sessionTimer = null; this._saveSessionNow(); }, 1000);
+    this._sessionTimer = setTimeout(() => { this._sessionTimer = null; this._saveSessionNow({ background: true }); }, 1000);
     if (this._sessionTimer.unref) this._sessionTimer.unref();
   }
 
-  _saveSessionNow() {
+  _saveSessionNow({ background = false } = {}) {
     if (!this._sessionReady || !this.sessionStore) return;
     if (this._sessionTimer) { clearTimeout(this._sessionTimer); this._sessionTimer = null; }
-    this.sessionStore.save(buildSnapshot(this.tabs, this.tabOrder, this.activeTabId));
+    this.sessionStore.save(buildSnapshot(this.tabs, this.tabOrder, this.activeTabId), { background });
   }
 
   // ─── Single instance ─────────────────────────────────────────────────────

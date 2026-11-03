@@ -118,6 +118,7 @@ class AdBlockerService {
     this._scriptletPreloadPath = options.scriptletPreloadPath || (() => path.join(__dirname, '..', 'preload-scriptlets.js'));
     // the engine is built in a worker thread (1.5.6): the browser keeps working while the lists are parsed
     this._buildInWorker = options.buildInWorker !== false;
+    this._onTiming = typeof options.onTiming === 'function' ? options.onTiming : null;   // (what, ms): the Speed check
     this.lastBuild = null;                         // { where: 'worker' | 'main', ms }
     // Sites where the user paused the blocker ("Ad blocker on this site: off"). Matches the host and its subdomains.
     this._paused = new Set();
@@ -405,7 +406,9 @@ class AdBlockerService {
    */
   scriptletsFor(event, url) {
     if (!this._cosmeticHostFor(event, url)) return [];
+    const t = performance.now();
     const { active, scripts } = this._cosmetics(event, url, undefined, { injection: true });
+    this._timing('ad blocker: page scripts', performance.now() - t);
     if (active === false || !Array.isArray(scripts)) return [];
     return scripts.filter((s) => typeof s === 'string' && s).map((s) => `(function(){try{\n${s}\n}catch(e){}})();`);
   }
@@ -416,7 +419,9 @@ class AdBlockerService {
    */
   async _onCosmeticRequest(event, url, msg) {
     if (!this._cosmeticHostFor(event, url)) return undefined;
+    const t = performance.now();
     const { active, styles } = this._cosmetics(event, url, msg, { injection: false });
+    this._timing('ad blocker: element hiding', performance.now() - t);
     if (active === false || !styles) return undefined;
     const sender = event && event.sender;
     if (sender && !(sender.isDestroyed && sender.isDestroyed())) await Promise.resolve(sender.insertCSS(styles, { cssOrigin: 'user' })).catch(() => {});
@@ -424,6 +429,10 @@ class AdBlockerService {
   }
 
   // ─── Lists and the compiled engine ────────────────────────────────────────
+
+  _timing(what, ms) {
+    if (this._onTiming) { try { this._onTiming(what, ms); } catch (_) { /* ignore */ } }
+  }
 
   _ensureDir(dir) {
     try { fs.mkdirSync(dir, { recursive: true }); return true; } catch (_) { return false; }
@@ -533,6 +542,7 @@ class AdBlockerService {
       if (resourcesText) blocker.updateResources(resourcesText, String(resourcesText.length));
       counts = this._countRules(blocker);
       this.lastBuild = { where: 'main', ms: Date.now() - started };
+      this._timing('ad blocker: build the engine here', this.lastBuild.ms);
     }
     console.log(`Ad-block engine built ${this.lastBuild.where === 'worker' ? 'in the background' : 'on the main thread'} in ${this.lastBuild.ms} ms.`);
     const meta = {
@@ -568,7 +578,9 @@ class AdBlockerService {
       worker.once('message', (m) => {
         if (!m || !m.ok) { done(reject, new Error((m && m.error) || 'no answer')); return; }
         try {
+          const t = Date.now();
           const blocker = ElectronBlocker.deserialize(m.engine);
+          this._timing('ad blocker: take the new engine', Date.now() - t);
           done(resolve, { blocker, counts: { network: m.network, cosmetic: m.cosmetic }, written: Boolean(m.written), ms: Date.now() - started });
         } catch (err) { done(reject, err); }
       });
@@ -610,7 +622,9 @@ class AdBlockerService {
     try {
       const meta = JSON.parse(fs.readFileSync(this.metaFile, 'utf8'));
       if (!meta || meta.version !== META_VERSION || typeof meta.signature !== 'string') return null;
+      const t = Date.now();
       const blocker = ElectronBlocker.deserialize(new Uint8Array(fs.readFileSync(this.cacheFile)));
+      this._timing('ad blocker: read the kept engine', Date.now() - t);
       return { blocker, meta };
     } catch (_) {
       return null;

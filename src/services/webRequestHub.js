@@ -16,6 +16,8 @@
 'use strict';
 
 const EVENTS = ['onBeforeRequest', 'onBeforeSendHeaders', 'onHeadersReceived'];
+let onTiming = null;                 // (ms) => void: how long the browser's own checks of one request event took (1.5.7)
+function setTimingHook(fn) { onTiming = typeof fn === 'function' ? fn : null; }
 const HUB = Symbol('shmmothWebRequestHub');
 
 // the parts of each pattern, worked out once (every request is checked against the patterns: 1.5.6)
@@ -105,7 +107,11 @@ class WebRequestHub {
   _sync(event) {
     const active = this.legacy[event] || this.named[event].size > 0;
     if (!active) { this.original[event](null); return; }
-    this.original[event]({ urls: ['<all_urls>'] }, (details, callback) => this._dispatch(event, details, callback));
+    this.original[event]({ urls: ['<all_urls>'] }, (details, callback) => {
+      if (!onTiming) return this._dispatch(event, details, callback);
+      const t = performance.now();
+      try { return this._dispatch(event, details, callback); } finally { onTiming(performance.now() - t); }
+    });
   }
 
   _dispatch(event, details, callback) {
@@ -159,4 +165,4 @@ function install(session) {
   return wr[HUB];
 }
 
-module.exports = { install, matchesPattern, matchesFilter, EVENTS };
+module.exports = { install, setTimingHook, matchesPattern, matchesFilter, EVENTS };

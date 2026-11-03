@@ -21,6 +21,7 @@ const { PasswordAutofill } = require('../services/passwordAutofill');
 const { FormAutofill } = require('../services/formAutofill');
 const { PrivacyShield, siteOf, siteOfUrl } = require('../services/privacyShield');
 const { PrivacyCleaner } = require('../services/privacyCleaner');
+const { PerfMonitor, reportText } = require('../services/perfMonitor');
 const { PrivacyStats } = require('../services/privacyStats');
 const webRequestHub = require('../services/webRequestHub');
 const { AutofillService } = require('../services/autofillService');
@@ -113,6 +114,8 @@ module.exports = {
   PrivacyShield,
   PrivacyStats,
   PrivacyCleaner,
+  PerfMonitor,
+  reportText,
   siteOf,
   siteOfUrl,
   webRequestHub,

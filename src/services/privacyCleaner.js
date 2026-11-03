@@ -21,7 +21,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { writeJsonAtomic, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
+const { writeJsonAtomic, writeJsonAtomicAsync, readJsonRecovering, isPlainObject } = require('../utils/atomicJson');
 const { siteOf, siteOfUrl, sameParty } = require('./privacyShield');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -230,18 +230,21 @@ class PrivacyCleaner {
 
   _saveSoon() {
     if (!this.file || this._timer) return;
-    this._timer = setTimeout(() => this.flush(), 5000);
+    this._timer = setTimeout(() => this.flush({ background: true }), 5000);
     if (this._timer.unref) this._timer.unref();
   }
 
-  flush() {
+  /** `background`: written off the main thread (the saves while browsing); without it at once (the browser closing). */
+  flush({ background = false } = {}) {
     if (this._timer) { clearTimeout(this._timer); this._timer = null; }
     if (!this.file) return;
     try {
       const oldest = this.now() - KEEP_INTERACTIONS_MS;
       for (const [site, at] of Object.entries(this.interactions)) if (at < oldest) delete this.interactions[site];
       fs.mkdirSync(path.dirname(this.file), { recursive: true });
-      writeJsonAtomic(this.file, { version: 1, interactions: this.interactions, lastCleanup: this.lastCleanup }, { validate: isPlainObject });
+      const data = { version: 1, interactions: this.interactions, lastCleanup: this.lastCleanup };
+      if (background) writeJsonAtomicAsync(this.file, data, { validate: isPlainObject }).catch(() => {});
+      else writeJsonAtomic(this.file, data, { validate: isPlainObject });
     } catch (_) { /* a convenience, never a reason to fail */ }
   }
 }
