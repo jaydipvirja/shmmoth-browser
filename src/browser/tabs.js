@@ -1246,8 +1246,9 @@ class TabsMethods {
   // clicked every "#dismiss-button" of the page, and hid the anti-adblock dialog but not its backdrop, which then took
   // every click on the player. Now:
   //   - it acts only while YouTube itself marks the player as showing an ad (class "ad-showing" on the main player)
-  //   - during the ad: muted and 16x, a skip button inside the player is pressed; afterwards mute and speed are put back
-  //     as they were (only what it changed itself)
+  //   - during the ad: muted, and a skip button inside the player is pressed; afterwards the sound is put back as it was
+  //     (only what it changed itself). Up to 1.5.7 the ad was also played at 16x — YouTube looks for sped-up ads and
+  //     then holds the video back, so the speed is never touched any more (1.5.8)
   //   - it never calls play() / pause(), never seeks, never touches dialogs; ad boxes outside the player are hidden
   //   - when YouTube shows its "ad blockers are not allowed" notice, the browser fetches the newest YouTube fixes of the
   //     filter lists (services/adblocker.js onYouTubeEnforcement); the notice itself is left alone
@@ -1276,24 +1277,19 @@ class TabsMethods {
         if (window.__shmmothYouTubeAds) return;
         window.__shmmothYouTubeAds = true;
         var SKIP = '.ytp-skip-ad-button, .ytp-ad-skip-button, .ytp-ad-skip-button-modern';
-        var FAST = 16;
         var player = null, observer = null;
-        var saved = null;                                  // { video, muted, rate } while an ad plays
+        var saved = null;                                  // { video, muted } while an ad plays
         function check() {
           if (!player || !player.isConnected) return;
           var video = player.querySelector('video.html5-main-video') || player.querySelector('video');
           if (player.classList.contains('ad-showing') && video) {
-            if (!saved || saved.video !== video) saved = { video: video, muted: video.muted, rate: video.playbackRate };
+            if (!saved || saved.video !== video) saved = { video: video, muted: video.muted };
             if (!video.muted) video.muted = true;
-            if (video.playbackRate !== FAST) { try { video.playbackRate = FAST; } catch (e) {} }
             var skip = player.querySelector(SKIP);
             if (skip && typeof skip.click === 'function') skip.click();
           } else if (saved) {
             var v = saved.video;
-            if (v && v.isConnected) {
-              if (v.muted && !saved.muted) v.muted = false;
-              if (v.playbackRate === FAST) { try { v.playbackRate = saved.rate > 0 && saved.rate !== FAST ? saved.rate : 1; } catch (e) {} }
-            }
+            if (v && v.isConnected && v.muted && !saved.muted) v.muted = false;
             saved = null;
           }
         }

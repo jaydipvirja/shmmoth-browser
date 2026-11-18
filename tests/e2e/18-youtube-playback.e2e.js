@@ -137,8 +137,10 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
     fs.writeFileSync(path.join(listsDir, id + '.json'), JSON.stringify({ fetchedAt: Date.now(), url: 'seeded by the test' }));
   };
   for (const l of LISTS) seed(l.id, '! empty seed\n');
-  seed('easylist', ['[Adblock Plus 2.0]', '! Title: E2E list', '||ads.test-adnet.example^',
-    'youtube.com##+js(set-constant, ytInitialPlayerResponse.adPlacements, undefined)'].join('\n') + '\n');
+  seed('easylist', ['[Adblock Plus 2.0]', '! Title: E2E list', '||ads.test-adnet.example^'].join('\n') + '\n');
+  seed('ubo-filters', ['! Title: E2E uBlock list', 'youtube.com##+js(set-constant, ytInitialPlayerResponse.adPlacements, undefined)'].join('\n') + '\n');
+  // another list's page script for YouTube: not used there since 1.5.8 (it fought uBlock's and the video never played)
+  seed('adguard-base', ['! Title: E2E AdGuard list', 'youtube.com##+js(set-constant, shmmothE2eAdGuardRule, 1)'].join('\n') + '\n');
   seed('resources', fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'ublock-resources-min.json'), 'utf8'));
 
   const ctx = await launchApp({
@@ -189,6 +191,7 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
     await t.test('they run before the page\'s own first script (the player never sees the ad data), also with a strict CSP', async () => {
       const url = await open('/watch?v=rules');
       assertEqual(await evalIn(app, url, 'window.__adPlacementsAtStart'), true, 'the page saw adPlacements: the rule ran too late');
+      assertEqual(await evalIn(app, url, 'typeof window.shmmothE2eAdGuardRule'), 'undefined', 'another list\'s YouTube page script ran (1.5.8)');
       assertEqual(await evalIn(app, url, 'window.ytInitialPlayerResponse.videoDetails.videoId'), 'e2e', 'the rest of the data must stay');
     });
 
@@ -251,10 +254,11 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
       assertEqual((ctx.log.text.match(/fetching the newest YouTube fixes/g) || []).length, 1, 'rate-limited to one refresh');
     });
 
-    await t.test('during an ad (player class "ad-showing"): muted, fast, its skip button pressed; afterwards sound and the user\'s speed are back', async () => {
+    await t.test('during an ad (player class "ad-showing"): muted, its skip button pressed, the speed never touched (YouTube holds sped-up ads back, 1.5.8); afterwards the sound is back', async () => {
       await evalIn(app, watch, 'document.querySelector("video").playbackRate = 1.5');
       await evalIn(app, watch, 'window.__startAd()');
-      await waitFor(async () => { const v = await video(watch); return v.muted && v.rate === 16; }, { message: 'the ad to be muted and sped up', timeout: 3000 });
+      await waitFor(async () => { const v = await video(watch); return v.muted; }, { message: 'the ad to be muted', timeout: 3000 });
+      assertEqual((await video(watch)).rate, 1.5, 'the speed during the ad');
       await waitFor(() => evalIn(app, watch, 'window.__clicked.skip >= 1'), { message: 'the skip button inside the player to be pressed', timeout: 3000 });
       await evalIn(app, watch, 'window.__endAd()');
       await waitFor(async () => { const v = await video(watch); return !v.muted && v.rate === 1.5; }, { message: 'sound and speed to come back', timeout: 3000 });
