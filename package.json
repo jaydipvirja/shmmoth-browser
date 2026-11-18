@@ -15,7 +15,8 @@
     "release:sign": "node scripts/release-tool.js sign",
     "release:verify": "node scripts/release-tool.js verify",
     "release:check": "node scripts/release-tool.js check",
-    "release:publish": "node scripts/release-publish.js"
+    "release:publish": "node scripts/release-publish.js",
+    "audit": "node scripts/audit.js"
   },
   "keywords": [
     "browser",

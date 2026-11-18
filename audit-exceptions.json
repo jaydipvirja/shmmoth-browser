@@ -1,0 +1,13 @@
+{
+  "about": "Advisories that do not fail CI (scripts/audit.js), agreed by the owner. Only for an advisory with no fixed release that is in the build tooling only — nothing of it ships in the browser. Never Electron. Look again by reviewBy: after it, the advisory fails CI again.",
+  "exceptions": [
+    {
+      "advisory": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "path": "electron-builder > app-builder-lib > @electron/rebuild > node-gyp > tinyglobby > picomatch",
+      "reason": "ReDoS in glob matching; every published version is affected and no fix exists yet. Used only by node-gyp while packaging, on our own file patterns; not part of the installed browser. npm's only offer is a downgrade of electron-builder to 24.13.3.",
+      "added": "2026-11-18",
+      "reviewBy": "2027-01-31"
+    }
+  ]
+}

@@ -27,8 +27,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm test
-      # Fails when a published advisory affects Electron or another dependency — the signal to upgrade (docs/upgrading-electron.md)
-      - run: npm audit --audit-level=high
+      # Fails when a published advisory affects Electron or another dependency — the signal to upgrade (docs/upgrading-electron.md).
+      # npm audit --audit-level=high, except the advisories the owner agreed to in audit-exceptions.json (no fix yet, build
+      # tooling only, each with a review date after which it fails again; never Electron) — scripts/audit.js
+      - run: npm run audit
 
   # The real app, driven by Playwright, on Linux under Xvfb.
   e2e-linux:
