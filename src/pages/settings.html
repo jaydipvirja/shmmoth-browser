@@ -166,6 +166,21 @@
 
           <div class="setting-row">
             <div class="setting-info">
+              <label class="setting-label" for="toggle-yt-quickfixes">YouTube: uBlock's newest anti-adblock tricks</label>
+              <span class="setting-desc">Off by default. These rules are made for uBlock Origin in Firefox; in SHMMOTH they could stop videos from playing (endless buffering, or the video ending at once). YouTube ads are still removed without them. Turn this on only if YouTube shows "Ad blockers are not allowed"; the ad blocker then updates itself in a few seconds.</span>
+            </div>
+            <div class="setting-control">
+              <label class="toggle-switch">
+                <input type="checkbox" id="toggle-yt-quickfixes">
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="setting-row">
+            <div class="setting-info">
               <label class="setting-label" for="toggle-privacy-cookies">Block cross-site cookies</label>
               <span class="setting-desc">Other sites inside a page (ads, social buttons, trackers) can neither read nor set cookies, so they cannot follow you from site to site, like Safari. Sites of one company count as one (google.com and youtube.com, so signing in keeps working). If a site breaks (a payment or a comment box), switch off "Tracking protection" in the shield on that site.</span>
             </div>

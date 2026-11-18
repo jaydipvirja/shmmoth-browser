@@ -153,8 +153,17 @@ function withoutYouTubePageScripts(text) {
   return out.join('\n');
 }
 
-/** The text of list `id` as it goes into the engine. */
-function prepareForEngine(id, text) {
+/**
+ * The text of list `id` as it goes into the engine.
+ *
+ * uBlock's quick fixes (1.5.9): on YouTube they leave the page scripts out unless `youtubeQuickFixes` is on (Settings →
+ * Ad-Blocker, off by default). Their newest YouTube defence is a chain made for uBlock in Firefox, which can also rewrite
+ * YouTube's server answers ("replace=" rules) — no Chromium-based browser can. Here only part of the chain ran: its
+ * fallback saw a server-side ad and moved the player to the end, so the video "ended" at once and the next one did the
+ * same (the owner's console, 1.5.8). uBlock's other YouTube rules (taking the ads out of the player's data) still run.
+ */
+function prepareForEngine(id, text, { youtubeQuickFixes = false } = {}) {
+  if (id === 'ubo-quick-fixes') return youtubeQuickFixes ? text : withoutYouTubePageScripts(text);
   return typeof id === 'string' && id.startsWith('ubo-') ? text : withoutYouTubePageScripts(text);
 }
 

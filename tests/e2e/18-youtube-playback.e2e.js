@@ -141,6 +141,8 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
   seed('ubo-filters', ['! Title: E2E uBlock list', 'youtube.com##+js(set-constant, ytInitialPlayerResponse.adPlacements, undefined)'].join('\n') + '\n');
   // another list's page script for YouTube: not used there since 1.5.8 (it fought uBlock's and the video never played)
   seed('adguard-base', ['! Title: E2E AdGuard list', 'youtube.com##+js(set-constant, shmmothE2eAdGuardRule, 1)'].join('\n') + '\n');
+  // uBlock's quick fixes on YouTube: only when switched on in Settings (1.5.9)
+  seed('ubo-quick-fixes', ['! Title: E2E quick fixes', 'www.youtube.com##+js(set-constant, shmmothE2eQuickFix, 1)'].join('\n') + '\n');
   seed('resources', fs.readFileSync(path.join(__dirname, '..', 'fixtures', 'ublock-resources-min.json'), 'utf8'));
 
   const ctx = await launchApp({
@@ -205,6 +207,27 @@ runSuite('SHMMOTH Browser — E2E 18: YouTube play / pause, ads, right-click', a
       assertEqual(r.marks, 0, 'the fingerprint script ran on YouTube');
       assertEqual(r.prototypes, 0, 'a browser function was changed on YouTube');
       assertEqual(r.gpc, true, 'GPC stays');
+    });
+
+    await t.test('uBlock\'s quick fixes run on YouTube only when switched on in Settings; switching builds the engine again (1.5.9)', async () => {
+      // the notice in the earlier pages made the browser fetch the newest YouTube fixes (the real quick-fixes list, when
+      // online): the test's own copy is put back, as if fetched just now
+      seed('ubo-quick-fixes', ['! Title: E2E quick fixes', 'www.youtube.com##+js(set-constant, shmmothE2eQuickFix, 1)'].join('\n') + '\n');
+      const off = await open('/watch?v=quickfix-off');
+      assertEqual(await evalIn(app, off, 'typeof window.shmmothE2eQuickFix'), 'undefined', 'quick fixes ran on YouTube although off');
+      await api(ctx.chrome, 'updateSettings', { adBlockerYouTubeQuickFixes: true });
+      try {
+        await waitFor(async () => {
+          const url = await open('/watch?v=quickfix-on-' + Date.now());
+          return (await evalIn(app, url, 'typeof window.shmmothE2eQuickFix')) === 'number';
+        }, { message: 'the quick fixes to run after switching them on', timeout: 30000, interval: 500 });
+      } finally {
+        await api(ctx.chrome, 'updateSettings', { adBlockerYouTubeQuickFixes: false });
+      }
+      await waitFor(async () => {
+        const url = await open('/watch?v=quickfix-off-again-' + Date.now());
+        return (await evalIn(app, url, 'typeof window.shmmothE2eQuickFix')) === 'undefined';
+      }, { message: 'the quick fixes to stop after switching them off', timeout: 30000, interval: 500 });
     });
 
     await t.test('with the blocker paused for YouTube they do not run', async () => {

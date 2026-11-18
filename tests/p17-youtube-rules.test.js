@@ -76,18 +76,41 @@ test('element hiding, network rules, generic rules and comments are untouched', 
 
 test('uBlock\'s own lists go in as they are; a list without YouTube is returned unchanged', () => {
   const ubo = 'www.youtube.com##+js(nano-stb, [native code], 17000, 0.001)\nwww.youtube.com##+js(trusted-rpfr, \'"adSlots"\', \'"no_ads"\', player?)';
-  eq(prepareForEngine('ubo-quick-fixes', ubo), ubo);
+  eq(prepareForEngine('ubo-quick-fixes', ubo, { youtubeQuickFixes: true }), ubo);
   eq(prepareForEngine('ubo-filters', ubo), ubo);
   assert(!prepareForEngine('adguard-base', ubo).includes('nano-stb'), 'AdGuard: taken out');
   const plain = 'example.com##+js(nowoif)\n||ads.example^';
   eq(prepareForEngine('easylist', plain), plain);
 });
 
+console.log('\n📋 uBlock\'s quick fixes on YouTube (1.5.9): only when switched on');
+test('off (the default): the quick fixes leave YouTube out — the chain that moved the player to the end does not run', () => {
+  const qf = [
+    'www.youtube.com##+js(rpnt, script, /(\\(function serverContract\\(\\))/, seekTo)',
+    'www.youtube.com##+js(trusted-edit-inbound-object, JSON.stringify, 0, [?.attestationRequest]+={"params":"YAHI"})',
+    'youtube.com,example.org##+js(nano-stb, [native code], 17000, 0.001)',
+    'example.com##+js(nowoif)',
+    '/\\.googlevideo\\.com\\/videoplayback\\?expire=1&/$xhr,3p,domain=www.youtube.com'
+  ].join('\n');
+  const off = prepareForEngine('ubo-quick-fixes', qf).split('\n');
+  assert(!off.some((l) => /serverContract|attestationRequest/.test(l)), 'YouTube page scripts of the quick fixes: out');
+  assert(off.includes('example.org##+js(nano-stb, [native code], 17000, 0.001)'), 'other sites keep theirs');
+  assert(off.includes('example.com##+js(nowoif)'), 'other rules untouched');
+  assert(off.some((l) => l.startsWith('/\\.googlevideo')), 'network rules untouched');
+  eq(prepareForEngine('ubo-quick-fixes', qf, { youtubeQuickFixes: true }), qf, 'on: all of it');
+  eq(prepareForEngine('ubo-filters', qf), qf, 'uBlock\'s other lists: always all of it');
+});
+
 console.log('\n📋 Wiring');
 test('the engine is built from the prepared text; format version 3; the ad helper never touches the speed', () => {
   const ab = fs.readFileSync(path.join(SRC, 'services', 'adblocker.js'), 'utf8');
-  assert(/usable\.map\(\(l\) => filterLists\.prepareForEngine\(l\.id, l\.text\)\)\.join/.test(ab), 'prepared text');
-  assert(/const META_VERSION = 3;/.test(ab), 'the kept engine of 1.5.7 (version 2) is built again');
+  assert(/usable\.map\(\(l\) => filterLists\.prepareForEngine\(l\.id, l\.text, \{ youtubeQuickFixes \}\)\)\.join/.test(ab), 'prepared text');
+  assert(/const META_VERSION = 4;/.test(ab), 'the kept engines of 1.5.7 / 1.5.8 are built again');
+  assert(/\{ id: 'options', text: 'youtubeQuickFixes=' \+ youtubeQuickFixes \}/.test(ab), 'the choice is part of the signature: switching it builds again');
+  assert(/Boolean\(kept\.meta\.youtubeQuickFixes\) === this\._youtubeQuickFixes\(\)/.test(ab), 'a kept engine with the other choice is not used');
+  assert(/adBlockerYouTubeQuickFixes:\s*false/.test(fs.readFileSync(path.join(SRC, 'services', 'storage.js'), 'utf8')), 'off by default');
+  assert(/delta\.adBlockerYouTubeQuickFixes !== undefined && this\.adBlocker\) this\.adBlocker\.refresh\(\)/.test(fs.readFileSync(path.join(SRC, 'browser', 'ipc.js'), 'utf8')), 'switching rebuilds');
+  assert(fs.readFileSync(path.join(SRC, 'pages', 'settings.html'), 'utf8').includes('id="toggle-yt-quickfixes"'));
   const tabs = fs.readFileSync(path.join(SRC, 'browser', 'tabs.js'), 'utf8');
   const helper = tabs.slice(tabs.indexOf('_applyYouTubeOptimizer('), tabs.indexOf('module.exports'));
   assert(!/playbackRate/.test(helper), 'the speed is never touched');

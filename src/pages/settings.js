@@ -235,6 +235,8 @@ async function initSettings() {
       if (togglePasswordAutofill) togglePasswordAutofill.checked = currentSettings.passwordAutofillEnabled !== false;
       if (toggleMica) toggleMica.checked = currentSettings.micaEffect === true;
       if (togglePopups) togglePopups.checked = currentSettings.popupBlockerEnabled !== false;
+      const ytQuick = document.getElementById('toggle-yt-quickfixes');
+      if (ytQuick) ytQuick.checked = currentSettings.adBlockerYouTubeQuickFixes === true;
       for (const [id, key] of Object.entries(PRIVACY_TOGGLES)) {
         const el = document.getElementById(id);
         if (el) el.checked = currentSettings[key] !== false;
@@ -347,6 +349,8 @@ if (btnUpdateFilterLists) {
   });
 }
 
+const toggleYtQuick = document.getElementById('toggle-yt-quickfixes');
+if (toggleYtQuick) toggleYtQuick.addEventListener('change', () => saveSettingChange({ adBlockerYouTubeQuickFixes: toggleYtQuick.checked }));
 if (togglePopups) {
   togglePopups.addEventListener('change', () => saveSettingChange({ popupBlockerEnabled: togglePopups.checked }));
 }

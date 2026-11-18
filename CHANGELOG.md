@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.5.9
+
+- **YouTube: videos play with the ad blocker on.** In 1.5.8 a video still kept buffering, or ended at once and the next one did the same (the owner's browser console showed it). uBlock Origin's newest YouTube defence ("quick fixes") is a chain of rules made for uBlock in Firefox, which can also rewrite YouTube's server answers — no Chromium-based browser can. Here only part of the chain ran, and its fallback, on seeing an ad stitched into the video, moved the player to the end. Those quick-fix rules no longer run on YouTube; uBlock's other YouTube rules still take the ads out of the player's data, and the other lists still block ad and tracker requests there.
+- New in *Settings → Ad-Blocker*: **YouTube: uBlock's newest anti-adblock tricks** (off by default). If YouTube ever shows "Ad blockers are not allowed", switch it on: the ad blocker rebuilds itself in a few seconds, no update needed.
+
 ## 1.5.8
 
 - **YouTube videos play again.** With the ad blocker on, a video could keep buffering and never start (with the ad blocker paused for YouTube it played, with ads). Two rule sets were patching YouTube's player at the same time: uBlock Origin's, which works around YouTube's anti-adblock with a set of rules tuned together and updated within hours, and AdGuard's, which among other things still forced off a player setting that uBlock had stopped touching. Now YouTube gets only uBlock Origin's page scripts; the other lists still hide elements and block ad and tracker requests there, and keep their page scripts on every other site. The ad blocker builds its engine again once after the update (a few seconds after start, in the background).
