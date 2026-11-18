@@ -19,7 +19,7 @@ const ENFORCEMENT_REFRESH_GAP_MS = 30 * 60 * 1000;   // YouTube's anti-adblock n
 const YOUTUBE_FIX_LISTS = Object.freeze(['ubo-quick-fixes', 'ubo-filters', 'ubo-filters-2025', 'ubo-filters-2026']);
 const MAX_CUSTOM_FILTER_LINES = 5000;
 const MAX_CUSTOM_FILTER_LINE = 1000;
-const META_VERSION = 3;                          // 3 (1.5.8): YouTube gets only uBlock's page scripts
+const META_VERSION = 4;                          // 3 (1.5.8): YouTube gets only uBlock's page scripts; 4 (1.5.9): quick fixes on YouTube opt-in
 const DOWNLOAD_CONCURRENCY = 4;
 const GIVE_UP_AFTER_FAILED_LISTS = 4;           // this many lists in a row without any answer = offline, stop trying
 const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -430,6 +430,11 @@ class AdBlockerService {
 
   // ─── Lists and the compiled engine ────────────────────────────────────────
 
+  /** Settings → Ad-Blocker → "YouTube: uBlock's newest anti-adblock tricks" (off by default, 1.5.9). */
+  _youtubeQuickFixes() {
+    try { return this.storage.getSettings().adBlockerYouTubeQuickFixes === true; } catch (_) { return false; }
+  }
+
   _timing(what, ms) {
     if (this._onTiming) { try { this._onTiming(what, ms); } catch (_) { /* ignore */ } }
   }
@@ -511,7 +516,9 @@ class AdBlockerService {
       throw new Error('no filter list could be downloaded or read from disk (' + (lists[0] && lists[0].error || 'no connection') + ')');
     }
 
-    const signature = filterLists.signatureOf([...usable, ...(resources.ok ? [resources] : [])]);
+    const youtubeQuickFixes = this._youtubeQuickFixes();
+    // the YouTube choice is part of what the engine is built from: switching it builds the engine again
+    const signature = filterLists.signatureOf([...usable, ...(resources.ok ? [resources] : []), { id: 'options', text: 'youtubeQuickFixes=' + youtubeQuickFixes }]);
     const listInfo = lists.map((l) => ({ id: l.id, name: l.name, ok: l.ok, stale: l.stale, bytes: l.text.length, source: l.source, fetchedAt: l.fetchedAt, error: l.error }));
     const resourcesInfo = { ok: resources.ok, stale: resources.stale, source: resources.source, fetchedAt: resources.fetchedAt, error: resources.error };
 
@@ -522,7 +529,7 @@ class AdBlockerService {
       return { blocker: this.blocker, meta: this.meta, changed: false };
     }
 
-    const text = usable.map((l) => filterLists.prepareForEngine(l.id, l.text)).join('\n');
+    const text = usable.map((l) => filterLists.prepareForEngine(l.id, l.text, { youtubeQuickFixes })).join('\n');
     const resourcesText = resources.ok ? resources.text : '';
     let built = null;
     if (this._buildInWorker) {
@@ -546,7 +553,7 @@ class AdBlockerService {
     }
     console.log(`Ad-block engine built ${this.lastBuild.where === 'worker' ? 'in the background' : 'on the main thread'} in ${this.lastBuild.ms} ms.`);
     const meta = {
-      version: META_VERSION, signature, builtAt: Date.now(), checkedAt: Date.now(),
+      version: META_VERSION, signature, builtAt: Date.now(), checkedAt: Date.now(), youtubeQuickFixes,
       networkRules: counts.network, cosmeticRules: counts.cosmetic, lists: listInfo, resources: resourcesInfo
     };
     if (built && built.written) this._writeMeta(meta);                // the worker wrote the engine file already
@@ -649,7 +656,8 @@ class AdBlockerService {
   /** Loads the kept engine at once (a start-up needs no network and blocks from the first request), else builds one. */
   async _createInitialEngine() {
     const kept = this._readEngineCache();
-    if (kept) {
+    // kept with the other YouTube choice (Settings → Ad-Blocker): built again
+    if (kept && Boolean(kept.meta.youtubeQuickFixes) === this._youtubeQuickFixes()) {
       this.meta = kept.meta;
       return kept.blocker;
     }

@@ -318,6 +318,8 @@ class IpcMethods {
       if (delta.adBlockerCustomFilters !== undefined && this.adBlocker) {
         this.adBlocker.reloadCustomFilters();
       }
+      // the YouTube choice changes what the engine is built from: built again (in the background, a few seconds)
+      if (delta.adBlockerYouTubeQuickFixes !== undefined && this.adBlocker) this.adBlocker.refresh().catch(() => {});
       if (delta.adBlockerEnabled !== undefined && this.adBlocker) {
         this.adBlocker.setEnabled(delta.adBlockerEnabled);
       }

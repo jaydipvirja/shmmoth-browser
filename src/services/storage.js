@@ -41,7 +41,8 @@ class StorageService {
         passwordAutofillEnabled: true,         // offer saved logins next to sign-in fields (the user picks, nothing is submitted)
         adBlockerAllowlist:     [],            // sites where the ad blocker is paused (host names)
         adBlockerCustomFilters: '',            // the user's own filter lines ("My filters")
-        popupBlockerEnabled:    true,          // refuse ad pop-ups and pop-unders (services/popupPolicy.js)
+        popupBlockerEnabled:    true,
+        adBlockerYouTubeQuickFixes: false,     // uBlock's quick fixes on YouTube (1.5.9; off: they stopped videos here)          // refuse ad pop-ups and pop-unders (services/popupPolicy.js)
         // privacy shield (services/privacyShield.js)
         privacyBlockThirdPartyCookies: true,   // cookies are not sent to / set by other sites than the page's own
         privacyStripTrackingParams:    true,   // utm_…, fbclid, gclid … removed from page addresses
