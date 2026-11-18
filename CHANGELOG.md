@@ -1,5 +1,10 @@
 # CHANGELOG
 
+## 1.5.8
+
+- **YouTube videos play again.** With the ad blocker on, a video could keep buffering and never start (with the ad blocker paused for YouTube it played, with ads). Two rule sets were patching YouTube's player at the same time: uBlock Origin's, which works around YouTube's anti-adblock with a set of rules tuned together and updated within hours, and AdGuard's, which among other things still forced off a player setting that uBlock had stopped touching. Now YouTube gets only uBlock Origin's page scripts; the other lists still hide elements and block ad and tracker requests there, and keep their page scripts on every other site. The ad blocker builds its engine again once after the update (a few seconds after start, in the background).
+- The browser's own YouTube helper no longer plays an ad that still starts at 16× speed (YouTube looks for sped-up ads and then holds the video back); it still mutes the ad and presses its skip button, and gives the sound back afterwards.
+
 ## 1.5.7
 
 Smoothness:

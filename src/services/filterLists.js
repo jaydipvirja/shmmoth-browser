@@ -124,6 +124,40 @@ function looksLikeResources(text) {
   }
 }
 
+/**
+ * YouTube only gets uBlock Origin's own page scripts (1.5.8). YouTube fights ad blockers with frequent changes, and
+ * uBlock answers with a set of rules that work together and are tuned within hours (quick fixes) — including switching
+ * old tricks off again. AdGuard's list also patches YouTube's player, in its own way: it still forced the player
+ * setting "web_streaming_watch" off (uBlock had switched that rule off) and set traps on the player's data. With both
+ * at once the video kept buffering and never played. So the scriptlet and HTML rules of the other lists leave YouTube's
+ * sites out (other sites in the same rule keep it); a rule only for YouTube is dropped. Element hiding and the
+ * network rules of those lists still apply on YouTube.
+ */
+const YOUTUBE_SITE = /^(?:[a-z0-9-]+\.)*(?:youtube\.(?:com|\*)|youtube-nocookie\.com|youtubekids\.com)$/i;
+const SCRIPT_RULE = /^([^!#\[][^#]*?)(#@?#(?:\+js\(|\^))/;
+
+function withoutYouTubePageScripts(text) {
+  if (typeof text !== 'string' || !/youtube/i.test(text)) return text;
+  const out = [];
+  for (const line of text.split('\n')) {
+    const m = SCRIPT_RULE.exec(line);
+    if (!m) { out.push(line); continue; }
+    const domains = m[1].split(',');
+    // only the sites a rule is FOR are taken out; "~youtube.com" (everywhere but YouTube) stays as it is
+    const kept = domains.filter((d) => !YOUTUBE_SITE.test(d.trim()));
+    if (kept.length === domains.length) { out.push(line); continue; }
+    // what is left must still name a site: only exceptions ("~a.com") would make it a rule for every other site
+    if (!kept.some((d) => d.trim() && !d.trim().startsWith('~'))) continue;
+    out.push(kept.join(',') + line.slice(m[1].length));
+  }
+  return out.join('\n');
+}
+
+/** The text of list `id` as it goes into the engine. */
+function prepareForEngine(id, text) {
+  return typeof id === 'string' && id.startsWith('ubo-') ? text : withoutYouTubePageScripts(text);
+}
+
 /** fetch() with a time limit. */
 async function fetchText(fetchImpl, url, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = typeof AbortController === 'function' ? new AbortController() : null;
@@ -182,5 +216,5 @@ function signatureOf(parts) {
 
 module.exports = {
   LISTS, RESOURCES, MIN_LIST_BYTES, MAX_LIST_BYTES, FETCH_TIMEOUT_MS, QUICK_FIXES_TTL_MS,
-  encodeScriptletArgs, isEngineEncoded, looksLikeFilterList, looksLikeResources, fetchText, downloadList, mapLimit, signatureOf, hostOf
+  encodeScriptletArgs, isEngineEncoded, withoutYouTubePageScripts, prepareForEngine, looksLikeFilterList, looksLikeResources, fetchText, downloadList, mapLimit, signatureOf, hostOf
 };

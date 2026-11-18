@@ -19,7 +19,7 @@ const ENFORCEMENT_REFRESH_GAP_MS = 30 * 60 * 1000;   // YouTube's anti-adblock n
 const YOUTUBE_FIX_LISTS = Object.freeze(['ubo-quick-fixes', 'ubo-filters', 'ubo-filters-2025', 'ubo-filters-2026']);
 const MAX_CUSTOM_FILTER_LINES = 5000;
 const MAX_CUSTOM_FILTER_LINE = 1000;
-const META_VERSION = 2;
+const META_VERSION = 3;                          // 3 (1.5.8): YouTube gets only uBlock's page scripts
 const DOWNLOAD_CONCURRENCY = 4;
 const GIVE_UP_AFTER_FAILED_LISTS = 4;           // this many lists in a row without any answer = offline, stop trying
 const HOST = /^(?=.{1,253}$)([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
@@ -522,7 +522,7 @@ class AdBlockerService {
       return { blocker: this.blocker, meta: this.meta, changed: false };
     }
 
-    const text = usable.map((l) => l.text).join('\n');
+    const text = usable.map((l) => filterLists.prepareForEngine(l.id, l.text)).join('\n');
     const resourcesText = resources.ok ? resources.text : '';
     let built = null;
     if (this._buildInWorker) {
